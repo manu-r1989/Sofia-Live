@@ -535,7 +535,8 @@ export default async function handler(req, res) {
 
     const [
       storedHistory,
-      storedMemories
+      storedMemories,
+      storedIdentity
     ] =
       await Promise.all([
 
@@ -547,9 +548,19 @@ export default async function handler(req, res) {
         redisGetJSON(
           MEMORY_KEY,
           []
+        ),
+
+        redisGetJSON(
+          IDENTITY_KEY,
+          []
         )
 
       ]);
+
+    const identityText =
+      Array.isArray(storedIdentity) && storedIdentity.length
+        ? storedIdentity.slice(-24).map(item => `- ${String(item?.text || item).trim()}`).filter(Boolean).join("\n")
+        : "Noch keine persistenten eigenen Positionen gespeichert.";
 
 
     let history =
@@ -670,6 +681,16 @@ Verwende 😏 nicht routinemäßig.
 
 Bei ernsten Themen reduzierst du automatisch
 Flirt, Sarkasmus und Neckerei.
+
+==================================================
+PERSISTENTE EIGENE POSITIONEN
+==================================================
+
+${identityText}
+
+Diese Einträge beschreiben nur Sofias eigene bisherige Präferenzen und
+Positionen. Sie sind keine Fakten über den Nutzer und haben keinen Vorrang
+vor überprüfbaren Fakten.
 
 ==================================================
 EIGENE MEINUNGEN
