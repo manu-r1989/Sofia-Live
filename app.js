@@ -905,7 +905,7 @@ async function loadLongTermMemories() {
         memoryList.appendChild(heading);
         lastCategory = category;
       }
-      renderMemoryItem(item.text, index);
+      renderMemoryItem(item.text, index, category);
     });
 
   } catch (error) {
@@ -950,7 +950,8 @@ function renderEmptyMemory() {
 
 function renderMemoryItem(
   memory,
-  index
+  index,
+  category = 'Persönliches'
 ) {
   if (!memoryList) return;
 
@@ -997,6 +998,28 @@ function renderMemoryItem(
     }
   );
 
+  const textWrap =
+    document.createElement('div');
+
+  Object.assign(textWrap.style, {
+    flex: '1',
+    minWidth: '0'
+  });
+
+  const categoryLabel =
+    document.createElement('div');
+
+  categoryLabel.textContent =
+    category;
+
+  Object.assign(categoryLabel.style, {
+    marginBottom: '4px',
+    color: 'rgba(255,255,255,0.42)',
+    fontSize: '10px',
+    fontWeight: '700',
+    letterSpacing: '.04em'
+  });
+
   const text =
     document.createElement('div');
 
@@ -1006,8 +1029,7 @@ function renderMemoryItem(
   Object.assign(
     text.style,
     {
-      flex: '1',
-      paddingTop: '3px',
+      paddingTop: '0',
       color:
         'rgba(255,255,255,0.9)',
       fontSize: '14px',
@@ -1100,8 +1122,11 @@ function renderMemoryItem(
     }
   );
 
+  textWrap.appendChild(categoryLabel);
+  textWrap.appendChild(text);
+
   item.appendChild(number);
-  item.appendChild(text);
+  item.appendChild(textWrap);
   item.appendChild(editButton);
   item.appendChild(deleteButton);
 
