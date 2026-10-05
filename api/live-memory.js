@@ -499,6 +499,10 @@ old_memory muss bei update/delete möglichst exakt eine EXISTIERENDE Erinnerung 
 new_memory muss bei add/update eine kurze, neutrale und eigenständig verständliche Erinnerung sein.
 
 Speichere keine Vermutungen.
+Verwende eine hohe Speicherschwelle: Explizite Aussagen des Nutzers haben
+höchste Verlässlichkeit, wiederholt bestätigte Angaben sind ebenfalls
+speicherwürdig. Indirekte Schlüsse, Interpretation von Tonfall oder bloße
+Plausibilität führen zu action = "none".
 
 Antworte ausschließlich als gültiges JSON:
 
