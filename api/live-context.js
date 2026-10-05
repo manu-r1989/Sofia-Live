@@ -47,6 +47,40 @@ export default async function handler(req, res) {
     const memories = Array.isArray(raw) ? raw.filter(x => textOf(x)).slice(-80) : [];
     const catalog = memories.map((m, i) => `${i}: [${m?.category || "Sonstiges"}] ${textOf(m)}`).join("\n");
 
+    // V4.16.3 Live: classify explicit spoken reminder requests without
+    // changing the Realtime audio pipeline. The browser performs the final
+    // iPhone calendar import after the spoken turn.
+    let calendarAction = null;
+    try {
+      const calendarResponse = await fetch("https://api.openai.com/v1/responses", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "gpt-5.6",
+          instructions: "Erkenne nur ausdrückliche Wünsche nach einer Erinnerung oder einem Kalendereintrag. Antworte ausschließlich als JSON. Ohne solchen Wunsch: {\\\"calendar_action\\\":null}. Bei eindeutigem Zeitpunkt: {\\\"calendar_action\\\":{\\\"title\\\":\\\"kurzer Titel\\\",\\\"start\\\":\\\"YYYY-MM-DDTHH:MM:SS\\\",\\\"duration_minutes\\\":15,\\\"alarm_minutes\\\":0,\\\"notes\\\":\\\"\\\"}}. Wenn Datum oder Uhrzeit wesentlich unklar ist, calendar_action null. Nutze lokale Zeit ohne Zeitzonen-Suffix.",
+          input: message,
+          max_output_tokens: 180
+        })
+      });
+      if (calendarResponse.ok) {
+        const calendarData = await calendarResponse.json();
+        const calendarText = calendarData.output?.flatMap(x => x.content || []).find(x => x.type === "output_text")?.text || "";
+        const parsedCalendar = JSON.parse(calendarText);
+        const action = parsedCalendar?.calendar_action;
+        if (action && typeof action === "object" && typeof action.title === "string" && /^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(?::\\d{2})?$/.test(String(action.start || ""))) {
+          calendarAction = {
+            title: action.title.trim().slice(0, 160),
+            start: String(action.start),
+            duration_minutes: Number.isFinite(Number(action.duration_minutes)) ? Math.min(1440, Math.max(5, Math.round(Number(action.duration_minutes)))) : 15,
+            alarm_minutes: Number.isFinite(Number(action.alarm_minutes)) ? Math.min(10080, Math.max(0, Math.round(Number(action.alarm_minutes)))) : 0,
+            notes: typeof action.notes === "string" ? action.notes.trim().slice(0, 500) : ""
+          };
+        }
+      }
+    } catch (error) {
+      console.warn("Live calendar context:", error?.message || error);
+    }
+
     // V4.16.2 Live: retrieve current web information for the exact spoken turn.
     // This endpoint already runs before response.create, so the Realtime model
     // can receive grounded current context without changing the audio pipeline.
@@ -75,7 +109,8 @@ export default async function handler(req, res) {
 
     if (!memories.length) {
       return res.status(200).json({
-        context: webContext ? `Aktuelle externe Informationen:\n${webContext}` : ""
+        context: webContext ? `Aktuelle externe Informationen:\n${webContext}` : "",
+        calendarAction
       });
     }
     const r = await fetch("https://api.openai.com/v1/responses", {
@@ -99,7 +134,7 @@ export default async function handler(req, res) {
       memoryContext ? `Relevante Erinnerungen:\n${memoryContext}` : "",
       webContext ? `Aktuelle externe Informationen:\n${webContext}` : ""
     ].filter(Boolean).join("\n\n");
-    return res.status(200).json({ context });
+    return res.status(200).json({ context, calendarAction });
   } catch (error) {
     console.error("Live context:", error);
     return res.status(200).json({ context: "" });
