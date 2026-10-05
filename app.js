@@ -4,6 +4,9 @@ const input = document.querySelector('#input');
 const form = document.querySelector('#form');
 const mode = document.querySelector('#mode');
 const thought = document.querySelector('#thought');
+const sendButton = document.querySelector('#sendButton');
+const chatPanel = document.querySelector('.chatPanel');
+const chatMinimize = document.querySelector('#chatMinimize');
 
 const MEMORY_KEY = 'sofia_memory';
 const MAX_STORED_MESSAGES = 100;
@@ -83,6 +86,22 @@ function saveMemory() {
    MESSAGES
 ========================= */
 
+function scrollChatToLatest(behavior = 'auto') {
+  if (!messages) return;
+
+  const run = () => {
+    messages.scrollTo({
+      top: messages.scrollHeight,
+      behavior
+    });
+  };
+
+  requestAnimationFrame(() => {
+    run();
+    requestAnimationFrame(run);
+  });
+}
+
 function addMessage(text, who = 'sofia') {
   if (!messages) return;
 
@@ -93,8 +112,7 @@ function addMessage(text, who = 'sofia') {
 
   messages.appendChild(div);
 
-  messages.scrollTop =
-    messages.scrollHeight;
+  scrollChatToLatest('smooth');
 }
 
 function restoreConversation() {
@@ -113,6 +131,12 @@ function restoreConversation() {
         : 'sofia'
     );
   });
+
+  scrollChatToLatest('auto');
+
+  window.addEventListener('load', () => {
+    scrollChatToLatest('auto');
+  }, { once: true });
 
   console.log(
     `Sofia: ${conversationHistory.length} alte Nachrichten wiederhergestellt.`
@@ -336,32 +360,93 @@ async function askSofia(userMessage) {
    SEND
 ========================= */
 
+function submitChatMessage(event) {
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
+  if (!input || isResponding) return false;
+
+  const value = input.value.trim();
+  if (!value) return false;
+
+  addMessage(value, 'user');
+  input.value = '';
+
+  askSofia(value);
+  return false;
+}
+
 if (form && input) {
-  form.addEventListener(
-    'submit',
-    event => {
+  // action verhindert selbst dann Navigation, falls ein Browser
+  // das Formular nativ behandeln möchte.
+  form.setAttribute('action', 'javascript:void(0)');
+  form.setAttribute('method', 'post');
+
+  form.addEventListener('submit', submitChatMessage, true);
+
+  input.addEventListener('keydown', event => {
+    if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
-
-      const value =
-        input.value.trim();
-
-      if (
-        !value ||
-        isResponding
-      ) {
-        return;
-      }
-
-      addMessage(
-        value,
-        'user'
-      );
-
-      input.value = '';
-
-      askSofia(value);
+      submitChatMessage(event);
     }
-  );
+  });
+}
+
+if (sendButton) {
+  sendButton.addEventListener('click', event => {
+    event.preventDefault();
+    submitChatMessage(event);
+  });
+}
+
+/* =========================
+   MOBILE CHAT PANEL
+========================= */
+
+function setChatMinimized(minimized) {
+  if (!chatPanel) return;
+
+  chatPanel.classList.toggle('minimized', Boolean(minimized));
+
+  if (chatMinimize) {
+    chatMinimize.textContent = minimized ? '▴' : '▾';
+    chatMinimize.title = minimized ? 'Chat anzeigen' : 'Chat minimieren';
+    chatMinimize.setAttribute('aria-expanded', minimized ? 'false' : 'true');
+  }
+
+  if (!minimized) {
+    scrollChatToLatest('auto');
+  }
+}
+
+if (chatMinimize) {
+  chatMinimize.addEventListener('click', event => {
+    event.preventDefault();
+    setChatMinimized(!chatPanel?.classList.contains('minimized'));
+  });
+}
+
+if (app) {
+  let previousLive = app.dataset.live === 'true';
+
+  const liveObserver = new MutationObserver(() => {
+    const isLive = app.dataset.live === 'true';
+
+    // Beim Start des Sprachchats auf dem Handy automatisch minimieren.
+    // Danach kann der Nutzer den Chat jederzeit wieder öffnen.
+    if (isLive && !previousLive && window.matchMedia('(max-width: 850px)').matches) {
+      setChatMinimized(true);
+    }
+
+    previousLive = isLive;
+  });
+
+  liveObserver.observe(app, {
+    attributes: true,
+    attributeFilter: ['data-live']
+  });
 }
 
 /* =========================
