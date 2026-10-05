@@ -19,6 +19,42 @@
   let desiredMuted = localStorage.getItem("sofia_audio_muted") === "true";
   let pendingImageContext = null;
 
+  // V4.5.7: hard half-duplex microphone gate.
+  let responseLocked = false;
+  let assistantResponding = false;
+  let ignoreInputUntil = 0;
+  let micSuppressedForAssistant = false;
+  let micRestoreTimer = null;
+
+  function setRealtimeMicEnabled(enabled) {
+    if (!localStream) return;
+    for (const track of localStream.getAudioTracks()) {
+      track.enabled = Boolean(enabled);
+    }
+  }
+
+  function suppressMicForAssistant() {
+    micSuppressedForAssistant = true;
+    assistantResponding = true;
+    if (micRestoreTimer) {
+      clearTimeout(micRestoreTimer);
+      micRestoreTimer = null;
+    }
+    setRealtimeMicEnabled(false);
+  }
+
+  function restoreMicAfterAssistant(delay = 1800) {
+    if (micRestoreTimer) clearTimeout(micRestoreTimer);
+    micRestoreTimer = window.setTimeout(() => {
+      micRestoreTimer = null;
+      if (!liveActive || responseLocked) return;
+      assistantResponding = false;
+      micSuppressedForAssistant = false;
+      ignoreInputUntil = Date.now() + 500;
+      setRealtimeMicEnabled(true);
+    }, delay);
+  }
+
 
   /* ========================================
      LIVE MEMORY STATE
@@ -849,6 +885,12 @@
           connecting =
             false;
 
+          responseLocked = false;
+          assistantResponding = false;
+          micSuppressedForAssistant = false;
+          ignoreInputUntil = 0;
+          setRealtimeMicEnabled(true);
+
 
           setLiveButtonState(
             "active"
@@ -1283,13 +1325,14 @@
       case
         "response.done":
 
+        // iOS can still be playing buffered assistant audio after response.done.
+        // Keep the outgoing microphone track physically disabled.
         setRealtimeMicEnabled(false);
-        restoreMicAfterAssistant(1100);
+        responseLocked = false;
+        ignoreInputUntil = Date.now() + 2300;
+        restoreMicAfterAssistant(1800);
 
-
-        
-      responseLocked = false;
-      ignoreInputUntil = Date.now() + 650;if (app) {
+      if (app) {
 
           app.dataset.speaking =
             "false";
