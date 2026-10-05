@@ -1057,7 +1057,32 @@ function renderMemoryItem(
 
   editButton.addEventListener('click', async () => {
     const next = window.prompt('Erinnerung bearbeiten:', memory);
-    if (next == null || !next.trim() || next.trim() === memory) return;
+    if (next == null || !next.trim()) return;
+
+    const categories = [
+      'Personen',
+      'Vorlieben',
+      'Projekte & Arbeit',
+      'Ziele & Pläne',
+      'Gewohnheiten',
+      'Beziehung',
+      'Persönliches'
+    ];
+
+    const categoryInput = window.prompt(
+      'Kategorie bearbeiten:\n' + categories.join('\n'),
+      category
+    );
+
+    if (categoryInput == null) return;
+
+    const nextCategory = categoryInput.trim();
+    if (!categories.includes(nextCategory)) {
+      setMemoryStatus('Unbekannte Kategorie. Bitte eine vorhandene Kategorie verwenden.');
+      return;
+    }
+
+    if (next.trim() === memory && nextCategory === category) return;
 
     editButton.disabled = true;
     editButton.textContent = '…';
@@ -1067,7 +1092,11 @@ function renderMemoryItem(
         method: 'PUT',
         credentials: 'same-origin',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({old_memory: memory, new_memory: next.trim()})
+        body: JSON.stringify({
+          old_memory: memory,
+          new_memory: next.trim(),
+          category: nextCategory
+        })
       });
 
       if (response.status === 401) {
