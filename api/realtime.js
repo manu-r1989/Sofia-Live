@@ -301,6 +301,13 @@ ${memoryText}
                   transcription: {
                     model: "gpt-4o-mini-transcribe",
                     language: "de"
+                  },
+
+                  turn_detection: {
+                    type: "semantic_vad",
+                    eagerness: "low",
+                    create_response: true,
+                    interrupt_response: false
                   }
                 },
 
