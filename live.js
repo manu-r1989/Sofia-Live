@@ -538,6 +538,16 @@
       assistantText
     );
 
+    if (assistantText) {
+      fetch("/api/sofia-identity", {
+        method: "POST",
+        credentials: "same-origin",
+        cache: "no-store",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userText, assistantText })
+      }).catch(error => console.warn("Sofia identity update:", error));
+    }
+
 
     mirrorTurnToLocalChat(
       userText,
