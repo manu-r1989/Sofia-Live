@@ -437,6 +437,8 @@
 
         });
 
+    return memoryQueue;
+
   }
 
 
