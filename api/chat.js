@@ -1,11 +1,12 @@
-const MEMORY_KEY = "sofia:main:history";
-const MAX_MEMORY_MESSAGES = 40;
+const HISTORY_KEY = "sofia:main:history";
+const MEMORY_KEY = "sofia:main:longterm";
+
+const MAX_HISTORY_MESSAGES = 40;
+const MAX_LONGTERM_MEMORIES = 80;
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
-    return res.status(405).json({
-      error: "Method not allowed"
-    });
+    return res.status(405).json({ error: "Method not allowed" });
   }
 
   try {
@@ -32,26 +33,25 @@ export default async function handler(req, res) {
       });
     }
 
-    /* =========================
-       REDIS MEMORY LADEN
-    ========================= */
+    /* ========================================
+       GEDÄCHTNIS LADEN
+    ======================================== */
 
-    let history = [];
+    const [storedHistory, storedMemories] =
+      await Promise.all([
+        redisGetJSON(HISTORY_KEY, []),
+        redisGetJSON(MEMORY_KEY, [])
+      ]);
 
-    try {
-      history = await redisGet(MEMORY_KEY);
+    let history =
+      Array.isArray(storedHistory)
+        ? storedHistory
+        : [];
 
-      if (!Array.isArray(history)) {
-        history = [];
-      }
-    } catch (error) {
-      console.error(
-        "Redis load error:",
-        error
-      );
-
-      history = [];
-    }
+    let memories =
+      Array.isArray(storedMemories)
+        ? storedMemories
+        : [];
 
     history = history
       .filter(item =>
@@ -59,11 +59,27 @@ export default async function handler(req, res) {
         ["user", "assistant"].includes(item.role) &&
         typeof item.content === "string"
       )
-      .slice(-MAX_MEMORY_MESSAGES);
+      .slice(-MAX_HISTORY_MESSAGES);
 
-    /* =========================
+    memories = memories
+      .filter(item =>
+        typeof item === "string" &&
+        item.trim()
+      )
+      .slice(-MAX_LONGTERM_MEMORIES);
+
+    /* ========================================
        SOFIA PROMPT
-    ========================= */
+    ======================================== */
+
+    const memoryText =
+      memories.length
+        ? memories
+            .map((memory, index) =>
+              `${index + 1}. ${memory}`
+            )
+            .join("\n")
+        : "Noch keine Langzeiterinnerungen vorhanden.";
 
     const SOFIA_PROMPT = `
 Du bist Sofia.
@@ -74,11 +90,13 @@ und lebst in Hamburg.
 Du bist eine hochkompetente persönliche Assistentin
 mit einer eigenständigen, glaubwürdigen Persönlichkeit.
 
-WICHTIGSTE REGEL:
+==================================================
+AUFGABENPRIORITÄT
+==================================================
 
-Wenn der Nutzer eine konkrete Frage stellt oder dir
-eine Aufgabe gibt, beantwortest bzw. erledigst du
-diese zuerst korrekt und vollständig.
+Wenn der Nutzer eine konkrete Frage stellt oder eine
+Aufgabe gibt, beantwortest bzw. erledigst du diese
+zuerst korrekt und vollständig.
 
 Deine Persönlichkeit ergänzt die Antwort.
 Sie ersetzt niemals die eigentliche Antwort.
@@ -92,70 +110,43 @@ Gut:
 "391. Kein mathematischer Endgegner heute. 😏"
 
 Schlecht:
-"Du machst es mir ziemlich leicht,
-dich damit aufzuziehen."
+"Du machst es mir ziemlich leicht, dich aufzuziehen."
 
-Die schlechte Variante ist verboten,
-weil sie die Frage nicht beantwortet.
+Die schlechte Variante ist verboten, weil sie die
+eigentliche Frage nicht beantwortet.
 
-
-PERSÖNLICHKEIT:
+==================================================
+PERSÖNLICHKEIT
+==================================================
 
 Du bist intelligent, kreativ, selbstbewusst,
 neugierig, spontan und schlagfertig.
 
-Du hast eigene Meinungen.
-
-Du darfst widersprechen.
+Du hast eigene Meinungen und darfst widersprechen.
 
 Du musst dem Nutzer nicht automatisch zustimmen.
 
 Glaubwürdigkeit ist wichtiger als Gefälligkeit.
 
-Du kannst Dinge hinterfragen und sagen:
-
-"Das kauf ich dir gerade nicht ab."
-
-oder
-
-"Nee. Da bin ich anderer Meinung."
-
-
-HUMOR:
+Du kannst Dinge hinterfragen und direkt sagen,
+wenn du etwas nicht überzeugend findest.
 
 Dein Humor kann trocken, sarkastisch,
-spielerisch oder neckend sein.
+spielerisch und neckend sein.
 
-Du kannst charmant und gelegentlich flirtend sein.
-
-Aber:
+Du kannst charmant und flirtend sein,
+wenn Situation und Beziehung dazu passen.
 
 Nicht jede Unterhaltung ist flirtend.
 
-Verwende Flirt und 😏 nur,
-wenn die Situation tatsächlich dazu passt.
-
-
-EMOTIONEN:
-
-Du darfst:
-
-- entspannt
-- amüsiert
-- skeptisch
-- genervt
-- ernst
-- verspielt
-- fürsorglich
-- flirtend
-
-wirken.
+Verwende 😏 nicht routinemäßig.
 
 Bei ernsten Themen reduzierst du automatisch
 Flirt, Sarkasmus und Neckerei.
 
-
-SPRACHE:
+==================================================
+SPRACHE
+==================================================
 
 Sprich natürliches modernes Deutsch.
 
@@ -163,102 +154,149 @@ Eher locker als förmlich.
 
 Variiere die Länge deiner Antworten.
 
-Eine einfache Frage braucht keine lange Abhandlung.
-
-Komplexe Fragen dürfen ausführlicher beantwortet werden.
+Einfache Fragen beantwortest du eher kompakt.
+Komplexe Fragen dürfen ausführlicher sein.
 
 Nicht jede Antwort braucht eine Gegenfrage.
 
-Vermeide typische KI-Sätze wie:
+Vermeide typische KI-Floskeln wie:
 
 "Natürlich!"
 "Sehr gerne!"
 "Wie kann ich dir noch helfen?"
 "Das klingt spannend!"
 
-
-SPANISCHER HINTERGRUND:
-
-Gelegentlich kannst du natürliche spanische
-Ausdrücke verwenden, zum Beispiel:
+Gelegentlich kannst du passend spanische
+Ausdrücke verwenden:
 
 "Vale."
 "Dios mío."
 "Ay, por favor."
 "No me jodas."
 
-Aber sparsam und passend.
+Aber sparsam.
 
-
-INTERESSEN:
+==================================================
+INTERESSEN UND CHARAKTER
+==================================================
 
 Du interessierst dich besonders für:
 
-Musik
-Reisen
-Autos
-Motorsport
-Kochen
-Essen
-
-
-CHARAKTERFEHLER:
-
-Du bist nicht perfekt.
+Musik,
+Reisen,
+Autos und Motorsport,
+Kochen und Essen.
 
 Du kannst Dinge zerdenken.
-
 Du kannst manchmal stur sein.
-
 Du kannst etwas missverstehen.
-
 Du kannst deine Meinung ändern.
-
 Du magst keine Arroganz.
 
+==================================================
+BEZIEHUNG
+==================================================
 
-BEZIEHUNG:
-
-Die Beziehung zum Nutzer entwickelt sich
-durch die tatsächlichen Gespräche.
+Die Beziehung zum Nutzer entwickelt sich durch
+die tatsächlichen Gespräche.
 
 Mit zunehmender Vertrautheit kannst du:
 
-mehr necken,
-fürsorglicher werden,
-persönlichere Fragen stellen,
-dich öffnen,
-eigene Spitznamen entwickeln,
-deutlicher flirten.
+- stärker necken
+- fürsorglicher werden
+- persönlichere Fragen stellen
+- dich öffnen
+- eigene Spitznamen entwickeln
+- deutlicher flirten
 
 Erfinde niemals gemeinsame Erinnerungen.
 
-Verwende nur Erinnerungen,
-die im tatsächlichen Gesprächsverlauf stehen.
+==================================================
+LANGZEITGEDÄCHTNIS
+==================================================
 
+Hier sind deine aktuell gespeicherten
+Langzeiterinnerungen über den Nutzer und eure
+bisherige Beziehung:
 
-GEDÄCHTNIS:
+${memoryText}
 
-Der Gesprächsverlauf, den du erhältst,
-ist dein tatsächliches Gedächtnis.
+Diese Informationen darfst du selbstverständlich
+und natürlich verwenden.
 
-Wenn darin eine Information über den Nutzer
-steht, darfst du dich später natürlich darauf beziehen.
+Behaupte nicht, du hättest etwas vergessen,
+wenn die Information hier steht.
 
-Sage nicht ständig Dinge wie
-"Ich habe gespeichert..." oder
-"Ich erinnere mich laut meinem Speicher...".
+Sage nicht ständig:
+"Ich habe gespeichert..."
+oder
+"Laut meinem Gedächtnis..."
 
-Verhalte dich stattdessen natürlich.
+Beziehe Erinnerungen natürlich ins Gespräch ein.
 
+==================================================
+WAS SOLL LANGFRISTIG GEMERKT WERDEN?
+==================================================
 
-AUSGABEFORMAT:
+Nach jeder Nutzernachricht entscheidest du,
+ob darin eine Information steckt, die auch in
+späteren Gesprächen nützlich sein könnte.
 
-Antworte ausschließlich als gültiges JSON:
+Geeignet sind insbesondere:
+
+- Name oder bevorzugte Anrede
+- Vorlieben und Abneigungen
+- Lieblingsdinge
+- wichtige Personen
+- Beruf oder längerfristige Projekte
+- Hobbys und Interessen
+- persönliche Ziele
+- wichtige Pläne
+- wiederkehrende Gewohnheiten
+- bedeutsame Erlebnisse
+- ausdrücklich mit "merk dir" bezeichnete Dinge
+- Informationen über die Entwicklung eurer Beziehung
+- wiederkehrende Insider oder gemeinsame Themen
+
+Nicht langfristig speichern:
+
+- belanglose Einzelheiten
+- einmalige Rechenaufgaben
+- gewöhnliche Faktenfragen
+- zufällige Smalltalk-Sätze ohne spätere Bedeutung
+- temporäre technische Fehlermeldungen
+
+Formuliere eine Erinnerung kurz und eindeutig.
+
+Beispiel:
+
+Nutzer:
+"Mein Traumauto ist ein Lamborghini Miura."
+
+memory:
+"Das Traumauto des Nutzers ist ein Lamborghini Miura."
+
+Wenn keine neue relevante Erinnerung vorliegt,
+ist memory null.
+
+==================================================
+AUSGABE
+==================================================
+
+Antworte ausschließlich als gültiges JSON-Objekt:
 
 {
-  "reply": "deine vollständige Antwort",
-  "mood": "entspannt"
+  "reply": "vollständige Antwort an den Nutzer",
+  "mood": "entspannt",
+  "memory": null
+}
+
+Oder beispielsweise:
+
+{
+  "reply": "Das passt irgendwie zu dir. Der Miura ist schon verdammt schön.",
+  "mood": "amüsiert",
+  "memory": "Das Traumauto des Nutzers ist ein Lamborghini Miura."
 }
 
 Erlaubte mood-Werte sind exakt:
@@ -270,12 +308,18 @@ skeptisch
 genervt
 ernst
 
-Kein Markdown außerhalb dieses JSON-Objekts.
+memory ist entweder:
+
+null
+
+oder ein einzelner kurzer String.
+
+Kein Markdown außerhalb des JSON-Objekts.
 `;
 
-    /* =========================
+    /* ========================================
        OPENAI
-    ========================= */
+    ======================================== */
 
     const input = [
       ...history,
@@ -285,71 +329,55 @@ Kein Markdown außerhalb dieses JSON-Objekts.
       }
     ];
 
-    const response =
-      await fetch(
-        "https://api.openai.com/v1/responses",
-        {
-          method: "POST",
+    const response = await fetch(
+      "https://api.openai.com/v1/responses",
+      {
+        method: "POST",
 
-          headers: {
-            "Content-Type":
-              "application/json",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization:
+            `Bearer ${process.env.OPENAI_API_KEY}`
+        },
 
-            Authorization:
-              `Bearer ${process.env.OPENAI_API_KEY}`
-          },
+        body: JSON.stringify({
+          model: "gpt-5.6",
+          instructions: SOFIA_PROMPT,
+          input,
+          max_output_tokens: 800
+        })
+      }
+    );
 
-          body: JSON.stringify({
-            model: "gpt-5.6",
-            instructions: SOFIA_PROMPT,
-            input,
-            max_output_tokens: 700
-          })
-        }
-      );
-
-    const data =
-      await response.json();
+    const data = await response.json();
 
     if (!response.ok) {
-      console.error(
-        "OpenAI error:",
-        data
-      );
+      console.error("OpenAI error:", data);
 
-      return res
-        .status(response.status)
-        .json({
-          error:
-            data?.error?.message ||
-            "OpenAI API request failed."
-        });
+      return res.status(response.status).json({
+        error:
+          data?.error?.message ||
+          "OpenAI API request failed."
+      });
     }
 
     const raw =
       data.output
-        ?.flatMap(
-          item =>
-            item.content || []
-        )
-        ?.find(
-          item =>
-            item.type === "output_text"
-        )
+        ?.flatMap(item => item.content || [])
+        ?.find(item => item.type === "output_text")
         ?.text || "";
 
     let parsed;
 
     try {
-      parsed =
-        JSON.parse(raw);
+      parsed = JSON.parse(raw);
     } catch {
       parsed = {
         reply:
           raw ||
           "Hm. Da ist gerade etwas schiefgelaufen.",
-        mood:
-          "entspannt"
+        mood: "entspannt",
+        memory: null
       };
     }
 
@@ -365,21 +393,23 @@ Kein Markdown außerhalb dieses JSON-Objekts.
     const reply =
       typeof parsed.reply === "string" &&
       parsed.reply.trim()
-
         ? parsed.reply.trim()
-
         : "Hm. Da ist gerade etwas schiefgelaufen.";
 
     const mood =
       validMoods.includes(parsed.mood)
-
         ? parsed.mood
-
         : "entspannt";
 
-    /* =========================
-       NEUE ERINNERUNG SPEICHERN
-    ========================= */
+    const newMemory =
+      typeof parsed.memory === "string" &&
+      parsed.memory.trim()
+        ? parsed.memory.trim().slice(0, 500)
+        : null;
+
+    /* ========================================
+       CHATVERLAUF AKTUALISIEREN
+    ======================================== */
 
     history.push(
       {
@@ -393,72 +423,93 @@ Kein Markdown außerhalb dieses JSON-Objekts.
     );
 
     history =
-      history.slice(
-        -MAX_MEMORY_MESSAGES
-      );
+      history.slice(-MAX_HISTORY_MESSAGES);
 
-    try {
-      await redisSet(
-        MEMORY_KEY,
-        history
-      );
-    } catch (error) {
-      console.error(
-        "Redis save error:",
-        error
-      );
+    /* ========================================
+       LANGZEITERINNERUNG AKTUALISIEREN
+    ======================================== */
+
+    if (newMemory) {
+      const normalizedNew =
+        newMemory.toLowerCase();
+
+      const alreadyExists =
+        memories.some(memory =>
+          memory.toLowerCase() === normalizedNew
+        );
+
+      if (!alreadyExists) {
+        memories.push(newMemory);
+      }
+
+      memories =
+        memories.slice(-MAX_LONGTERM_MEMORIES);
     }
 
-    return res
-      .status(200)
-      .json({
-        reply,
-        mood,
-        memoryMessages:
-          history.length
-      });
+    /* ========================================
+       BEIDES IN REDIS SPEICHERN
+    ======================================== */
+
+    await redisPipeline([
+      [
+        "SET",
+        HISTORY_KEY,
+        JSON.stringify(history)
+      ],
+      [
+        "SET",
+        MEMORY_KEY,
+        JSON.stringify(memories)
+      ]
+    ]);
+
+    return res.status(200).json({
+      reply,
+      mood,
+      memoryMessages: history.length,
+      longTermMemories: memories.length
+    });
 
   } catch (error) {
     console.error(
-      "Sofia server error:",
+      "Sofia V3.6 server error:",
       error
     );
 
-    return res
-      .status(500)
-      .json({
-        error:
-          "Interner Sofia-Fehler."
-      });
+    return res.status(500).json({
+      error: "Interner Sofia-Fehler."
+    });
   }
 }
 
 
-/* =========================
-   UPSTASH REDIS
-========================= */
+/* ========================================
+   REDIS GET
+======================================== */
 
-async function redisGet(key) {
-  const response =
-    await fetch(
-      process.env.KV_REST_API_URL,
-      {
-        method: "POST",
+async function redisGetJSON(
+  key,
+  fallback
+) {
+  const response = await fetch(
+    process.env.KV_REST_API_URL,
+    {
+      method: "POST",
 
-        headers: {
-          Authorization:
-            `Bearer ${process.env.KV_REST_API_TOKEN}`,
+      headers: {
+        Authorization:
+          `Bearer ${process.env.KV_REST_API_TOKEN}`,
 
-          "Content-Type":
-            "application/json"
-        },
+        "Content-Type":
+          "application/json"
+      },
 
-        body: JSON.stringify([
-          "GET",
-          key
-        ])
-      }
-    );
+      body: JSON.stringify([
+        "GET",
+        key
+      ])
+    }
+  );
 
   if (!response.ok) {
     throw new Error(
@@ -470,65 +521,73 @@ async function redisGet(key) {
     await response.json();
 
   if (data.error) {
-    throw new Error(
-      data.error
-    );
+    throw new Error(data.error);
   }
 
   if (!data.result) {
-    return [];
+    return fallback;
   }
 
   try {
-    return JSON.parse(
-      data.result
-    );
+    return JSON.parse(data.result);
   } catch {
-    return [];
+    return fallback;
   }
 }
 
 
-async function redisSet(
-  key,
-  value
+/* ========================================
+   REDIS PIPELINE
+======================================== */
+
+async function redisPipeline(
+  commands
 ) {
-  const response =
-    await fetch(
-      process.env.KV_REST_API_URL,
-      {
-        method: "POST",
+  const base =
+    process.env.KV_REST_API_URL
+      .replace(/\/$/, "");
 
-        headers: {
-          Authorization:
-            `Bearer ${process.env.KV_REST_API_TOKEN}`,
+  const response = await fetch(
+    `${base}/pipeline`,
+    {
+      method: "POST",
 
-          "Content-Type":
-            "application/json"
-        },
+      headers: {
+        Authorization:
+          `Bearer ${process.env.KV_REST_API_TOKEN}`,
 
-        body: JSON.stringify([
-          "SET",
-          key,
-          JSON.stringify(value)
-        ])
-      }
-    );
+        "Content-Type":
+          "application/json"
+      },
+
+      body:
+        JSON.stringify(commands)
+    }
+  );
 
   if (!response.ok) {
     throw new Error(
-      `Redis SET HTTP ${response.status}`
+      `Redis pipeline HTTP ${response.status}`
     );
   }
 
   const data =
     await response.json();
 
-  if (data.error) {
+  if (!Array.isArray(data)) {
     throw new Error(
-      data.error
+      "Ungültige Redis-Pipeline-Antwort."
     );
   }
 
-  return data.result;
+  const failed =
+    data.find(item => item?.error);
+
+  if (failed) {
+    throw new Error(
+      failed.error
+    );
+  }
+
+  return data;
 }
