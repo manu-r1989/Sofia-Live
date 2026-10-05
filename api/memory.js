@@ -94,7 +94,7 @@ function memoryCategory(memory) {
   if (text.includes("immer") || text.includes("routine") || text.includes("regelmäßig")) return "Gewohnheiten";
   if (text.includes("mag ") || text.includes("lieblings") || text.includes("bevorzug") || text.includes("interess")) return "Vorlieben";
   if (text.includes("beziehung") || text.includes("spitzname") || text.includes("insider")) return "Beziehung";
-  return "Persönliches";
+  return "Sonstiges";
 }
 
 function normalizeMemoryItem(item) {
@@ -195,7 +195,8 @@ export default async function handler(req, res) {
         "Ziele & Pläne",
         "Gewohnheiten",
         "Beziehung",
-        "Persönliches"
+        "Persönliches",
+        "Sonstiges"
       ];
 
       const nextCategory =
