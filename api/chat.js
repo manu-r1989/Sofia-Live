@@ -1014,8 +1014,16 @@ Geeignet sind insbesondere:
 - wiederkehrende Gewohnheiten
 - bedeutsame Erlebnisse
 - ausdrücklich mit "merk dir" bezeichnete Dinge
-- längerfristige Beziehungsentwicklung
+- längerfristige, tatsächlich erkennbare Beziehungsentwicklung
 - wiederkehrende Insider oder gemeinsame Themen
+- etablierte Spitznamen oder Anreden, wenn sie tatsächlich verwendet werden
+
+Für die Kategorie "Beziehung" gilt eine höhere Schwelle:
+Speichere nur stabile oder wiederkehrende Dynamiken. Ein einzelner Flirt,
+ein einzelner Witz, eine einmalige freundliche Formulierung oder eine
+vermutete emotionale Nähe reichen nicht. Speichere niemals einen
+Beziehungsstatus oder Gefühle, die der Nutzer nicht tatsächlich
+ausgedrückt hat.
 
 Nicht langfristig speichern:
 
