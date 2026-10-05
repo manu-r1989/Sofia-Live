@@ -890,11 +890,3 @@ async function redisPipeline(
 
   return data;
 }
-
-WIDERSPRÜCHE UND ÄNDERUNGEN:
-Prüfe vor "add" immer, ob dieselbe Eigenschaft, Person, Vorliebe,
-Gewohnheit, dasselbe Ziel oder Projekt bereits gespeichert ist.
-Wenn eine neue Aussage eine bestehende Information ersetzt,
-korrigiert oder ihr widerspricht, verwende "update" statt "add",
-auch wenn sie anders formuliert ist. Speichere nicht beide Versionen.
-
