@@ -1532,6 +1532,22 @@ Kein Markdown außerhalb des JSON-Objekts.
     ]);
 
 
+    // V4.12.5: Sofia's own continuity is stored separately from user memory.
+    try {
+      const origin = `https://${req.headers.host}`;
+      await fetch(`${origin}/api/sofia-identity`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          cookie: req.headers.cookie || ""
+        },
+        body: JSON.stringify({ userText: message.trim(), assistantText: reply })
+      });
+    } catch (identityError) {
+      console.warn("Sofia identity update:", identityError);
+    }
+
+
     /* ========================================
        ANTWORT
     ======================================== */
