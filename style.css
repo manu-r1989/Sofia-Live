@@ -762,3 +762,24 @@
   .chatPanel.minimized{height:min(38vh,320px)!important;max-height:min(38vh,320px)!important}
   .chatPanel.chat-full{height:min(72vh,680px)!important;max-height:min(72vh,680px)!important}
 }
+
+
+/* V4.6.9 persistent chat restore */
+.chatRestore{
+  display:none;
+  position:fixed;
+  right:18px;
+  bottom:max(12px,env(safe-area-inset-bottom));
+  width:44px;height:44px;
+  border:0;border-radius:12px;
+  background:rgba(25,25,28,.88);
+  color:#fff;font-size:18px;
+  align-items:center;justify-content:center;
+  z-index:220;
+  backdrop-filter:blur(16px);
+  -webkit-backdrop-filter:blur(16px);
+}
+.app.chat-is-hidden .chatRestore{display:flex}
+@media (orientation:landscape) and (min-width:851px){
+  .chatRestore{right:28px;bottom:28px}
+}
