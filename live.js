@@ -289,7 +289,6 @@
 
         if (audible) {
           avatarLastAudibleAt = performance.now();
-          assistantPlaybackDoneAt = 0;
           avatarWasAudible = true;
           window.SofiaAvatar?.speak();
           // V4.5.9: lip-sync is visualized by SofiaAvatar only; legacy voice bars stay off.
