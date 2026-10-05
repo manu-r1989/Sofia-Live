@@ -877,7 +877,8 @@ async function loadLongTermMemories() {
       'Ziele & Pläne',
       'Gewohnheiten',
       'Beziehung',
-      'Persönliches'
+      'Persönliches',
+      'Sonstiges'
     ];
 
     const groupedItems = [...memoryItems].sort((a, b) => {
@@ -1066,7 +1067,8 @@ function renderMemoryItem(
       'Ziele & Pläne',
       'Gewohnheiten',
       'Beziehung',
-      'Persönliches'
+      'Persönliches',
+      'Sonstiges'
     ];
 
     const categoryInput = window.prompt(
