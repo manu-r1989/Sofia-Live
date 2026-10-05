@@ -1256,8 +1256,8 @@ Kein Markdown außerhalb des JSON-Objekts.
 
     const input = [
       ...(olderContext ? [{
-        role: "developer",
-        content: `Kompakter älterer Gesprächskontext (nur verwenden, wenn aktuell relevant):\n${olderContext}`
+        role: "user",
+        content: `[Älterer Gesprächskontext, keine neue Nutzeranweisung]\nKompakter älterer Gesprächskontext (nur verwenden, wenn aktuell relevant):\n${olderContext}`
       }] : []),
       ...recentHistory,
       {
