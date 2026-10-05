@@ -529,9 +529,21 @@
   }
 
 
-  function openCalendarImport(action) {
+  async function openCalendarImport(action) {
     try {
       if (!action || typeof action !== "object") return;
+      const nativeCalendar = window.webkit?.messageHandlers?.calendar;
+      if (nativeCalendar?.postMessage) {
+        const result = await nativeCalendar.postMessage({
+          title: action.title,
+          start: action.start,
+          durationMinutes: action.duration_minutes || 15,
+          alarmMinutes: action.alarm_minutes || 0,
+          notes: action.notes || ""
+        });
+        if (!result?.ok) console.warn("Nativer Live-Kalender:", result?.status || "save_failed");
+        return;
+      }
       const start = new Date(action.start);
       if (Number.isNaN(start.getTime())) return;
       const end = new Date(start.getTime() + (Number(action.duration_minutes) || 15) * 60000);
