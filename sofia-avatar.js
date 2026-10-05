@@ -2,19 +2,20 @@
 (() => {
   "use strict";
 
-  const VERSION = "4.5";
+  const VERSION = "4.5.1";
   const ASSETS = {
     neutral: "./sofia-avatar.PNG",
     blink: "./avatar/sofia-blink-closed.png",
     small: "./avatar/sofia-mouth-small.png",
     medium: "./avatar/sofia-mouth-medium.png",
     wide: "./avatar/sofia-mouth-wide.png",
-    smile: "./avatar/sofia-expression-smile.png",
-    laugh: "./avatar/sofia-expression-laugh.png",
-    wink: "./avatar/sofia-expression-wink.png",
-    smirk: "./avatar/sofia-expression-smirk.png",
-    skeptical: "./avatar/sofia-expression-skeptical.png",
-    annoyed: "./avatar/sofia-expression-annoyed.png"
+    smile: "./avatar/sofia-local-smile.png",
+    laugh: "./avatar/sofia-local-laugh.png",
+    wink: "./avatar/sofia-local-wink.png",
+    smirk: "./avatar/sofia-local-smirk.png",
+    skeptical: "./avatar/sofia-local-skeptical.png",
+    annoyed: "./avatar/sofia-local-annoyed.png",
+    tongue: "./avatar/sofia-local-tongue.png"
   };
 
   const CONFIG = {
@@ -66,8 +67,11 @@
     style.id = "sofia-avatar-v435-style";
     style.textContent = `
       .sofia-avatar-v435{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;overflow:hidden;transform:translateZ(0);backface-visibility:hidden;-webkit-backface-visibility:hidden}
-      .sofia-avatar-v435-layer{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:50% 36%;opacity:0;visibility:hidden;pointer-events:none;user-select:none;-webkit-user-select:none;backface-visibility:hidden;-webkit-backface-visibility:hidden;will-change:opacity;transform:translateZ(0)}
-      .sofia-avatar-v435-layer.active{opacity:1;visibility:visible}
+      .sofia-avatar-v435-layer{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:50% 36%;opacity:0;pointer-events:none;user-select:none;-webkit-user-select:none;backface-visibility:hidden;-webkit-backface-visibility:hidden;will-change:opacity;transform:translateZ(0)}
+      .sofia-avatar-v435-layer[data-frame="neutral"]{opacity:1!important}
+      .sofia-avatar-v435-layer.expression-layer{transition:opacity .28s cubic-bezier(.22,.7,.25,1)}
+      .sofia-avatar-v435-layer.expression-layer.active{opacity:1}
+      .sofia-avatar-v435-layer.transient-frame.active{opacity:1}
       .sofia-avatar-v435-glow,.sofia-avatar-v435-shade{position:absolute;inset:0;pointer-events:none}
       .sofia-avatar-v435-glow{background:radial-gradient(circle at 50% 42%,rgba(255,220,180,.055),transparent 45%);opacity:.35;transition:opacity .3s ease}
       .sofia-avatar-v435-shade{background:linear-gradient(to bottom,rgba(0,0,0,.01),rgba(0,0,0,.08));opacity:.15}
@@ -82,7 +86,9 @@
 
   function makeLayer(name, src, original) {
     const img = name === "neutral" ? original : document.createElement("img");
-    img.className = `sofia-avatar-v435-layer${name === "neutral" ? " active" : ""}`;
+    const expressionNames = ["smile","laugh","wink","smirk","skeptical","annoyed","tongue"];
+    const transientNames = ["blink","small","medium","wide"];
+    img.className = `sofia-avatar-v435-layer${expressionNames.includes(name) ? " expression-layer" : ""}${transientNames.includes(name) ? " transient-frame" : ""}${name === "neutral" ? " active" : ""}`;
     img.dataset.frame = name;
     img.alt = name === "neutral" ? "Sofia" : "";
     img.decoding = "async";
@@ -125,13 +131,18 @@
   function showFrame(frame, force = false) {
     if (!layers[frame]) frame = "neutral";
     if (blinkActive && frame !== "blink") return;
-    if (!force && frame === mouthFrame) return;
     const t = now();
+    if (!force && frame === mouthFrame) return;
     if (!force && t - lastFrameAt < CONFIG.lip.minHoldMs) return;
 
-    Object.entries(layers).forEach(([name, el]) => {
-      el.classList.toggle("active", name === frame);
-    });
+    const expressions = ["smile","laugh","wink","smirk","skeptical","annoyed","tongue"];
+    const transients = ["blink","small","medium","wide"];
+    expressions.forEach(name => layers[name]?.classList.toggle("active", name === frame));
+    transients.forEach(name => layers[name]?.classList.toggle("active", name === frame));
+    if (frame === "neutral") {
+      expressions.forEach(name => layers[name]?.classList.remove("active"));
+      transients.forEach(name => layers[name]?.classList.remove("active"));
+    }
     if (frame !== "blink") mouthFrame = frame;
     lastFrameAt = t;
   }
@@ -183,7 +194,8 @@
     expressionTimer = setTimeout(() => {
       if (initialized && state !== "speaking") {
         const r = Math.random();
-        if (mood === "amüsiert" && r < .55) playExpression("laugh", 1050);
+        if ((mood === "flirty" || mood === "amüsiert") && r < .075) playExpression("tongue", 850);
+        else if (mood === "amüsiert" && r < .55) playExpression("laugh", 1050);
         else if (mood === "flirty" && r < .34) playExpression("wink", 650);
         else if (mood === "flirty" && r < .72) playExpression("smirk", 1250);
         else if (mood === "skeptisch") playExpression("skeptical", 1300);
@@ -232,18 +244,9 @@
     }, CONFIG.blink.duration);
   }
 
-  function updateMotion(t) {
+  function updateMotion() {
     if (!root) return;
-    const e = t - startAt;
-    const p = e * CONFIG.idle.speed;
-    let x = Math.sin(p * .73) * CONFIG.idle.x;
-    let y = Math.sin(p * 1.03) * CONFIG.idle.y;
-    let r = Math.sin(p * .51) * CONFIG.idle.rotate;
-    let s = 1 + Math.sin(p * .89) * CONFIG.idle.scale;
-    if (state === "listening") { s += .004; y -= .8; }
-    if (state === "thinking") { r -= .08; x += .6; }
-    if (state === "speaking") { s += smoothLevel * .006; y -= smoothLevel * .7; }
-    root.style.transform = `translate3d(${x}px,${y}px,0) rotate(${r}deg) scale(${s})`;
+    root.style.transform = "none";
   }
 
   function applyMood() {
@@ -326,6 +329,7 @@
     smirk: () => playExpression("smirk", 1300),
     skeptical: () => playExpression("skeptical", 1300),
     annoyed: () => playExpression("annoyed", 1300),
+    tongue: () => playExpression("tongue", 850),
     blink,
     getState: () => ({ version: VERSION, initialized, state, mood, audioLevel, smoothedAudioLevel: smoothLevel, currentFrame: mouthFrame, blinkActive }),
     destroy

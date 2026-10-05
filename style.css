@@ -163,3 +163,9 @@
 #form #input{grid-column:1;grid-row:auto;width:100%;min-width:0}
 #form .send{grid-column:2;grid-row:auto}
 @media(max-width:850px){#form .cameraAttachment{width:58px;height:58px}}
+
+/* SOFIA V4.5.1 — stable local expression layers + photo composer */
+#form{grid-template-columns:minmax(0,1fr) 48px!important;align-items:end}
+#form .cameraAttachment{grid-column:1 / -1!important;justify-self:start}
+#form #input{grid-column:1!important;width:100%!important;min-width:0!important}
+#form .send{grid-column:2!important}
