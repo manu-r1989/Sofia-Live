@@ -118,27 +118,80 @@ function addMessage(text, who = 'sofia') {
   scrollChatToLatest('smooth');
 }
 
-async function syncConversationFromServer() {
+let lastServerHistorySignature = '';
+let historySyncTimer = null;
+
+function historySignature(history) {
+  return JSON.stringify(history);
+}
+
+async function syncConversationFromServer({ silent = false } = {}) {
+  if (isResponding) return false;
+
   try {
-    const response = await fetch('/api/chat', {method:'GET',credentials:'same-origin',cache:'no-store'});
+    const response = await fetch('/api/chat', {
+      method: 'GET',
+      credentials: 'same-origin',
+      cache: 'no-store'
+    });
+
+    if (response.status === 401) {
+      if (!silent) window.location.reload();
+      return false;
+    }
+
     if (!response.ok) return false;
+
     const data = await response.json();
     if (!Array.isArray(data.history)) return false;
-    conversationHistory = data.history.filter(item =>
-      item && (item.role === 'user' || item.role === 'assistant') && typeof item.content === 'string'
+
+    const serverHistory = data.history.filter(item =>
+      item &&
+      (item.role === 'user' || item.role === 'assistant') &&
+      typeof item.content === 'string'
     ).slice(-MAX_STORED_MESSAGES);
+
+    const signature = historySignature(serverHistory);
+    if (signature === lastServerHistorySignature) return true;
+
+    lastServerHistorySignature = signature;
+    conversationHistory = serverHistory;
     saveMemory();
+
     if (messages) {
       messages.innerHTML = '';
-      conversationHistory.forEach(item => addMessage(item.content,item.role === 'user' ? 'user' : 'sofia'));
+      conversationHistory.forEach(item =>
+        addMessage(item.content, item.role === 'user' ? 'user' : 'sofia')
+      );
       scrollChatToLatest('auto');
     }
+
     return true;
   } catch (error) {
-    console.warn('History sync:',error);
+    if (!silent) console.warn('History sync:', error);
     return false;
   }
 }
+
+function startConversationSync() {
+  if (historySyncTimer) clearInterval(historySyncTimer);
+
+  historySyncTimer = setInterval(() => {
+    if (document.visibilityState === 'visible' && !isResponding) {
+      syncConversationFromServer({ silent: true });
+    }
+  }, 4000);
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    syncConversationFromServer({ silent: true });
+  }
+});
+
+window.addEventListener('focus', () => {
+  syncConversationFromServer({ silent: true });
+});
 
 function restoreConversation() {
   if (
@@ -1425,7 +1478,10 @@ setInterval(
    START
 ========================= */
 
-syncConversationFromServer().then(ok => { if (!ok) restoreConversation(); });
+syncConversationFromServer().then(ok => {
+  if (!ok) restoreConversation();
+  startConversationSync();
+});
 
 console.log(
   `Sofia V3.9 gestartet. Lokaler Chat: ${conversationHistory.length} Nachrichten.`
