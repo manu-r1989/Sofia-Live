@@ -1161,7 +1161,7 @@
      REALTIME EVENT HANDLER
   ======================================== */
 
-  function handleRealtimeEvent(
+  async function handleRealtimeEvent(
     event
   ) {
 
