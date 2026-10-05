@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 
 const HISTORY_KEY = "sofia:main:history";
 const MEMORY_KEY = "sofia:main:longterm";
+const IDENTITY_KEY = "sofia:main:identity";
 
 const MAX_HISTORY_MESSAGES = 40;
 const MAX_LONGTERM_MEMORIES = 80;
