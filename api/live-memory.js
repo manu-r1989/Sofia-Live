@@ -463,7 +463,12 @@ Speicherwürdig sind insbesondere:
 - wichtige persönliche Ereignisse
 - explizite Aufforderungen wie "merk dir"
 - stabile Informationen, die in späteren Gesprächen nützlich sind
-- relevante Entwicklung der Beziehung oder wiederkehrende Insider
+- stabile, wiederkehrende Entwicklung der Beziehung, etablierte Spitznamen oder Insider
+
+Für "Beziehung" gilt eine höhere Speicherschwelle: Ein einzelner Flirt,
+Witz oder freundlicher Moment reicht nicht. Speichere nur tatsächlich
+wiederkehrende oder ausdrücklich etablierte Dynamiken und erfinde keinen
+Beziehungsstatus oder Gefühle des Nutzers.
 
 Nicht speichern:
 - gewöhnlicher Smalltalk
