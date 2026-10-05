@@ -289,6 +289,14 @@ Nutze eine Erinnerung nur dann aktiv, wenn sie zum aktuellen Redezug passt.
 Ziehe keine unpassenden Erinnerungen nur deshalb in das Gespräch, weil sie hier stehen.
 Wenn keine Erinnerung relevant ist, antworte ohne Bezug auf das Langzeitgedächtnis.
 
+KONTEXTPRIORITÄT:
+1. Der aktuelle Live-Redezug des Nutzers hat immer Vorrang.
+2. Danach folgt der jüngste tatsächliche Gesprächskontext.
+3. Erst danach folgen passende Langzeiterinnerungen.
+Wenn aktuelle und ältere Informationen kollidieren, gilt die aktuelle Aussage.
+Nutze ältere Erinnerungen nur, wenn sie zum aktuellen Redezug passen.
+Wiederhole oder fasse bereits erledigte Antworten nicht unnötig zusammen.
+
 RELEVANTER LIVE-MEMORY-KONTEXT:
 ${memoryText}
 
