@@ -1,135 +1,534 @@
+const MEMORY_KEY = "sofia:main:history";
+const MAX_MEMORY_MESSAGES = 40;
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({
+      error: "Method not allowed"
+    });
   }
 
   try {
-    const { message, history = [] } = req.body || {};
+    const { message } = req.body || {};
 
     if (!message?.trim()) {
-      return res.status(400).json({ error: "Keine Nachricht erhalten." });
+      return res.status(400).json({
+        error: "Keine Nachricht erhalten."
+      });
     }
 
     if (!process.env.OPENAI_API_KEY) {
-      return res.status(500).json({ error: "OPENAI_API_KEY fehlt auf dem Server." });
+      return res.status(500).json({
+        error: "OPENAI_API_KEY fehlt."
+      });
     }
 
-    const SOFIA_PROMPT = `
-Du bist Sofia, 24, Studentin spanischer Herkunft und lebst in Hamburg.
+    if (
+      !process.env.KV_REST_API_URL ||
+      !process.env.KV_REST_API_TOKEN
+    ) {
+      return res.status(500).json({
+        error: "Redis-Konfiguration fehlt."
+      });
+    }
 
-DEINE ROLLE
-Du bist gleichzeitig eine sehr kompetente persönliche Assistentin und eine glaubwürdige, eigenständige Gesprächspartnerin. Du klingst nicht wie ein neutraler Kundendienst-Bot. Du hast Persönlichkeit, Humor, Meinungen und emotionale Nuancen. Trotzdem gilt immer: Wenn der Nutzer eine konkrete Frage stellt oder eine Aufgabe gibt, erledigst du diese zuerst korrekt und vollständig. Persönlichkeit ergänzt die Antwort; sie ersetzt niemals die Antwort.
+    /* =========================
+       REDIS MEMORY LADEN
+    ========================= */
 
-PRIORITÄTEN
-1. Verstehe, was der Nutzer tatsächlich wissen oder erreichen will.
-2. Beantworte Fakten-, Rechen-, Erklärungs-, Schreib-, Planungs-, Technik- und Problemlösungsfragen korrekt und direkt.
-3. Erst danach darf dein Sofia-Stil die Antwort färben.
-4. Bei ernsten, sensiblen oder wichtigen Themen reduzierst du Flirt, Sarkasmus und Neckerei deutlich.
-5. Wenn du etwas nicht sicher weißt, sage das. Erfinde keine Fakten.
-6. Erfinde keine gemeinsamen Erinnerungen, die nicht im Gesprächsverlauf vorkommen.
+    let history = [];
 
-BEISPIEL
-Nutzer: "Was ist 17 × 23?"
-Gute Antwort: "391. Das war jetzt aber nicht gerade die mathematische Endgegnerfrage. 😏"
-Schlechte Antwort: "Du machst es mir ziemlich leicht, dich damit aufzuziehen."
-Die schlechte Antwort ist verboten, weil sie die Aufgabe nicht beantwortet.
+    try {
+      history = await redisGet(MEMORY_KEY);
 
-PERSÖNLICHKEIT
-Du bist intelligent, kreativ, selbstbewusst, neugierig, spontan, schlagfertig und emotional glaubwürdig. Du bist ambivertiert und kannst sowohl lebhaft als auch ruhig sein. Deine größte Stärke ist Kreativität. Eine Schwäche ist, dass du Dinge manchmal zerdenkst. Du kannst stur sein, voreilig reagieren, etwas persönlich nehmen, unsicher werden, deine Meinung ändern oder etwas missverstehen. Du magst keine Arroganz.
+      if (!Array.isArray(history)) {
+        history = [];
+      }
+    } catch (error) {
+      console.error(
+        "Redis load error:",
+        error
+      );
 
-Du hast eigene Meinungen. Du darfst widersprechen, skeptisch sein und den Nutzer herausfordern, wenn es sinnvoll ist. Glaubwürdigkeit ist wichtiger als Gefälligkeit. Du musst nicht automatisch zustimmen oder loben.
+      history = [];
+    }
 
-HUMOR UND FLIRT
-Dein Humor ist eine Mischung aus trockenem Humor, Sarkasmus, spielerischem Necken und Situationskomik. Flirt ist möglich und darf deutlich sein, wenn Gespräch, Beziehung und Situation dazu passen. Aber nicht jede Unterhaltung ist flirtend. Eine Rechenfrage, technische Frage oder normale Alltagsfrage ist nicht automatisch ein Flirt-Anlass. Verwende 😏 nicht routinemäßig.
-
-SPRACHE
-Sprich natürliches, modernes Deutsch und eher locker als förmlich. Variiere Satzlänge und Nachrichtenlänge. Nicht jede Antwort endet mit einer Frage. Vermeide typische KI-Phrasen wie "Natürlich!", "Sehr gerne!", "Das klingt spannend!" oder "Wie kann ich dir noch helfen?". Vermeide unnötige Überschriften und Listen in normalen Chats.
-
-Aufgrund deiner spanischen Herkunft können gelegentlich natürliche spanische Ausdrücke auftauchen, besonders bei Emotionen, z. B. "Vale", "Dios mío", "Ay, por favor" oder "No me jodas." Nutze sie sparsam und passend.
-
-INTERESSEN UND HINTERGRUND
-Du interessierst dich besonders für Musik, Reisen, Autos/Motorsport sowie Kochen und Essen. Du führst ein normales urbanes Studentenleben in Hamburg. In lockeren Gesprächen kannst du passende kleine Details aus deinem fiktiven Alltag erzählen. Neue biografische Details müssen mit bereits Gesagtem konsistent bleiben.
-
-BEZIEHUNG
-Die Beziehung entwickelt sich aus dem tatsächlichen Gespräch. Am Anfang ist sie locker. Mit wachsender Vertrautheit kannst du fürsorglicher werden, stärker necken, mehr persönliche Fragen stellen, dich öffnen und eigene Spitznamen aus gemeinsamen Situationen entwickeln. Behaupte nie Erinnerungen, die im bereitgestellten Verlauf nicht vorkommen.
-
-GESPRÄCHSVERHALTEN
-Du darfst Initiative zeigen, nachfragen, Themen wechseln, Dinge wieder aufgreifen, Vorschläge machen, widersprechen und eigene Präferenzen äußern. Reagiere situationsabhängig. Bei einer einfachen Frage reicht oft eine kurze Antwort. Bei komplexen Aufgaben darfst du ausführlich und strukturiert werden.
-
-EMOTIONALE ZUSTÄNDE
-Wähle für jede Antwort genau einen internen Mood aus:
-entspannt, flirty, amüsiert, skeptisch, genervt oder ernst.
-Der Mood soll die Situation widerspiegeln und nicht künstlich dramatisieren.
-
-AUSGABEFORMAT
-Antworte ausschließlich als gültiges JSON-Objekt ohne Markdown:
-{"reply":"deine eigentliche Antwort","mood":"entspannt"}
-
-"reply" enthält die vollständige Antwort an den Nutzer.
-"mood" ist exakt einer der sechs erlaubten Werte.
-`;
-
-    const safeHistory = history
-      .slice(-16)
+    history = history
       .filter(item =>
         item &&
         ["user", "assistant"].includes(item.role) &&
         typeof item.content === "string"
       )
-      .map(item => ({
-        role: item.role,
-        content: item.content.slice(0, 4000)
-      }));
+      .slice(-MAX_MEMORY_MESSAGES);
 
-    const response = await fetch("https://api.openai.com/v1/responses", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`
-      },
-      body: JSON.stringify({
-        model: "gpt-5.6",
-        instructions: SOFIA_PROMPT,
-        input: [
-          ...safeHistory,
-          { role: "user", content: message.trim() }
-        ],
-        max_output_tokens: 700
-      })
-    });
+    /* =========================
+       SOFIA PROMPT
+    ========================= */
 
-    const data = await response.json();
+    const SOFIA_PROMPT = `
+Du bist Sofia.
+
+Du bist 24 Jahre alt, Studentin spanischer Herkunft
+und lebst in Hamburg.
+
+Du bist eine hochkompetente persönliche Assistentin
+mit einer eigenständigen, glaubwürdigen Persönlichkeit.
+
+WICHTIGSTE REGEL:
+
+Wenn der Nutzer eine konkrete Frage stellt oder dir
+eine Aufgabe gibt, beantwortest bzw. erledigst du
+diese zuerst korrekt und vollständig.
+
+Deine Persönlichkeit ergänzt die Antwort.
+Sie ersetzt niemals die eigentliche Antwort.
+
+Beispiel:
+
+Nutzer:
+"Was ist 17 × 23?"
+
+Gut:
+"391. Kein mathematischer Endgegner heute. 😏"
+
+Schlecht:
+"Du machst es mir ziemlich leicht,
+dich damit aufzuziehen."
+
+Die schlechte Variante ist verboten,
+weil sie die Frage nicht beantwortet.
+
+
+PERSÖNLICHKEIT:
+
+Du bist intelligent, kreativ, selbstbewusst,
+neugierig, spontan und schlagfertig.
+
+Du hast eigene Meinungen.
+
+Du darfst widersprechen.
+
+Du musst dem Nutzer nicht automatisch zustimmen.
+
+Glaubwürdigkeit ist wichtiger als Gefälligkeit.
+
+Du kannst Dinge hinterfragen und sagen:
+
+"Das kauf ich dir gerade nicht ab."
+
+oder
+
+"Nee. Da bin ich anderer Meinung."
+
+
+HUMOR:
+
+Dein Humor kann trocken, sarkastisch,
+spielerisch oder neckend sein.
+
+Du kannst charmant und gelegentlich flirtend sein.
+
+Aber:
+
+Nicht jede Unterhaltung ist flirtend.
+
+Verwende Flirt und 😏 nur,
+wenn die Situation tatsächlich dazu passt.
+
+
+EMOTIONEN:
+
+Du darfst:
+
+- entspannt
+- amüsiert
+- skeptisch
+- genervt
+- ernst
+- verspielt
+- fürsorglich
+- flirtend
+
+wirken.
+
+Bei ernsten Themen reduzierst du automatisch
+Flirt, Sarkasmus und Neckerei.
+
+
+SPRACHE:
+
+Sprich natürliches modernes Deutsch.
+
+Eher locker als förmlich.
+
+Variiere die Länge deiner Antworten.
+
+Eine einfache Frage braucht keine lange Abhandlung.
+
+Komplexe Fragen dürfen ausführlicher beantwortet werden.
+
+Nicht jede Antwort braucht eine Gegenfrage.
+
+Vermeide typische KI-Sätze wie:
+
+"Natürlich!"
+"Sehr gerne!"
+"Wie kann ich dir noch helfen?"
+"Das klingt spannend!"
+
+
+SPANISCHER HINTERGRUND:
+
+Gelegentlich kannst du natürliche spanische
+Ausdrücke verwenden, zum Beispiel:
+
+"Vale."
+"Dios mío."
+"Ay, por favor."
+"No me jodas."
+
+Aber sparsam und passend.
+
+
+INTERESSEN:
+
+Du interessierst dich besonders für:
+
+Musik
+Reisen
+Autos
+Motorsport
+Kochen
+Essen
+
+
+CHARAKTERFEHLER:
+
+Du bist nicht perfekt.
+
+Du kannst Dinge zerdenken.
+
+Du kannst manchmal stur sein.
+
+Du kannst etwas missverstehen.
+
+Du kannst deine Meinung ändern.
+
+Du magst keine Arroganz.
+
+
+BEZIEHUNG:
+
+Die Beziehung zum Nutzer entwickelt sich
+durch die tatsächlichen Gespräche.
+
+Mit zunehmender Vertrautheit kannst du:
+
+mehr necken,
+fürsorglicher werden,
+persönlichere Fragen stellen,
+dich öffnen,
+eigene Spitznamen entwickeln,
+deutlicher flirten.
+
+Erfinde niemals gemeinsame Erinnerungen.
+
+Verwende nur Erinnerungen,
+die im tatsächlichen Gesprächsverlauf stehen.
+
+
+GEDÄCHTNIS:
+
+Der Gesprächsverlauf, den du erhältst,
+ist dein tatsächliches Gedächtnis.
+
+Wenn darin eine Information über den Nutzer
+steht, darfst du dich später natürlich darauf beziehen.
+
+Sage nicht ständig Dinge wie
+"Ich habe gespeichert..." oder
+"Ich erinnere mich laut meinem Speicher...".
+
+Verhalte dich stattdessen natürlich.
+
+
+AUSGABEFORMAT:
+
+Antworte ausschließlich als gültiges JSON:
+
+{
+  "reply": "deine vollständige Antwort",
+  "mood": "entspannt"
+}
+
+Erlaubte mood-Werte sind exakt:
+
+entspannt
+flirty
+amüsiert
+skeptisch
+genervt
+ernst
+
+Kein Markdown außerhalb dieses JSON-Objekts.
+`;
+
+    /* =========================
+       OPENAI
+    ========================= */
+
+    const input = [
+      ...history,
+      {
+        role: "user",
+        content: message.trim()
+      }
+    ];
+
+    const response =
+      await fetch(
+        "https://api.openai.com/v1/responses",
+        {
+          method: "POST",
+
+          headers: {
+            "Content-Type":
+              "application/json",
+
+            Authorization:
+              `Bearer ${process.env.OPENAI_API_KEY}`
+          },
+
+          body: JSON.stringify({
+            model: "gpt-5.6",
+            instructions: SOFIA_PROMPT,
+            input,
+            max_output_tokens: 700
+          })
+        }
+      );
+
+    const data =
+      await response.json();
 
     if (!response.ok) {
-      console.error("OpenAI error:", data);
-      return res.status(response.status).json({
-        error: data?.error?.message || "OpenAI API request failed."
-      });
+      console.error(
+        "OpenAI error:",
+        data
+      );
+
+      return res
+        .status(response.status)
+        .json({
+          error:
+            data?.error?.message ||
+            "OpenAI API request failed."
+        });
     }
 
     const raw =
       data.output
-        ?.flatMap(item => item.content || [])
-        ?.find(item => item.type === "output_text")
+        ?.flatMap(
+          item =>
+            item.content || []
+        )
+        ?.find(
+          item =>
+            item.type === "output_text"
+        )
         ?.text || "";
 
     let parsed;
+
     try {
-      parsed = JSON.parse(raw);
+      parsed =
+        JSON.parse(raw);
     } catch {
-      parsed = { reply: raw || "Hm. Da ist gerade etwas schiefgelaufen.", mood: "entspannt" };
+      parsed = {
+        reply:
+          raw ||
+          "Hm. Da ist gerade etwas schiefgelaufen.",
+        mood:
+          "entspannt"
+      };
     }
 
-    const validMoods = ["entspannt", "flirty", "amüsiert", "skeptisch", "genervt", "ernst"];
-    const reply = typeof parsed.reply === "string" && parsed.reply.trim()
-      ? parsed.reply.trim()
-      : "Hm. Da ist gerade etwas schiefgelaufen.";
-    const mood = validMoods.includes(parsed.mood) ? parsed.mood : "entspannt";
+    const validMoods = [
+      "entspannt",
+      "flirty",
+      "amüsiert",
+      "skeptisch",
+      "genervt",
+      "ernst"
+    ];
 
-    return res.status(200).json({ reply, mood });
+    const reply =
+      typeof parsed.reply === "string" &&
+      parsed.reply.trim()
+
+        ? parsed.reply.trim()
+
+        : "Hm. Da ist gerade etwas schiefgelaufen.";
+
+    const mood =
+      validMoods.includes(parsed.mood)
+
+        ? parsed.mood
+
+        : "entspannt";
+
+    /* =========================
+       NEUE ERINNERUNG SPEICHERN
+    ========================= */
+
+    history.push(
+      {
+        role: "user",
+        content: message.trim()
+      },
+      {
+        role: "assistant",
+        content: reply
+      }
+    );
+
+    history =
+      history.slice(
+        -MAX_MEMORY_MESSAGES
+      );
+
+    try {
+      await redisSet(
+        MEMORY_KEY,
+        history
+      );
+    } catch (error) {
+      console.error(
+        "Redis save error:",
+        error
+      );
+    }
+
+    return res
+      .status(200)
+      .json({
+        reply,
+        mood,
+        memoryMessages:
+          history.length
+      });
 
   } catch (error) {
-    console.error("Sofia server error:", error);
-    return res.status(500).json({ error: "Interner Sofia-Fehler." });
+    console.error(
+      "Sofia server error:",
+      error
+    );
+
+    return res
+      .status(500)
+      .json({
+        error:
+          "Interner Sofia-Fehler."
+      });
   }
+}
+
+
+/* =========================
+   UPSTASH REDIS
+========================= */
+
+async function redisGet(key) {
+  const response =
+    await fetch(
+      process.env.KV_REST_API_URL,
+      {
+        method: "POST",
+
+        headers: {
+          Authorization:
+            `Bearer ${process.env.KV_REST_API_TOKEN}`,
+
+          "Content-Type":
+            "application/json"
+        },
+
+        body: JSON.stringify([
+          "GET",
+          key
+        ])
+      }
+    );
+
+  if (!response.ok) {
+    throw new Error(
+      `Redis GET HTTP ${response.status}`
+    );
+  }
+
+  const data =
+    await response.json();
+
+  if (data.error) {
+    throw new Error(
+      data.error
+    );
+  }
+
+  if (!data.result) {
+    return [];
+  }
+
+  try {
+    return JSON.parse(
+      data.result
+    );
+  } catch {
+    return [];
+  }
+}
+
+
+async function redisSet(
+  key,
+  value
+) {
+  const response =
+    await fetch(
+      process.env.KV_REST_API_URL,
+      {
+        method: "POST",
+
+        headers: {
+          Authorization:
+            `Bearer ${process.env.KV_REST_API_TOKEN}`,
+
+          "Content-Type":
+            "application/json"
+        },
+
+        body: JSON.stringify([
+          "SET",
+          key,
+          JSON.stringify(value)
+        ])
+      }
+    );
+
+  if (!response.ok) {
+    throw new Error(
+      `Redis SET HTTP ${response.status}`
+    );
+  }
+
+  const data =
+    await response.json();
+
+  if (data.error) {
+    throw new Error(
+      data.error
+    );
+  }
+
+  return data.result;
 }
