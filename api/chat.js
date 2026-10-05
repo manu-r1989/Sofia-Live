@@ -89,6 +89,43 @@ function normalizeMemory(value) {
 }
 
 
+function memorySimilarity(a, b) {
+  const tokens = value =>
+    new Set(
+      normalizeMemory(value)
+        .split(/[^a-z0-9äöüß]+/i)
+        .filter(token => token.length >= 3)
+    );
+
+  const left = tokens(a);
+  const right = tokens(b);
+  if (!left.size || !right.size) return 0;
+
+  let intersection = 0;
+  left.forEach(token => {
+    if (right.has(token)) intersection += 1;
+  });
+
+  const union = new Set([...left, ...right]).size;
+  return union ? intersection / union : 0;
+}
+
+function findSimilarMemoryIndex(memories, target, threshold = 0.78) {
+  let bestIndex = -1;
+  let bestScore = threshold;
+
+  memories.forEach((memory, index) => {
+    const score = memorySimilarity(memoryText(memory), target);
+    if (score >= bestScore) {
+      bestScore = score;
+      bestIndex = index;
+    }
+  });
+
+  return bestIndex;
+}
+
+
 function findMemoryIndex(
   memories,
   target
@@ -245,6 +282,8 @@ function applyMemoryAction(
     newMemory
   ) {
 
+    const similarIndex = findSimilarMemoryIndex(memories, newMemory);
+
     const alreadyExists =
       memories.some(
         memory =>
@@ -253,7 +292,7 @@ function applyMemoryAction(
       );
 
 
-    if (!alreadyExists) {
+    if (!alreadyExists && similarIndex === -1) {
       memories.push({
         text: newMemory,
         category: memoryAction.category || "Sonstiges",
@@ -298,6 +337,8 @@ function applyMemoryAction(
        * Information nicht.
        */
 
+      const similarIndex = findSimilarMemoryIndex(memories, newMemory);
+
       const alreadyExists =
         memories.some(
           memory =>
@@ -306,7 +347,7 @@ function applyMemoryAction(
         );
 
 
-      if (!alreadyExists) {
+      if (!alreadyExists && similarIndex === -1) {
         memories.push({
           text: newMemory,
           category: memoryAction.category || "Sonstiges",
