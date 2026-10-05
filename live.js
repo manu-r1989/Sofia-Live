@@ -73,6 +73,8 @@
 
   let avatarAudioContext = null;
   let avatarAnalyser = null;
+  let avatarLastAudibleAt = 0;
+  let avatarWasAudible = false;
   let avatarAudioSource = null;
   let avatarAudioFrame = null;
 
@@ -253,15 +255,46 @@
       const samples = new Uint8Array(avatarAnalyser.fftSize);
       const analyse = () => {
         if (!avatarAnalyser || !avatarAudioContext) return;
+
+        // Keep analysing the actual remote audio stream for the entire playback.
+        // Do not tie lip-sync lifetime to transcript events or response.done.
         avatarAnalyser.getByteTimeDomainData(samples);
+
         let sum = 0;
-        for (let i=0;i<samples.length;i++) {
-          const v=(samples[i]-128)/128; sum += v*v;
+        for (let i = 0; i < samples.length; i++) {
+          const v = (samples[i] - 128) / 128;
+          sum += v * v;
         }
-        const rms=Math.sqrt(sum/samples.length);
-        const level=Math.max(0,Math.min(1,rms*7.5));
-        window.SofiaAvatar?.setAudioLevel(level < 0.018 ? 0 : level);
-        avatarAudioFrame=requestAnimationFrame(analyse);
+
+        const rms = Math.sqrt(sum / samples.length);
+        const audible = rms >= 0.012;
+        const level = audible
+          ? Math.max(0.05, Math.min(1, rms * 8.5))
+          : 0;
+
+        if (audible) {
+          avatarLastAudibleAt = performance.now();
+          avatarWasAudible = true;
+          window.SofiaAvatar?.speak();
+          if (app) app.dataset.speaking = "true";
+        }
+
+        window.SofiaAvatar?.setAudioLevel(level);
+
+        // Only return the avatar to idle after the REAL audio stream has
+        // remained silent, not merely because response.done arrived early.
+        if (
+          avatarWasAudible &&
+          !audible &&
+          performance.now() - avatarLastAudibleAt > 450
+        ) {
+          avatarWasAudible = false;
+          window.SofiaAvatar?.setAudioLevel(0);
+          window.SofiaAvatar?.idle();
+          if (app) app.dataset.speaking = "false";
+        }
+
+        avatarAudioFrame = requestAnimationFrame(analyse);
       };
       analyse();
     } catch (error) {
@@ -1332,21 +1365,13 @@
         ignoreInputUntil = Date.now() + 2300;
         restoreMicAfterAssistant(1800);
 
-      if (app) {
-
-          app.dataset.speaking =
-            "false";
-
-        }
-
+      // Do not force the avatar to idle here. On iOS response.done can
+      // precede the end of buffered audio playback. The analyser above
+      // returns the mouth to neutral only after actual audio silence.
 
         setMode(
           "Live"
         );
-
-
-        window.SofiaAvatar
-          ?.idle();
 
 
         /*
