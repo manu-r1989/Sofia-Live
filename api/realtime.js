@@ -195,9 +195,12 @@ export default async function handler(
             .join("\n")
         : "Noch keine Langzeiterinnerungen vorhanden.";
 
-    const recentHistory =
-      Array.isArray(storedHistory)
-        ? storedHistory
+    // Prefer the browser's current shared conversation when Live is started.
+    // This closes the Text -> Live handoff gap in the same way /api/chat
+    // already accepts immediate client handoff history for Live -> Text.
+    const clientHistory =
+      Array.isArray(req.body?.history)
+        ? req.body.history
             .filter(item =>
               item &&
               ["user", "assistant"].includes(item.role) &&
@@ -206,6 +209,20 @@ export default async function handler(
             )
             .slice(-12)
         : [];
+
+    const recentHistory =
+      clientHistory.length
+        ? clientHistory
+        : Array.isArray(storedHistory)
+          ? storedHistory
+              .filter(item =>
+                item &&
+                ["user", "assistant"].includes(item.role) &&
+                typeof item.content === "string" &&
+                item.content.trim()
+              )
+              .slice(-12)
+          : [];
 
     const historyText =
       recentHistory.length
