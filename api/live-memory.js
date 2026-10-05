@@ -634,7 +634,7 @@ ${cleanUser}
               : null,
 
           category:
-            ["Personen","Vorlieben","Projekte & Arbeit","Ziele & Pläne","Gewohnheiten","Beziehung","Persönliches"].includes(parsed.category)
+            ["Personen","Vorlieben","Projekte & Arbeit","Ziele & Pläne","Gewohnheiten","Beziehung","Persönliches","Sonstiges"].includes(parsed.category)
               ? parsed.category
               : null
         };
