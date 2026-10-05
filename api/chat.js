@@ -280,7 +280,7 @@ export default async function handler(req, res) {
   );
 
 
-  if (req.method !== "POST") {
+  if (req.method !== "POST" && req.method !== "GET") {
     return res.status(405).json({
       error: "Method not allowed"
     });
@@ -338,6 +338,18 @@ export default async function handler(req, res) {
   ======================================== */
 
   try {
+
+    if (req.method === "GET") {
+      if (!process.env.KV_REST_API_URL || !process.env.KV_REST_API_TOKEN) {
+        return res.status(500).json({ error: "Redis-Konfiguration fehlt." });
+      }
+      const storedHistory = await redisGetJSON(HISTORY_KEY, []);
+      const history = (Array.isArray(storedHistory) ? storedHistory : [])
+        .filter(item => item && ["user","assistant"].includes(item.role) && typeof item.content === "string")
+        .slice(-MAX_HISTORY_MESSAGES);
+      res.setHeader("Cache-Control","no-store");
+      return res.status(200).json({ history });
+    }
 
     const { message, image } =
       req.body || {};
