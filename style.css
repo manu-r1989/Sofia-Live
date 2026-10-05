@@ -169,3 +169,7 @@
 #form .cameraAttachment{grid-column:1 / -1!important;justify-self:start}
 #form #input{grid-column:1!important;width:100%!important;min-width:0!important}
 #form .send{grid-column:2!important}
+
+
+/* V4.5.9: SofiaAvatar provides the lip-sync; hide the old mouth equalizer. */
+.voiceBars { display: none !important; }

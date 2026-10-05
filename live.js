@@ -276,7 +276,7 @@
           avatarLastAudibleAt = performance.now();
           avatarWasAudible = true;
           window.SofiaAvatar?.speak();
-          if (app) app.dataset.speaking = "true";
+          // V4.5.9: lip-sync is visualized by SofiaAvatar only; legacy voice bars stay off.
         }
 
         window.SofiaAvatar?.setAudioLevel(level);
@@ -291,7 +291,7 @@
           avatarWasAudible = false;
           window.SofiaAvatar?.setAudioLevel(0);
           window.SofiaAvatar?.idle();
-          if (app) app.dataset.speaking = "false";
+          // Legacy voice bars remain disabled.
         }
 
         avatarAudioFrame = requestAnimationFrame(analyse);
@@ -923,6 +923,7 @@
           micSuppressedForAssistant = false;
           ignoreInputUntil = 0;
           setRealtimeMicEnabled(true);
+          if (app) delete app.dataset.speaking;
 
 
           setLiveButtonState(
