@@ -2,7 +2,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "4.5.1";
+  const VERSION = "4.5.2";
   const ASSETS = {
     neutral: "./sofia-avatar.PNG",
     blink: "./avatar/sofia-blink-closed.png",
@@ -69,7 +69,7 @@
       .sofia-avatar-v435{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;overflow:hidden;transform:translateZ(0);backface-visibility:hidden;-webkit-backface-visibility:hidden}
       .sofia-avatar-v435-layer{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:50% 36%;opacity:0;pointer-events:none;user-select:none;-webkit-user-select:none;backface-visibility:hidden;-webkit-backface-visibility:hidden;will-change:opacity;transform:translateZ(0)}
       .sofia-avatar-v435-layer[data-frame="neutral"]{opacity:1!important}
-      .sofia-avatar-v435-layer.expression-layer{transition:opacity .28s cubic-bezier(.22,.7,.25,1)}
+      .sofia-avatar-v435-layer.expression-layer{transition:opacity .22s cubic-bezier(.22,.7,.25,1)}
       .sofia-avatar-v435-layer.expression-layer.active{opacity:1}
       .sofia-avatar-v435-layer.transient-frame.active{opacity:1}
       .sofia-avatar-v435-glow,.sofia-avatar-v435-shade{position:absolute;inset:0;pointer-events:none}
@@ -128,22 +128,44 @@
     return true;
   }
 
+  const EXPRESSION_NAMES = ["smile","laugh","wink","smirk","skeptical","annoyed","tongue"];
+  const TRANSIENT_NAMES = ["blink","small","medium","wide"];
+
+  function setExpressionLayer(name = "neutral") {
+    EXPRESSION_NAMES.forEach(key => {
+      layers[key]?.classList.toggle("active", key === name && name !== "neutral");
+    });
+    expression = name;
+  }
+
+  function setTransientLayer(name = "neutral") {
+    TRANSIENT_NAMES.forEach(key => {
+      layers[key]?.classList.toggle("active", key === name && name !== "neutral");
+    });
+    mouthFrame = name;
+  }
+
   function showFrame(frame, force = false) {
-    if (!layers[frame]) frame = "neutral";
-    if (blinkActive && frame !== "blink") return;
+    if (!layers[frame] && frame !== "neutral") frame = "neutral";
     const t = now();
+
+    if (EXPRESSION_NAMES.includes(frame)) {
+      if (state === "speaking") return;
+      setExpressionLayer(frame);
+      return;
+    }
+
     if (!force && frame === mouthFrame) return;
     if (!force && t - lastFrameAt < CONFIG.lip.minHoldMs) return;
 
-    const expressions = ["smile","laugh","wink","smirk","skeptical","annoyed","tongue"];
-    const transients = ["blink","small","medium","wide"];
-    expressions.forEach(name => layers[name]?.classList.toggle("active", name === frame));
-    transients.forEach(name => layers[name]?.classList.toggle("active", name === frame));
-    if (frame === "neutral") {
-      expressions.forEach(name => layers[name]?.classList.remove("active"));
-      transients.forEach(name => layers[name]?.classList.remove("active"));
+    if (frame === "blink") {
+      setTransientLayer("blink");
+    } else if (["small","medium","wide"].includes(frame)) {
+      setTransientLayer(frame);
+    } else {
+      setTransientLayer("neutral");
     }
-    if (frame !== "blink") mouthFrame = frame;
+
     lastFrameAt = t;
   }
 
@@ -182,11 +204,19 @@
     return now() < expressionUntil ? expression : baseExpression();
   }
 
+  function syncExpression() {
+    if (state === "speaking") {
+      setExpressionLayer("neutral");
+      return;
+    }
+    setExpressionLayer(currentRestFrame());
+  }
+
   function playExpression(name, duration = 1200) {
     if (!layers[name] || state === "speaking") return;
     expression = name;
     expressionUntil = now() + duration;
-    if (!blinkActive) showFrame(name, true);
+    syncExpression();
   }
 
   function scheduleExpression() {
@@ -211,13 +241,16 @@
     const t = now();
 
     if (state !== "speaking") {
-      if (!blinkActive) showFrame(currentRestFrame());
+      if (!blinkActive) setTransientLayer("neutral");
+      syncExpression();
       return;
     }
 
+    setExpressionLayer("neutral");
+
     if (smoothLevel > CONFIG.lip.silence) lastVoiceAt = t;
     if (smoothLevel <= CONFIG.lip.silence && t - lastVoiceAt > CONFIG.lip.releaseMs) {
-      if (!blinkActive) showFrame(currentRestFrame());
+      if (!blinkActive) setTransientLayer("neutral");
       return;
     }
 
@@ -239,7 +272,8 @@
     showFrame("blink", true);
     setTimeout(() => {
       blinkActive = false;
-      showFrame(state === "speaking" ? chooseMouth(smoothLevel) : currentRestFrame(), true);
+      setTransientLayer(state === "speaking" ? chooseMouth(smoothLevel) : "neutral");
+      if (state !== "speaking") syncExpression();
       scheduleBlink();
     }, CONFIG.blink.duration);
   }
@@ -261,7 +295,7 @@
       entspannt: "none"
     };
     const filter = filters[mood] || "none";
-    Object.values(layers).forEach(el => el.style.filter = filter);
+    if (root) root.style.setProperty("--sofia-mood-filter", filter);
   }
 
   function loop(t) {
@@ -277,8 +311,10 @@
     if (state !== "speaking") {
       audioLevel = 0;
       smoothLevel = 0;
-      if (!blinkActive) showFrame(currentRestFrame(), true);
+      if (!blinkActive) setTransientLayer("neutral");
+      syncExpression();
     } else {
+      setExpressionLayer("neutral");
       lastVoiceAt = now();
     }
   }
@@ -321,7 +357,7 @@
     speak: () => setState("speaking"),
     setState,
     setAudioLevel,
-    setMood(next) { mood = String(next || "entspannt").toLowerCase(); applyMood(); if (state !== "speaking" && !blinkActive) showFrame(baseExpression(), true); },
+    setMood(next) { mood = String(next || "entspannt").toLowerCase(); applyMood(); if (state !== "speaking") { expressionUntil = 0; syncExpression(); } },
     setExpression: playExpression,
     smile: () => playExpression("smile", 1200),
     laugh: () => playExpression("laugh", 1100),
