@@ -265,3 +265,100 @@
 @media(max-width:850px) and (orientation:portrait){.actions{left:10px!important;right:10px!important;width:auto!important}.actions button{font-size:12px!important}}
 @media(orientation:landscape) and (min-width:851px){.chatPanel{right:28px!important;top:72px!important;bottom:118px!important}.actions{position:absolute!important;left:auto!important;right:28px!important;bottom:28px!important;width:min(390px,32vw)!important}header{left:28px!important}}
 @media(orientation:landscape) and (max-height:500px){.chatPanel{left:auto!important;right:max(12px,env(safe-area-inset-right))!important;top:12px!important;bottom:66px!important;width:min(420px,42vw)!important;height:auto!important}.actions{position:fixed!important;left:auto!important;right:max(12px,env(safe-area-inset-right))!important;bottom:max(8px,env(safe-area-inset-bottom))!important;width:min(420px,42vw)!important;height:50px!important}.actions button{padding:3px 2px!important}.actions button span{font-size:10px!important}}
+
+
+/* =========================================================
+   V4.6.3 — Chat + toolbar as one responsive unit
+   ========================================================= */
+
+/* iPhone portrait:
+   toolbar centered and visually attached directly below chat */
+@media (max-width:850px) and (orientation:portrait) {
+  .chatPanel {
+    left:18px !important;
+    right:18px !important;
+    width:auto !important;
+  }
+
+  .actions {
+    position:absolute !important;
+    left:50% !important;
+    right:auto !important;
+    width:calc(100% - 36px) !important;
+    max-width:670px !important;
+    transform:translateX(-50%) !important;
+    margin:0 !important;
+  }
+
+  /* Remove the visual gap between chat and controls. */
+  .chatPanel + .actions {
+    margin-top:8px !important;
+  }
+}
+
+/* Landscape on phones/tablets:
+   Sofia remains on the left; chat and controls form a right column. */
+@media (orientation:landscape) and (max-height:650px) {
+  .chatPanel {
+    position:fixed !important;
+    left:auto !important;
+    right:max(16px,env(safe-area-inset-right)) !important;
+    top:max(16px,env(safe-area-inset-top)) !important;
+    bottom:82px !important;
+    width:min(42vw,640px) !important;
+    max-width:640px !important;
+    height:auto !important;
+    margin:0 !important;
+    z-index:120 !important;
+  }
+
+  .actions {
+    position:fixed !important;
+    left:auto !important;
+    right:max(16px,env(safe-area-inset-right)) !important;
+    bottom:max(16px,env(safe-area-inset-bottom)) !important;
+    width:min(42vw,640px) !important;
+    max-width:640px !important;
+    height:58px !important;
+    transform:none !important;
+    margin:0 !important;
+    z-index:170 !important;
+  }
+
+  .moodPanel {
+    left:auto !important;
+    right:max(16px,env(safe-area-inset-right)) !important;
+    bottom:86px !important;
+    width:min(42vw,640px) !important;
+    transform:translateY(8px) !important;
+  }
+
+  .app.mood-open .moodPanel {
+    transform:translateY(0) !important;
+  }
+}
+
+/* Desktop/Mac landscape:
+   same composition — avatar left, one chat column right,
+   toolbar exactly aligned under the chat. */
+@media (orientation:landscape) and (min-width:851px) and (min-height:651px) {
+  .chatPanel {
+    position:absolute !important;
+    left:auto !important;
+    right:28px !important;
+    top:72px !important;
+    bottom:118px !important;
+    width:min(430px,34vw) !important;
+    max-width:430px !important;
+  }
+
+  .actions {
+    position:absolute !important;
+    left:auto !important;
+    right:28px !important;
+    bottom:28px !important;
+    width:min(430px,34vw) !important;
+    max-width:430px !important;
+    transform:none !important;
+  }
+}
