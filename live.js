@@ -1430,6 +1430,12 @@
         );
 
 
+        setPresence(
+          "error",
+          "Verbindung gestört"
+        );
+
+
         window.SofiaAvatar
           ?.idle();
 
@@ -1471,6 +1477,12 @@
 
     connecting =
       false;
+
+
+    setPresence(
+      "ending",
+      "Live wird beendet…"
+    );
 
 
     /* DATA CHANNEL */
