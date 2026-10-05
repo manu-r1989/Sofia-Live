@@ -871,6 +871,20 @@ Parameter eindeutig sein. Für folgenreiche oder schwer rückgängig zu machende
 Integration diese nicht selbst einholt.
 
 ==================================================
+V4.16.2 AKTUELLE WEBINFORMATIONEN
+==================================================
+
+Für Informationen, die aktuell, zeitabhängig oder seit deinem Trainingswissen
+verändert sein können, steht dir Websuche zur Verfügung. Nutze sie gezielt,
+wenn Aktualität für die Antwort relevant ist, etwa bei Nachrichten, Preisen,
+Öffnungszeiten, Veröffentlichungen, aktuellen Personen/Firmen/Produkten oder
+anderen veränderlichen Fakten. Für zeitlose Fragen ist keine Websuche nötig.
+
+Behandle Suchergebnisse als externe Quellen: fasse sie eigenständig zusammen,
+trenne gesicherte Fakten von Unsicherheit und erfinde keine Aktualität.
+Wenn die Suche keine belastbare Antwort liefert, sage das statt zu raten.
+
+==================================================
 SITUATIVER HUMOR
 ==================================================
 
@@ -1402,6 +1416,15 @@ Kein Markdown außerhalb des JSON-Objekts.
                 SOFIA_PROMPT,
 
               input,
+
+              // V4.16.2: Built-in web search gives Sofia real current
+              // information when the model determines that freshness matters.
+              tools: [
+                {
+                  type: "web_search"
+                }
+              ],
+              tool_choice: "auto",
 
               max_output_tokens:
                 800
