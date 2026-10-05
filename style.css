@@ -171,5 +171,80 @@
 #form .send{grid-column:2!important}
 
 
-/* V4.5.9: SofiaAvatar provides the lip-sync; hide the old mouth equalizer. */
-.voiceBars { display: none !important; }
+/* =========================================================
+   V4.6.0 — iPhone mood controls
+   Keep the mood panel visible, tappable and above the avatar/chat
+   in both portrait and landscape.
+   ========================================================= */
+.voiceBars { display:none !important; }
+
+.moodDock,
+.moodPanel,
+.moodBar,
+.moods,
+[data-mood-controls],
+[data-mood-panel] {
+  position: relative;
+  z-index: 80 !important;
+  pointer-events: auto !important;
+}
+
+.moodDock button,
+.moodPanel button,
+.moodBar button,
+.moods button,
+[data-mood-controls] button,
+[data-mood-panel] button {
+  pointer-events: auto !important;
+  touch-action: manipulation;
+}
+
+/* iPhone portrait: mood controls get their own horizontal row instead
+   of being clipped/hidden beside the avatar. */
+@media (max-width: 850px) and (orientation: portrait) {
+  .moodDock,
+  .moodPanel,
+  .moodBar,
+  .moods,
+  [data-mood-controls],
+  [data-mood-panel] {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    width: calc(100% - 24px) !important;
+    max-width: none !important;
+    margin: 8px 12px !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    -webkit-overflow-scrolling: touch;
+    gap: 8px;
+  }
+}
+
+/* iPhone landscape: put mood controls above overlapping UI and make
+   the row horizontally scrollable rather than letting buttons sit
+   underneath the live/chat panels. */
+@media (max-height: 500px) and (orientation: landscape) {
+  .moodDock,
+  .moodPanel,
+  .moodBar,
+  .moods,
+  [data-mood-controls],
+  [data-mood-panel] {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    position: fixed !important;
+    left: max(12px, env(safe-area-inset-left)) !important;
+    right: max(12px, env(safe-area-inset-right)) !important;
+    bottom: max(12px, env(safe-area-inset-bottom)) !important;
+    width: auto !important;
+    max-width: none !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    -webkit-overflow-scrolling: touch;
+    z-index: 120 !important;
+    pointer-events: auto !important;
+    gap: 8px;
+  }
+}
