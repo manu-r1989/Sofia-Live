@@ -104,8 +104,12 @@ function isAuthorized(req) {
    MEMORY HELPERS
 ======================================== */
 
+function getMemoryText(value) {
+  return typeof value === "string" ? value : (value && typeof value.text === "string" ? value.text : "");
+}
+
 function normalizeMemory(value) {
-  return String(value || "")
+  return String(getMemoryText(value) || "")
     .trim()
     .toLowerCase()
     .replace(/\s+/g, " ");
@@ -200,9 +204,7 @@ function applyMemoryAction(
       );
 
     if (!duplicate) {
-      result.push(
-        newMemory
-      );
+      result.push({ text: newMemory, category: memoryAction.category || "Persönliches", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
     }
   }
 
@@ -219,8 +221,7 @@ function applyMemoryAction(
       );
 
     if (index !== -1) {
-      result[index] =
-        newMemory;
+      result[index] = { text: newMemory, category: memoryAction.category || result[index]?.category || "Persönliches", createdAt: result[index]?.createdAt || new Date().toISOString(), updatedAt: new Date().toISOString() };
     } else {
       const duplicate =
         result.some(
@@ -230,9 +231,7 @@ function applyMemoryAction(
         );
 
       if (!duplicate) {
-        result.push(
-          newMemory
-        );
+        result.push({ text: newMemory, category: memoryAction.category || "Persönliches", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
       }
     }
   }
@@ -363,17 +362,11 @@ export default async function handler(
 
     let memories =
       Array.isArray(storedMemories)
-        ? storedMemories
-            .filter(
-              memory =>
-                typeof memory ===
-                  "string" &&
-                memory.trim()
-            )
-            .map(
-              memory =>
-                memory.trim()
-            )
+        ? storedMemories.map(item => {
+            if (typeof item === "string" && item.trim()) return { text: item.trim(), category: "Persönliches", createdAt: null, updatedAt: null };
+            if (item && typeof item === "object" && typeof item.text === "string" && item.text.trim()) return { ...item, text: item.text.trim() };
+            return null;
+          }).filter(Boolean)
         : [];
 
     history =
@@ -399,7 +392,7 @@ export default async function handler(
         ? memories
             .map(
               (memory, index) =>
-                `${index + 1}. ${memory}`
+                `${index + 1}. [${memory.category || "Persönliches"}] ${getMemoryText(memory)}`
             )
             .join("\n")
         : "Noch keine Langzeiterinnerungen vorhanden.";
