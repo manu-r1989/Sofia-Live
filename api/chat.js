@@ -509,9 +509,13 @@ export default async function handler(req, res) {
 
     const relevantMemories = selectRelevantMemories(memories, message, 12);
 
-    const memoryText = relevantMemories.length
+    const responseMemoryText = relevantMemories.length
       ? relevantMemories.map((memory, index) => `${index + 1}. [${memory.category || "Persönliches"}] ${memoryText(memory)}`).join("\n")
       : "Für diese Nachricht wurden keine relevanten Langzeiterinnerungen ausgewählt.";
+
+    const memoryManagementText = memories.length
+      ? memories.map((memory, index) => `${index + 1}. [${memory.category || "Persönliches"}] ${memoryText(memory)}`).join("\n")
+      : "Noch keine Langzeiterinnerungen vorhanden.";
 
 
     const SOFIA_PROMPT = `
@@ -648,10 +652,10 @@ Erfinde niemals gemeinsame Erinnerungen.
 LANGZEITGEDÄCHTNIS
 ==================================================
 
-Hier sind deine aktuell gespeicherten
-Langzeiterinnerungen:
+Hier sind die für die aktuelle Antwort ausgewählten
+relevanten Langzeiterinnerungen:
 
-${memoryText}
+${responseMemoryText}
 
 Diese Erinnerungen sind dein aktueller Wissensstand
 über den Nutzer und eure bisherige Beziehung.
@@ -673,6 +677,11 @@ sich nicht aus dem tatsächlichen Gespräch ergibt.
 ==================================================
 GEDÄCHTNIS VERWALTEN
 ==================================================
+
+Für die Gedächtnisverwaltung steht dir zusätzlich der vollständige
+aktuelle Memory-Bestand zur Verfügung:
+
+${memoryManagementText}
 
 Nach jeder neuen Nutzernachricht entscheidest du,
 ob das Langzeitgedächtnis verändert werden soll.
