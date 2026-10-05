@@ -1250,6 +1250,36 @@
             pendingUserText
           );
 
+          // V4.12.1: retrieve memories for this exact spoken turn before inference.
+          suppressMicForAssistant();
+          setPresence("thinking", "denkt nach…");
+
+          try {
+            const contextResponse = await fetch("/api/live-context", {
+              method: "POST",
+              credentials: "same-origin",
+              cache: "no-store",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ message: pendingUserText })
+            });
+            const contextData = await contextResponse.json();
+            const turnContext = typeof contextData.context === "string" ? contextData.context.trim() : "";
+
+            if (dataChannel?.readyState === "open") {
+              dataChannel.send(JSON.stringify({
+                type: "response.create",
+                response: turnContext ? {
+                  instructions: `Zusätzlicher, nur für diesen Redezug relevanter Memory-Kontext:\n${turnContext}\nNutze ihn nur, wenn er die aktuelle Frage tatsächlich unterstützt.`
+                } : {}
+              }));
+            }
+          } catch (error) {
+            console.warn("Live Kontext:", error);
+            if (dataChannel?.readyState === "open") {
+              dataChannel.send(JSON.stringify({ type: "response.create", response: {} }));
+            }
+          }
+
         }
 
 
