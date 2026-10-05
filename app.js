@@ -413,28 +413,37 @@ if (sendButton) {
    MOBILE CHAT PANEL
 ========================= */
 
-function setChatMinimized(minimized) {
-  if (!chatPanel) return;
+const CHAT_STATES = ['hidden', 'compact', 'full', 'compact'];
+let chatStateStep = 1;
 
-  chatPanel.classList.toggle('minimized', Boolean(minimized));
+function applyChatState(state) {
+  if (!chatPanel) return;
+  const next = ['hidden', 'compact', 'full'].includes(state) ? state : 'compact';
+  chatPanel.classList.toggle('chat-hidden', next === 'hidden');
+  chatPanel.classList.toggle('minimized', next === 'compact');
+  chatPanel.classList.toggle('chat-full', next === 'full');
 
   if (chatMinimize) {
-    chatMinimize.textContent = minimized ? '▴' : '▾';
-    chatMinimize.title = minimized ? 'Chat anzeigen' : 'Chat minimieren';
-    chatMinimize.setAttribute('aria-expanded', minimized ? 'false' : 'true');
+    chatMinimize.textContent = next === 'hidden' ? '▴' : next === 'full' ? '▾' : '•';
+    chatMinimize.title = next === 'hidden' ? 'Chat einblenden' : next === 'compact' ? 'Chat vergrößern' : 'Chat verkleinern';
+    chatMinimize.setAttribute('aria-expanded', next === 'hidden' ? 'false' : 'true');
   }
+  if (next !== 'hidden') scrollChatToLatest('auto');
+}
 
-  if (!minimized) {
-    scrollChatToLatest('auto');
-  }
+function setChatMinimized(minimized) {
+  chatStateStep = minimized ? 1 : 2;
+  applyChatState(minimized ? 'compact' : 'full');
 }
 
 if (chatMinimize) {
   chatMinimize.addEventListener('click', event => {
     event.preventDefault();
-    setChatMinimized(!chatPanel?.classList.contains('minimized'));
+    chatStateStep = (chatStateStep + 1) % CHAT_STATES.length;
+    applyChatState(CHAT_STATES[chatStateStep]);
   });
 }
+
 
 if (app) {
   let previousLive = app.dataset.live === 'true';
