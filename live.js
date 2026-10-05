@@ -234,6 +234,15 @@
   }
 
 
+  function setPresence(state, label) {
+    if (app) app.dataset.presence = state;
+    if (label) setMode(label);
+    window.dispatchEvent(new CustomEvent("sofia-presence", {
+      detail: { state }
+    }));
+  }
+
+
   /* ========================================
      AVATAR AUDIO ANALYSIS
   ======================================== */
@@ -1161,7 +1170,8 @@
         "input_audio_buffer.speech_started":
 
 
-        setMode(
+        setPresence(
+          "listening",
           "hört zu…"
         );
 
@@ -1189,7 +1199,8 @@
         "input_audio_buffer.speech_stopped":
 
 
-        setMode(
+        setPresence(
+          "thinking",
           "denkt nach…"
         );
 
@@ -1255,13 +1266,14 @@
           "";
 
 
-        setMode(
+        setPresence(
+          "responding",
           "antwortet…"
         );
 
 
         window.SofiaAvatar
-          ?.speak();
+          ?.think();
 
 
         break;
@@ -1276,7 +1288,8 @@
         suppressMicForAssistant();
 
 
-        setMode(
+        setPresence(
+          "speaking",
           "spricht…"
         );
 
