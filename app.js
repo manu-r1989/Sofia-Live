@@ -429,9 +429,6 @@ async function askSofia(userMessage, imageDataUrl = null) {
           link.remove();
           setTimeout(() => URL.revokeObjectURL(url), 10000);
         }
-      } catch (calendarError) {
-        console.warn('Kalender-Erinnerung:', calendarError);
-      }
       }
     }
 
