@@ -535,10 +535,14 @@
     }
 
 
-    queueLiveMemory(
-      userText,
-      assistantText
-    );
+    const persistence =
+      queueLiveMemory(
+        userText,
+        assistantText
+      );
+
+    window.SofiaLiveHistoryReady =
+      persistence || Promise.resolve();
 
     if (assistantText) {
       fetch("/api/sofia-identity", {
