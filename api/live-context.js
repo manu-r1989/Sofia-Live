@@ -40,7 +40,15 @@ export default async function handler(req, res) {
   if (!authorized(req)) return res.status(401).json({ error: "Nicht autorisiert." });
 
   const message = String(req.body?.message || "").trim().slice(0, 2000);
-  if (!message) return res.status(200).json({ context: "" });
+  if (!message) return res.status(200).json({ context: "", calendarAction: null });
+
+  const now = new Date();
+  const hamburgNow = new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "Europe/Berlin",
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+    hour12: false
+  }).format(now);
 
   try {
     const raw = await redisGet(MEMORY_KEY, []);
@@ -57,8 +65,8 @@ export default async function handler(req, res) {
         headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({
           model: "gpt-5.6",
-          instructions: "Erkenne nur ausdrückliche Wünsche nach einer Erinnerung oder einem Kalendereintrag. Antworte ausschließlich als JSON. Ohne solchen Wunsch: {\\\"calendar_action\\\":null}. Bei eindeutigem Zeitpunkt: {\\\"calendar_action\\\":{\\\"title\\\":\\\"kurzer Titel\\\",\\\"start\\\":\\\"YYYY-MM-DDTHH:MM:SS\\\",\\\"duration_minutes\\\":15,\\\"alarm_minutes\\\":0,\\\"notes\\\":\\\"\\\"}}. Wenn Datum oder Uhrzeit wesentlich unklar ist, calendar_action null. Nutze lokale Zeit ohne Zeitzonen-Suffix.",
-          input: message,
+          instructions: "Erkenne nur ausdrückliche Wünsche nach einer Erinnerung oder einem Kalendereintrag. Antworte ausschließlich als JSON. Ohne solchen Wunsch: {\\\"calendar_action\\\":null}. Bei eindeutigem Zeitpunkt: {\\\"calendar_action\\\":{\\\"title\\\":\\\"kurzer Titel\\\",\\\"start\\\":\\\"YYYY-MM-DDTHH:MM:SS\\\",\\\"duration_minutes\\\":15,\\\"alarm_minutes\\\":0,\\\"notes\\\":\\\"\\\"}}. Wenn Datum oder Uhrzeit wesentlich unklar ist, calendar_action null. Löse relative Zeitangaben ausschließlich anhand der mitgelieferten Referenzzeit auf. Nutze lokale Europe/Berlin-Zeit ohne Zeitzonen-Suffix.",
+          input: `Referenzzeit Europe/Berlin: ${hamburgNow}\nNutzer: ${message}`,
           max_output_tokens: 180
         })
       });
@@ -113,23 +121,29 @@ export default async function handler(req, res) {
         calendarAction
       });
     }
-    const r = await fetch("https://api.openai.com/v1/responses", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "gpt-5.6",
-        instructions: "Wähle maximal 10 Erinnerungen, die für den aktuellen gesprochenen Nutzerturn wirklich relevant sind. Keine bloß ähnlichen oder zufällig aktuellen Einträge. Antworte nur als JSON: {\"indexes\":[0,1]}.",
-        input: `Aktueller Turn:\n${message}\n\nErinnerungen:\n${catalog}`,
-        max_output_tokens: 120
-      })
-    });
-    if (!r.ok) return res.status(200).json({ context: "" });
-    const d = await r.json();
-    const out = d.output?.flatMap(x => x.content || []).find(x => x.type === "output_text")?.text || "";
-    const parsed = JSON.parse(out);
-    const indexes = Array.isArray(parsed.indexes) ? [...new Set(parsed.indexes)].filter(i => Number.isInteger(i) && memories[i]).slice(0, 10) : [];
-    const selected = indexes.map(i => memories[i]);
-    const memoryContext = selected.map(m => `[${m?.category || "Sonstiges"}] ${textOf(m)}`).join("\n");
+    let memoryContext = "";
+    try {
+      const r = await fetch("https://api.openai.com/v1/responses", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "gpt-5.6",
+          instructions: "Wähle maximal 10 Erinnerungen, die für den aktuellen gesprochenen Nutzerturn wirklich relevant sind. Keine bloß ähnlichen oder zufällig aktuellen Einträge. Antworte nur als JSON: {\"indexes\":[0,1]}.",
+          input: `Aktueller Turn:\n${message}\n\nErinnerungen:\n${catalog}`,
+          max_output_tokens: 120
+        })
+      });
+      if (r.ok) {
+        const d = await r.json();
+        const out = d.output?.flatMap(x => x.content || []).find(x => x.type === "output_text")?.text || "";
+        const parsed = JSON.parse(out);
+        const indexes = Array.isArray(parsed.indexes) ? [...new Set(parsed.indexes)].filter(i => Number.isInteger(i) && memories[i]).slice(0, 10) : [];
+        const selected = indexes.map(i => memories[i]);
+        memoryContext = selected.map(m => `[${m?.category || "Sonstiges"}] ${textOf(m)}`).join("\n");
+      }
+    } catch (error) {
+      console.warn("Live memory context:", error?.message || error);
+    }
     const context = [
       memoryContext ? `Relevante Erinnerungen:\n${memoryContext}` : "",
       webContext ? `Aktuelle externe Informationen:\n${webContext}` : ""
@@ -137,6 +151,6 @@ export default async function handler(req, res) {
     return res.status(200).json({ context, calendarAction });
   } catch (error) {
     console.error("Live context:", error);
-    return res.status(200).json({ context: "" });
+    return res.status(200).json({ context: "", calendarAction: null });
   }
 }
