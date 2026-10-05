@@ -85,6 +85,18 @@ function isAuthorized(req) {
 }
 
 
+
+function memoryCategory(memory) {
+  const text = String(memory || "").toLowerCase();
+  if (text.includes("famil") || text.includes("partner") || text.includes("freund")) return "Personen";
+  if (text.includes("projekt") || text.includes("arbeit") || text.includes("beruf") || text.includes("stud")) return "Projekte & Arbeit";
+  if (text.includes("ziel") || text.includes("plan") || text.includes("möchte")) return "Ziele & Pläne";
+  if (text.includes("immer") || text.includes("routine") || text.includes("regelmäßig")) return "Gewohnheiten";
+  if (text.includes("mag ") || text.includes("lieblings") || text.includes("bevorzug") || text.includes("interess")) return "Vorlieben";
+  if (text.includes("beziehung") || text.includes("spitzname") || text.includes("insider")) return "Beziehung";
+  return "Persönliches";
+}
+
 /* ========================================
    API
 ======================================== */
@@ -140,6 +152,7 @@ export default async function handler(req, res) {
 
       return res.status(200).json({
         memories: cleanMemories,
+        items: cleanMemories.map(memory => ({ text: memory, category: memoryCategory(memory) })),
         count: cleanMemories.length
       });
 
