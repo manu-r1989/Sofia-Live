@@ -132,6 +132,22 @@ function findMemoryIndex(
 }
 
 
+function selectRelevantMemories(memories, message, limit = 12) {
+  if (!Array.isArray(memories) || !memories.length) return [];
+  const words = value => new Set(String(value || "").toLowerCase().split(/[^a-z0-9äöüß]+/i).filter(word => word.length >= 4));
+  const query = words(message);
+  const recall = /erinner|merk|damals|mein|meine|lieblings|projekt|ziel|famil|freund|partner|arbeit|beruf|stud|hobby/i.test(String(message || ""));
+  const scored = memories.map((memory, index) => {
+    const tokens = words(memory);
+    let overlap = 0;
+    query.forEach(token => { if (tokens.has(token)) overlap += 1; });
+    return { memory, score: overlap * 10 + index / Math.max(1, memories.length - 1) };
+  });
+  const matches = scored.filter(item => item.score >= 10).sort((a,b) => b.score - a.score);
+  if (matches.length) return matches.slice(0, limit).map(item => item.memory);
+  return recall ? memories.slice(-Math.min(6, limit)) : [];
+}
+
 function applyMemoryAction(
   memories,
   memoryAction
@@ -472,17 +488,11 @@ export default async function handler(req, res) {
        SOFIA PROMPT
     ======================================== */
 
-    const memoryText =
-      memories.length
+    const relevantMemories = selectRelevantMemories(memories, message, 12);
 
-        ? memories
-            .map(
-              (memory, index) =>
-                `${index + 1}. ${memory}`
-            )
-            .join("\n")
-
-        : "Noch keine Langzeiterinnerungen vorhanden.";
+    const memoryText = relevantMemories.length
+      ? relevantMemories.map((memory, index) => `${index + 1}. ${memory}`).join("\n")
+      : "Für diese Nachricht wurden keine relevanten Langzeiterinnerungen ausgewählt.";
 
 
     const SOFIA_PROMPT = `
