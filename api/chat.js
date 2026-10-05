@@ -1,72 +1,239 @@
+import crypto from "node:crypto";
+
 const HISTORY_KEY = "sofia:main:history";
 const MEMORY_KEY = "sofia:main:longterm";
 
 const MAX_HISTORY_MESSAGES = 40;
 const MAX_LONGTERM_MEMORIES = 80;
 
-export default async function handler(req, res) {
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
+
+/* ========================================
+   SESSION
+======================================== */
+
+function makeExpectedSession(password) {
+  return crypto
+    .createHmac("sha256", password)
+    .update("sofia-authorized-session-v1")
+    .digest("hex");
+}
+
+
+function getCookie(req, name) {
+  const cookieHeader =
+    req.headers.cookie || "";
+
+  const cookies =
+    cookieHeader
+      .split(";")
+      .map(cookie => cookie.trim())
+      .filter(Boolean);
+
+  for (const cookie of cookies) {
+    const index =
+      cookie.indexOf("=");
+
+    if (index === -1) {
+      continue;
+    }
+
+    const key =
+      cookie.slice(0, index);
+
+    const value =
+      cookie.slice(index + 1);
+
+    if (key === name) {
+      return value;
+    }
   }
 
-  try {
-    const { message } = req.body || {};
+  return "";
+}
 
-    if (!message?.trim()) {
+
+function safeEqual(a, b) {
+  const aBuffer =
+    Buffer.from(String(a));
+
+  const bBuffer =
+    Buffer.from(String(b));
+
+  if (
+    aBuffer.length !==
+    bBuffer.length
+  ) {
+    return false;
+  }
+
+  return crypto.timingSafeEqual(
+    aBuffer,
+    bBuffer
+  );
+}
+
+
+/* ========================================
+   API
+======================================== */
+
+export default async function handler(req, res) {
+
+  res.setHeader(
+    "Cache-Control",
+    "no-store"
+  );
+
+
+  if (req.method !== "POST") {
+    return res.status(405).json({
+      error: "Method not allowed"
+    });
+  }
+
+
+  /* ========================================
+     AUTHENTIFIZIERUNG
+  ======================================== */
+
+  if (!process.env.SOFIA_PASSWORD) {
+    console.error(
+      "SOFIA_PASSWORD fehlt."
+    );
+
+    return res.status(500).json({
+      error: "Server-Konfiguration unvollständig."
+    });
+  }
+
+
+  const receivedSession =
+    getCookie(
+      req,
+      "sofia_session"
+    );
+
+
+  const expectedSession =
+    makeExpectedSession(
+      process.env.SOFIA_PASSWORD
+    );
+
+
+  if (
+    !receivedSession ||
+    !safeEqual(
+      receivedSession,
+      expectedSession
+    )
+  ) {
+
+    return res.status(401).json({
+      error: "Nicht autorisiert."
+    });
+  }
+
+
+  /* ========================================
+     HAUPTLOGIK
+  ======================================== */
+
+  try {
+
+    const { message } =
+      req.body || {};
+
+
+    if (
+      typeof message !== "string" ||
+      !message.trim()
+    ) {
+
       return res.status(400).json({
-        error: "Keine Nachricht erhalten."
+        error:
+          "Keine Nachricht erhalten."
       });
     }
+
 
     if (!process.env.OPENAI_API_KEY) {
+
       return res.status(500).json({
-        error: "OPENAI_API_KEY fehlt."
+        error:
+          "OPENAI_API_KEY fehlt."
       });
     }
+
 
     if (
       !process.env.KV_REST_API_URL ||
       !process.env.KV_REST_API_TOKEN
     ) {
+
       return res.status(500).json({
-        error: "Redis-Konfiguration fehlt."
+        error:
+          "Redis-Konfiguration fehlt."
       });
     }
+
 
     /* ========================================
        GEDÄCHTNIS LADEN
     ======================================== */
 
-    const [storedHistory, storedMemories] =
+    const [
+      storedHistory,
+      storedMemories
+    ] =
       await Promise.all([
-        redisGetJSON(HISTORY_KEY, []),
-        redisGetJSON(MEMORY_KEY, [])
+        redisGetJSON(
+          HISTORY_KEY,
+          []
+        ),
+
+        redisGetJSON(
+          MEMORY_KEY,
+          []
+        )
       ]);
+
 
     let history =
       Array.isArray(storedHistory)
         ? storedHistory
         : [];
 
+
     let memories =
       Array.isArray(storedMemories)
         ? storedMemories
         : [];
 
-    history = history
-      .filter(item =>
-        item &&
-        ["user", "assistant"].includes(item.role) &&
-        typeof item.content === "string"
-      )
-      .slice(-MAX_HISTORY_MESSAGES);
 
-    memories = memories
-      .filter(item =>
-        typeof item === "string" &&
-        item.trim()
-      )
-      .slice(-MAX_LONGTERM_MEMORIES);
+    history =
+      history
+        .filter(item =>
+          item &&
+          ["user", "assistant"]
+            .includes(item.role) &&
+          typeof item.content ===
+            "string"
+        )
+        .slice(
+          -MAX_HISTORY_MESSAGES
+        );
+
+
+    memories =
+      memories
+        .filter(item =>
+          typeof item === "string" &&
+          item.trim()
+        )
+        .slice(
+          -MAX_LONGTERM_MEMORIES
+        );
+
 
     /* ========================================
        SOFIA PROMPT
@@ -75,11 +242,13 @@ export default async function handler(req, res) {
     const memoryText =
       memories.length
         ? memories
-            .map((memory, index) =>
-              `${index + 1}. ${memory}`
+            .map(
+              (memory, index) =>
+                `${index + 1}. ${memory}`
             )
             .join("\n")
         : "Noch keine Langzeiterinnerungen vorhanden.";
+
 
     const SOFIA_PROMPT = `
 Du bist Sofia.
@@ -317,69 +486,111 @@ oder ein einzelner kurzer String.
 Kein Markdown außerhalb des JSON-Objekts.
 `;
 
+
     /* ========================================
        OPENAI
     ======================================== */
 
     const input = [
       ...history,
+
       {
         role: "user",
-        content: message.trim()
+        content:
+          message.trim()
       }
     ];
 
-    const response = await fetch(
-      "https://api.openai.com/v1/responses",
-      {
-        method: "POST",
 
-        headers: {
-          "Content-Type": "application/json",
-          Authorization:
-            `Bearer ${process.env.OPENAI_API_KEY}`
-        },
+    const response =
+      await fetch(
+        "https://api.openai.com/v1/responses",
+        {
+          method: "POST",
 
-        body: JSON.stringify({
-          model: "gpt-5.6",
-          instructions: SOFIA_PROMPT,
-          input,
-          max_output_tokens: 800
-        })
-      }
-    );
+          headers: {
+            "Content-Type":
+              "application/json",
 
-    const data = await response.json();
+            Authorization:
+              `Bearer ${process.env.OPENAI_API_KEY}`
+          },
+
+          body:
+            JSON.stringify({
+              model: "gpt-5.6",
+
+              instructions:
+                SOFIA_PROMPT,
+
+              input,
+
+              max_output_tokens:
+                800
+            })
+        }
+      );
+
+
+    const data =
+      await response.json();
+
 
     if (!response.ok) {
-      console.error("OpenAI error:", data);
 
-      return res.status(response.status).json({
-        error:
-          data?.error?.message ||
-          "OpenAI API request failed."
-      });
+      console.error(
+        "OpenAI error:",
+        data
+      );
+
+      return res
+        .status(response.status)
+        .json({
+          error:
+            data?.error?.message ||
+            "OpenAI API request failed."
+        });
     }
+
 
     const raw =
       data.output
-        ?.flatMap(item => item.content || [])
-        ?.find(item => item.type === "output_text")
+        ?.flatMap(
+          item =>
+            item.content || []
+        )
+        ?.find(
+          item =>
+            item.type ===
+            "output_text"
+        )
         ?.text || "";
+
 
     let parsed;
 
+
     try {
-      parsed = JSON.parse(raw);
+
+      parsed =
+        JSON.parse(raw);
+
     } catch {
+
       parsed = {
         reply:
           raw ||
           "Hm. Da ist gerade etwas schiefgelaufen.",
-        mood: "entspannt",
-        memory: null
+
+        mood:
+          "entspannt",
+
+        memory:
+          null
       };
+
     }
+
 
     const validMoods = [
       "entspannt",
@@ -390,96 +601,148 @@ Kein Markdown außerhalb des JSON-Objekts.
       "ernst"
     ];
 
+
     const reply =
-      typeof parsed.reply === "string" &&
+      typeof parsed.reply ===
+        "string" &&
       parsed.reply.trim()
+
         ? parsed.reply.trim()
+
         : "Hm. Da ist gerade etwas schiefgelaufen.";
 
+
     const mood =
-      validMoods.includes(parsed.mood)
+      validMoods.includes(
+        parsed.mood
+      )
         ? parsed.mood
         : "entspannt";
 
+
     const newMemory =
-      typeof parsed.memory === "string" &&
+      typeof parsed.memory ===
+        "string" &&
       parsed.memory.trim()
-        ? parsed.memory.trim().slice(0, 500)
+
+        ? parsed.memory
+            .trim()
+            .slice(0, 500)
+
         : null;
+
 
     /* ========================================
        CHATVERLAUF AKTUALISIEREN
     ======================================== */
 
     history.push(
+
       {
         role: "user",
-        content: message.trim()
+        content:
+          message.trim()
       },
+
       {
         role: "assistant",
-        content: reply
+        content:
+          reply
       }
+
     );
 
+
     history =
-      history.slice(-MAX_HISTORY_MESSAGES);
+      history.slice(
+        -MAX_HISTORY_MESSAGES
+      );
+
 
     /* ========================================
        LANGZEITERINNERUNG AKTUALISIEREN
     ======================================== */
 
     if (newMemory) {
+
       const normalizedNew =
         newMemory.toLowerCase();
 
+
       const alreadyExists =
-        memories.some(memory =>
-          memory.toLowerCase() === normalizedNew
+        memories.some(
+          memory =>
+            memory.toLowerCase() ===
+            normalizedNew
         );
 
+
       if (!alreadyExists) {
-        memories.push(newMemory);
+        memories.push(
+          newMemory
+        );
       }
 
+
       memories =
-        memories.slice(-MAX_LONGTERM_MEMORIES);
+        memories.slice(
+          -MAX_LONGTERM_MEMORIES
+        );
+
     }
+
 
     /* ========================================
        BEIDES IN REDIS SPEICHERN
     ======================================== */
 
     await redisPipeline([
+
       [
         "SET",
         HISTORY_KEY,
         JSON.stringify(history)
       ],
+
       [
         "SET",
         MEMORY_KEY,
         JSON.stringify(memories)
       ]
+
     ]);
 
+
     return res.status(200).json({
+
       reply,
+
       mood,
-      memoryMessages: history.length,
-      longTermMemories: memories.length
+
+      memoryMessages:
+        history.length,
+
+      longTermMemories:
+        memories.length
+
     });
 
+
   } catch (error) {
+
     console.error(
-      "Sofia V3.6 server error:",
+      "Sofia V3.7 server error:",
       error
     );
 
+
     return res.status(500).json({
-      error: "Interner Sofia-Fehler."
+      error:
+        "Interner Sofia-Fehler."
     });
+
   }
+
 }
 
 
@@ -491,48 +754,69 @@ async function redisGetJSON(
   key,
   fallback
 ) {
-  const response = await fetch(
-    process.env.KV_REST_API_URL,
-    {
-      method: "POST",
 
-      headers: {
-        Authorization:
-          `Bearer ${process.env.KV_REST_API_TOKEN}`,
+  const response =
+    await fetch(
+      process.env.KV_REST_API_URL,
+      {
+        method: "POST",
 
-        "Content-Type":
-          "application/json"
-      },
+        headers: {
 
-      body: JSON.stringify([
-        "GET",
-        key
-      ])
-    }
-  );
+          Authorization:
+            `Bearer ${process.env.KV_REST_API_TOKEN}`,
+
+          "Content-Type":
+            "application/json"
+
+        },
+
+        body:
+          JSON.stringify([
+            "GET",
+            key
+          ])
+      }
+    );
+
 
   if (!response.ok) {
+
     throw new Error(
       `Redis GET HTTP ${response.status}`
     );
+
   }
+
 
   const data =
     await response.json();
 
+
   if (data.error) {
-    throw new Error(data.error);
+    throw new Error(
+      data.error
+    );
   }
+
 
   if (!data.result) {
     return fallback;
   }
 
+
   try {
-    return JSON.parse(data.result);
+
+    return JSON.parse(
+      data.result
+    );
+
   } catch {
+
     return fallback;
+
   }
+
 }
 
 
@@ -543,51 +827,74 @@ async function redisGetJSON(
 async function redisPipeline(
   commands
 ) {
+
   const base =
     process.env.KV_REST_API_URL
       .replace(/\/$/, "");
 
-  const response = await fetch(
-    `${base}/pipeline`,
-    {
-      method: "POST",
 
-      headers: {
-        Authorization:
-          `Bearer ${process.env.KV_REST_API_TOKEN}`,
+  const response =
+    await fetch(
+      `${base}/pipeline`,
+      {
+        method: "POST",
 
-        "Content-Type":
-          "application/json"
-      },
+        headers: {
 
-      body:
-        JSON.stringify(commands)
-    }
-  );
+          Authorization:
+            `Bearer ${process.env.KV_REST_API_TOKEN}`,
+
+          "Content-Type":
+            "application/json"
+
+        },
+
+        body:
+          JSON.stringify(
+            commands
+          )
+      }
+    );
+
 
   if (!response.ok) {
+
     throw new Error(
       `Redis pipeline HTTP ${response.status}`
     );
+
   }
+
 
   const data =
     await response.json();
 
+
   if (!Array.isArray(data)) {
+
     throw new Error(
       "Ungültige Redis-Pipeline-Antwort."
     );
+
   }
 
+
   const failed =
-    data.find(item => item?.error);
+    data.find(
+      item =>
+        item?.error
+    );
+
 
   if (failed) {
+
     throw new Error(
       failed.error
     );
+
   }
 
+
   return data;
+
 }
