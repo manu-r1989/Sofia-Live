@@ -1243,8 +1243,23 @@ Kein Markdown außerhalb des JSON-Objekts.
         ]
       : message.trim();
 
+    // V4.12.6: keep recent turns verbatim; compress older history locally.
+    // This reduces context noise without adding another model call.
+    const recentHistory = history.slice(-12);
+    const olderHistory = history.slice(0, -12);
+    const olderContext = olderHistory.length
+      ? olderHistory
+          .slice(-16)
+          .map(item => `${item.role === "user" ? "Nutzer" : "Sofia"}: ${String(item.content || "").trim().slice(0, 220)}`)
+          .join("\n")
+      : "";
+
     const input = [
-      ...history,
+      ...(olderContext ? [{
+        role: "developer",
+        content: `Kompakter älterer Gesprächskontext (nur verwenden, wenn aktuell relevant):\n${olderContext}`
+      }] : []),
+      ...recentHistory,
       {
         role: "user",
         content: userContent
