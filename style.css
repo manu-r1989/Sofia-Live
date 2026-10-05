@@ -693,3 +693,30 @@
     border-radius:18px!important;font-size:20px!important;
   }
 }
+
+
+/* V4.6.7 compact portrait chat */
+@media (orientation:portrait) and (max-width:850px){
+  #toolsToggle{
+    width:44px!important;height:44px!important;min-width:44px!important;min-height:44px!important;
+    border-radius:12px!important;font-size:18px!important;
+  }
+  .chatPanel:not(.minimized){
+    height:min(36vh,390px)!important;max-height:min(36vh,390px)!important;
+    bottom:max(12px,env(safe-area-inset-bottom))!important;
+  }
+  .actions{
+    bottom:calc(max(12px,env(safe-area-inset-bottom)) + min(36vh,390px) + 8px)!important;
+  }
+  .chatPanel.minimized{
+    height:76px!important;min-height:76px!important;max-height:76px!important;
+    bottom:max(12px,env(safe-area-inset-bottom))!important;padding:9px 12px!important;overflow:hidden!important;
+  }
+  .chatPanel.minimized .chatHead{
+    height:56px!important;min-height:56px!important;padding:0!important;border-bottom:0!important;
+  }
+  .chatPanel.minimized .messages,.chatPanel.minimized #form,.chatPanel.minimized .chatHead small{display:none!important}
+  .chatPanel.minimized ~ .actions{
+    bottom:calc(max(12px,env(safe-area-inset-bottom)) + 84px)!important;
+  }
+}
