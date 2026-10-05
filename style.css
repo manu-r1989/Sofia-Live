@@ -362,3 +362,106 @@
     transform:none !important;
   }
 }
+
+
+/* =========================================================
+   V4.6.4 — collapsible toolbar above chat + split landscape
+   ========================================================= */
+#toolsToggle{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  touch-action:manipulation;
+}
+#toolsToggle.on{background:rgba(255,255,255,.14)}
+
+.actions{
+  transition:opacity .18s ease,transform .18s ease,visibility .18s;
+}
+.app.tools-closed .actions{
+  opacity:0!important;
+  visibility:hidden!important;
+  pointer-events:none!important;
+  transform:translateY(8px)!important;
+}
+
+/* Portrait: toolbar floats immediately above the chat panel. */
+@media (max-width:850px) and (orientation:portrait){
+  .chatPanel{
+    left:18px!important;
+    right:18px!important;
+    width:auto!important;
+  }
+  .actions{
+    position:absolute!important;
+    left:18px!important;
+    right:18px!important;
+    width:auto!important;
+    bottom:auto!important;
+    transform:none!important;
+    z-index:170!important;
+  }
+  .app.tools-closed .actions{transform:translateY(8px)!important}
+}
+
+/* Landscape: reserve the left side for Sofia and the right side for UI.
+   Neither the chat nor toolbar is allowed to cover Sofia's column. */
+@media (orientation:landscape){
+  .chatPanel{
+    position:fixed!important;
+    left:52%!important;
+    right:max(18px,env(safe-area-inset-right))!important;
+    top:max(82px,env(safe-area-inset-top))!important;
+    bottom:max(18px,env(safe-area-inset-bottom))!important;
+    width:auto!important;
+    max-width:none!important;
+    height:auto!important;
+    margin:0!important;
+    z-index:120!important;
+  }
+
+  .actions{
+    position:fixed!important;
+    left:52%!important;
+    right:max(18px,env(safe-area-inset-right))!important;
+    top:max(18px,env(safe-area-inset-top))!important;
+    bottom:auto!important;
+    width:auto!important;
+    max-width:none!important;
+    height:56px!important;
+    margin:0!important;
+    transform:none!important;
+    z-index:170!important;
+  }
+
+  .moodPanel{
+    position:fixed!important;
+    left:52%!important;
+    right:max(18px,env(safe-area-inset-right))!important;
+    top:82px!important;
+    bottom:auto!important;
+    width:auto!important;
+    max-width:none!important;
+    transform:translateY(-8px)!important;
+    z-index:190!important;
+  }
+  .app.mood-open .moodPanel{transform:translateY(0)!important}
+}
+
+/* Short iPhone landscape: tighter split while preserving separate columns. */
+@media (orientation:landscape) and (max-height:500px){
+  .actions{
+    left:50%!important;
+    top:max(8px,env(safe-area-inset-top))!important;
+    height:48px!important;
+  }
+  .chatPanel{
+    left:50%!important;
+    top:max(62px,calc(env(safe-area-inset-top) + 54px))!important;
+    bottom:max(8px,env(safe-area-inset-bottom))!important;
+  }
+  .moodPanel{
+    left:50%!important;
+    top:max(60px,calc(env(safe-area-inset-top) + 52px))!important;
+  }
+}

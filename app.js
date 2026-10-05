@@ -1070,6 +1070,23 @@ document.addEventListener(
    MOOD POPOVER
 ========================= */
 
+const toolsToggle = document.querySelector('#toolsToggle');
+const actionBar = document.querySelector('.actions');
+
+function setToolsOpen(open) {
+  const next = Boolean(open);
+  app?.classList.toggle('tools-closed', !next);
+  toolsToggle?.setAttribute('aria-expanded', String(next));
+  toolsToggle?.classList.toggle('on', next);
+  localStorage.setItem('sofia_tools_open', next ? '1' : '0');
+}
+
+toolsToggle?.addEventListener('click', () => {
+  setToolsOpen(app?.classList.contains('tools-closed'));
+});
+
+setToolsOpen(localStorage.getItem('sofia_tools_open') !== '0');
+
 const moodToggle = document.querySelector('#moodToggle');
 const moodPanel = document.querySelector('#moodPanel');
 
