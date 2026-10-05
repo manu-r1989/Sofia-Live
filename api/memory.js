@@ -150,6 +150,31 @@ export default async function handler(req, res) {
        EINE ERINNERUNG LÖSCHEN
     ======================================== */
 
+    if (req.method === "PUT") {
+      const { old_memory, new_memory } = req.body || {};
+      if (typeof old_memory !== "string" || !old_memory.trim() ||
+          typeof new_memory !== "string" || !new_memory.trim()) {
+        return res.status(400).json({ error: "Alte und neue Erinnerung werden benötigt." });
+      }
+      if (new_memory.trim().length > 500) {
+        return res.status(413).json({ error: "Die Erinnerung ist zu lang." });
+      }
+
+      const stored = await redisGetJSON(MEMORY_KEY, []);
+      const memories = Array.isArray(stored) ? stored : [];
+      const target = old_memory.trim().toLowerCase();
+      const index = memories.findIndex(item =>
+        typeof item === "string" && item.trim().toLowerCase() === target
+      );
+      if (index === -1) {
+        return res.status(404).json({ error: "Erinnerung nicht gefunden." });
+      }
+
+      memories[index] = new_memory.trim();
+      await redisSetJSON(MEMORY_KEY, memories);
+      return res.status(200).json({ ok: true, memories, count: memories.length });
+    }
+
     if (req.method === "DELETE") {
 
       const { memory } =
