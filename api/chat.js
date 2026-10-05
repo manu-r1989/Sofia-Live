@@ -1138,6 +1138,12 @@ Wenn die neue Aussage die alte Information nur
 ergänzt und beide gleichzeitig wahr sein können,
 darf ADD verwendet werden.
 
+MEMORY CONFIDENCE:
+Speichere nur Informationen, die der Nutzer ausdrücklich als eigene Tatsache,
+Vorliebe, Absicht oder Gewohnheit formuliert oder ausdrücklich zum Merken nennt.
+Bloße Vermutungen, indirekte Schlüsse und Interpretationen führen zu none.
+Wiederholt bestätigte Angaben sind ebenfalls speicherwürdig.
+
 ==================================================
 AUSGABE
 ==================================================
