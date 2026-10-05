@@ -74,6 +74,201 @@ function safeEqual(a, b) {
 
 
 /* ========================================
+   MEMORY HELPERS
+======================================== */
+
+function normalizeMemory(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
+
+function findMemoryIndex(
+  memories,
+  target
+) {
+  const normalizedTarget =
+    normalizeMemory(target);
+
+  if (!normalizedTarget) {
+    return -1;
+  }
+
+  /*
+   * Zuerst exakte Übereinstimmung.
+   */
+  const exactIndex =
+    memories.findIndex(
+      memory =>
+        normalizeMemory(memory) ===
+        normalizedTarget
+    );
+
+  if (exactIndex !== -1) {
+    return exactIndex;
+  }
+
+  /*
+   * Fallback:
+   * Falls Sofia den vorhandenen Satz minimal
+   * verkürzt zurückgibt, akzeptieren wir auch
+   * eine sehr nahe Textübereinstimmung.
+   */
+  return memories.findIndex(memory => {
+    const normalizedMemory =
+      normalizeMemory(memory);
+
+    return (
+      normalizedMemory.includes(
+        normalizedTarget
+      ) ||
+      normalizedTarget.includes(
+        normalizedMemory
+      )
+    );
+  });
+}
+
+
+function applyMemoryAction(
+  memories,
+  memoryAction
+) {
+  if (
+    !memoryAction ||
+    typeof memoryAction !== "object"
+  ) {
+    return memories;
+  }
+
+
+  const action =
+    typeof memoryAction.action === "string"
+      ? memoryAction.action
+          .trim()
+          .toLowerCase()
+      : "none";
+
+
+  const oldMemory =
+    typeof memoryAction.old_memory ===
+      "string"
+      ? memoryAction.old_memory
+          .trim()
+          .slice(0, 500)
+      : "";
+
+
+  const newMemory =
+    typeof memoryAction.new_memory ===
+      "string"
+      ? memoryAction.new_memory
+          .trim()
+          .slice(0, 500)
+      : "";
+
+
+  /* ---------- ADD ---------- */
+
+  if (
+    action === "add" &&
+    newMemory
+  ) {
+
+    const alreadyExists =
+      memories.some(
+        memory =>
+          normalizeMemory(memory) ===
+          normalizeMemory(newMemory)
+      );
+
+
+    if (!alreadyExists) {
+      memories.push(newMemory);
+    }
+
+  }
+
+
+  /* ---------- UPDATE ---------- */
+
+  else if (
+    action === "update" &&
+    newMemory
+  ) {
+
+    const index =
+      findMemoryIndex(
+        memories,
+        oldMemory
+      );
+
+
+    if (index !== -1) {
+
+      memories[index] =
+        newMemory;
+
+    } else {
+
+      /*
+       * Falls das Modell eine sinnvolle neue
+       * Erinnerung liefert, aber die alte
+       * Formulierung nicht exakt gefunden
+       * werden kann, verlieren wir die neue
+       * Information nicht.
+       */
+
+      const alreadyExists =
+        memories.some(
+          memory =>
+            normalizeMemory(memory) ===
+            normalizeMemory(newMemory)
+        );
+
+
+      if (!alreadyExists) {
+        memories.push(newMemory);
+      }
+
+    }
+
+  }
+
+
+  /* ---------- DELETE ---------- */
+
+  else if (
+    action === "delete" &&
+    oldMemory
+  ) {
+
+    const index =
+      findMemoryIndex(
+        memories,
+        oldMemory
+      );
+
+
+    if (index !== -1) {
+      memories.splice(
+        index,
+        1
+      );
+    }
+
+  }
+
+
+  return memories.slice(
+    -MAX_LONGTERM_MEMORIES
+  );
+}
+
+
+/* ========================================
    API
 ======================================== */
 
@@ -97,13 +292,16 @@ export default async function handler(req, res) {
   ======================================== */
 
   if (!process.env.SOFIA_PASSWORD) {
+
     console.error(
       "SOFIA_PASSWORD fehlt."
     );
 
     return res.status(500).json({
-      error: "Server-Konfiguration unvollständig."
+      error:
+        "Server-Konfiguration unvollständig."
     });
+
   }
 
 
@@ -131,6 +329,7 @@ export default async function handler(req, res) {
     return res.status(401).json({
       error: "Nicht autorisiert."
     });
+
   }
 
 
@@ -153,6 +352,21 @@ export default async function handler(req, res) {
         error:
           "Keine Nachricht erhalten."
       });
+
+    }
+
+
+    /*
+     * Schutz vor unnötig riesigen Requests.
+     */
+
+    if (message.length > 6000) {
+
+      return res.status(413).json({
+        error:
+          "Die Nachricht ist zu lang."
+      });
+
     }
 
 
@@ -162,6 +376,7 @@ export default async function handler(req, res) {
         error:
           "OPENAI_API_KEY fehlt."
       });
+
     }
 
 
@@ -174,6 +389,7 @@ export default async function handler(req, res) {
         error:
           "Redis-Konfiguration fehlt."
       });
+
     }
 
 
@@ -186,6 +402,7 @@ export default async function handler(req, res) {
       storedMemories
     ] =
       await Promise.all([
+
         redisGetJSON(
           HISTORY_KEY,
           []
@@ -195,6 +412,7 @@ export default async function handler(req, res) {
           MEMORY_KEY,
           []
         )
+
       ]);
 
 
@@ -230,6 +448,9 @@ export default async function handler(req, res) {
           typeof item === "string" &&
           item.trim()
         )
+        .map(item =>
+          item.trim()
+        )
         .slice(
           -MAX_LONGTERM_MEMORIES
         );
@@ -241,12 +462,14 @@ export default async function handler(req, res) {
 
     const memoryText =
       memories.length
+
         ? memories
             .map(
               (memory, index) =>
                 `${index + 1}. ${memory}`
             )
             .join("\n")
+
         : "Noch keine Langzeiterinnerungen vorhanden.";
 
 
@@ -385,31 +608,137 @@ LANGZEITGEDÄCHTNIS
 ==================================================
 
 Hier sind deine aktuell gespeicherten
-Langzeiterinnerungen über den Nutzer und eure
-bisherige Beziehung:
+Langzeiterinnerungen:
 
 ${memoryText}
 
-Diese Informationen darfst du selbstverständlich
-und natürlich verwenden.
+Diese Erinnerungen sind dein aktueller Wissensstand
+über den Nutzer und eure bisherige Beziehung.
 
-Behaupte nicht, du hättest etwas vergessen,
-wenn die Information hier steht.
+Verwende sie natürlich im Gespräch.
 
 Sage nicht ständig:
+
 "Ich habe gespeichert..."
-oder
 "Laut meinem Gedächtnis..."
+"Ich erinnere mich, dass..."
 
-Beziehe Erinnerungen natürlich ins Gespräch ein.
+Wenn eine Erinnerung relevant ist, verwende die
+Information einfach natürlich.
+
+Erfinde keine Erinnerung, die hier nicht steht oder
+sich nicht aus dem tatsächlichen Gespräch ergibt.
 
 ==================================================
-WAS SOLL LANGFRISTIG GEMERKT WERDEN?
+GEDÄCHTNIS VERWALTEN
 ==================================================
 
-Nach jeder Nutzernachricht entscheidest du,
-ob darin eine Information steckt, die auch in
-späteren Gesprächen nützlich sein könnte.
+Nach jeder neuen Nutzernachricht entscheidest du,
+ob das Langzeitgedächtnis verändert werden soll.
+
+Du hast exakt vier mögliche Aktionen:
+
+none
+add
+update
+delete
+
+
+--------------------------------------------------
+NONE
+--------------------------------------------------
+
+Verwende "none", wenn nichts langfristig Relevantes
+gespeichert oder verändert werden soll.
+
+Beispiele:
+
+"Was ist 17 × 23?"
+"Wie funktioniert ein Turbolader?"
+"Mir ist gerade kalt."
+
+--------------------------------------------------
+ADD
+--------------------------------------------------
+
+Verwende "add", wenn eine neue langfristig nützliche
+Information hinzukommt und noch keine bestehende
+Erinnerung dasselbe Thema abdeckt.
+
+Beispiel:
+
+Nutzer:
+"Mein Traumauto ist ein Lamborghini Miura."
+
+Dann:
+
+{
+  "action": "add",
+  "old_memory": null,
+  "new_memory": "Das Traumauto des Nutzers ist ein Lamborghini Miura."
+}
+
+--------------------------------------------------
+UPDATE
+--------------------------------------------------
+
+Verwende "update", wenn eine neue Information eine
+bereits vorhandene Erinnerung korrigiert, verändert,
+präzisiert oder ersetzt.
+
+WICHTIG:
+
+Bei update muss old_memory möglichst exakt dem
+bestehenden Satz aus dem Langzeitgedächtnis
+entsprechen.
+
+Beispiel:
+
+Gespeichert:
+"Der Nutzer trinkt seinen Kaffee am liebsten schwarz."
+
+Nutzer:
+"Mittlerweile trinke ich Kaffee lieber mit Milch."
+
+Dann:
+
+{
+  "action": "update",
+  "old_memory": "Der Nutzer trinkt seinen Kaffee am liebsten schwarz.",
+  "new_memory": "Der Nutzer trinkt seinen Kaffee am liebsten mit Milch."
+}
+
+Speichere in diesem Fall NICHT beide Aussagen.
+
+--------------------------------------------------
+DELETE
+--------------------------------------------------
+
+Verwende "delete", wenn der Nutzer ausdrücklich
+möchte, dass eine gespeicherte Information vergessen
+wird oder eindeutig sagt, dass sie nicht mehr gelten
+soll und kein Ersatz gespeichert werden soll.
+
+Beispiel:
+
+Nutzer:
+"Vergiss, dass der Miura mein Traumauto ist."
+
+Wenn gespeichert ist:
+
+"Das Traumauto des Nutzers ist ein Lamborghini Miura."
+
+Dann:
+
+{
+  "action": "delete",
+  "old_memory": "Das Traumauto des Nutzers ist ein Lamborghini Miura.",
+  "new_memory": null
+}
+
+--------------------------------------------------
+WAS IST LANGFRISTIG RELEVANT?
+--------------------------------------------------
 
 Geeignet sind insbesondere:
 
@@ -417,14 +746,16 @@ Geeignet sind insbesondere:
 - Vorlieben und Abneigungen
 - Lieblingsdinge
 - wichtige Personen
-- Beruf oder längerfristige Projekte
-- Hobbys und Interessen
+- Beruf
+- längerfristige Projekte
+- Hobbys
+- Interessen
 - persönliche Ziele
 - wichtige Pläne
 - wiederkehrende Gewohnheiten
 - bedeutsame Erlebnisse
 - ausdrücklich mit "merk dir" bezeichnete Dinge
-- Informationen über die Entwicklung eurer Beziehung
+- längerfristige Beziehungsentwicklung
 - wiederkehrende Insider oder gemeinsame Themen
 
 Nicht langfristig speichern:
@@ -432,40 +763,55 @@ Nicht langfristig speichern:
 - belanglose Einzelheiten
 - einmalige Rechenaufgaben
 - gewöhnliche Faktenfragen
-- zufällige Smalltalk-Sätze ohne spätere Bedeutung
-- temporäre technische Fehlermeldungen
+- zufälligen Smalltalk
+- kurzfristige Zustände
+- temporäre technische Fehler
+- Informationen, die nur für die aktuelle Antwort
+  gebraucht werden
 
-Formuliere eine Erinnerung kurz und eindeutig.
+Speichere lieber wenige nützliche Erinnerungen als
+viele belanglose.
+
+==================================================
+WIDERSPRÜCHE
+==================================================
+
+Prüfe vor "add" immer die vorhandenen Erinnerungen.
+
+Wenn bereits eine Erinnerung zum selben persönlichen
+Thema existiert und die neue Aussage diese verändert,
+verwende "update" statt "add".
 
 Beispiel:
 
-Nutzer:
-"Mein Traumauto ist ein Lamborghini Miura."
-
-memory:
+Gespeichert:
 "Das Traumauto des Nutzers ist ein Lamborghini Miura."
 
-Wenn keine neue relevante Erinnerung vorliegt,
-ist memory null.
+Neue Aussage:
+"Mein Traumauto ist jetzt ein Porsche 911."
+
+Das ist UPDATE, nicht ADD.
+
+Wenn die neue Aussage die alte Information nur
+ergänzt und beide gleichzeitig wahr sein können,
+darf ADD verwendet werden.
 
 ==================================================
 AUSGABE
 ==================================================
 
-Antworte ausschließlich als gültiges JSON-Objekt:
+Antworte ausschließlich als gültiges JSON-Objekt.
+
+Schema:
 
 {
-  "reply": "vollständige Antwort an den Nutzer",
+  "reply": "Antwort an den Nutzer",
   "mood": "entspannt",
-  "memory": null
-}
-
-Oder beispielsweise:
-
-{
-  "reply": "Das passt irgendwie zu dir. Der Miura ist schon verdammt schön.",
-  "mood": "amüsiert",
-  "memory": "Das Traumauto des Nutzers ist ein Lamborghini Miura."
+  "memory_action": {
+    "action": "none",
+    "old_memory": null,
+    "new_memory": null
+  }
 }
 
 Erlaubte mood-Werte sind exakt:
@@ -477,11 +823,32 @@ skeptisch
 genervt
 ernst
 
-memory ist entweder:
+Erlaubte memory_action.action-Werte sind exakt:
 
-null
+none
+add
+update
+delete
 
-oder ein einzelner kurzer String.
+Bei none:
+
+"old_memory": null
+"new_memory": null
+
+Bei add:
+
+"old_memory": null
+"new_memory": "Neue Erinnerung"
+
+Bei update:
+
+"old_memory": "Bestehende Erinnerung"
+"new_memory": "Neue Fassung"
+
+Bei delete:
+
+"old_memory": "Zu löschende Erinnerung"
+"new_memory": null
 
 Kein Markdown außerhalb des JSON-Objekts.
 `;
@@ -518,7 +885,9 @@ Kein Markdown außerhalb des JSON-Objekts.
 
           body:
             JSON.stringify({
-              model: "gpt-5.6",
+
+              model:
+                "gpt-5.6",
 
               instructions:
                 SOFIA_PROMPT,
@@ -527,6 +896,7 @@ Kein Markdown außerhalb des JSON-Objekts.
 
               max_output_tokens:
                 800
+
             })
         }
       );
@@ -546,10 +916,13 @@ Kein Markdown außerhalb des JSON-Objekts.
       return res
         .status(response.status)
         .json({
+
           error:
             data?.error?.message ||
             "OpenAI API request failed."
+
         });
+
     }
 
 
@@ -577,7 +950,13 @@ Kein Markdown außerhalb des JSON-Objekts.
 
     } catch {
 
+      console.error(
+        "Ungültige Sofia JSON-Antwort:",
+        raw
+      );
+
       parsed = {
+
         reply:
           raw ||
           "Hm. Da ist gerade etwas schiefgelaufen.",
@@ -585,12 +964,20 @@ Kein Markdown außerhalb des JSON-Objekts.
         mood:
           "entspannt",
 
-        memory:
-          null
+        memory_action: {
+          action: "none",
+          old_memory: null,
+          new_memory: null
+        }
+
       };
 
     }
 
+
+    /* ========================================
+       ANTWORT VALIDIEREN
+    ======================================== */
 
     const validMoods = [
       "entspannt",
@@ -603,8 +990,7 @@ Kein Markdown außerhalb des JSON-Objekts.
 
 
     const reply =
-      typeof parsed.reply ===
-        "string" &&
+      typeof parsed.reply === "string" &&
       parsed.reply.trim()
 
         ? parsed.reply.trim()
@@ -616,20 +1002,93 @@ Kein Markdown außerhalb des JSON-Objekts.
       validMoods.includes(
         parsed.mood
       )
+
         ? parsed.mood
+
         : "entspannt";
 
 
-    const newMemory =
-      typeof parsed.memory ===
-        "string" &&
-      parsed.memory.trim()
+    const validMemoryActions = [
+      "none",
+      "add",
+      "update",
+      "delete"
+    ];
 
-        ? parsed.memory
-            .trim()
-            .slice(0, 500)
 
-        : null;
+    let memoryAction = {
+
+      action: "none",
+
+      old_memory: null,
+
+      new_memory: null
+
+    };
+
+
+    if (
+      parsed.memory_action &&
+      typeof parsed.memory_action ===
+        "object"
+    ) {
+
+      const requestedAction =
+        typeof parsed
+          .memory_action
+          .action === "string"
+
+          ? parsed
+              .memory_action
+              .action
+              .toLowerCase()
+              .trim()
+
+          : "none";
+
+
+      if (
+        validMemoryActions.includes(
+          requestedAction
+        )
+      ) {
+
+        memoryAction = {
+
+          action:
+            requestedAction,
+
+          old_memory:
+            typeof parsed
+              .memory_action
+              .old_memory === "string"
+
+              ? parsed
+                  .memory_action
+                  .old_memory
+                  .trim()
+                  .slice(0, 500)
+
+              : null,
+
+          new_memory:
+            typeof parsed
+              .memory_action
+              .new_memory === "string"
+
+              ? parsed
+                  .memory_action
+                  .new_memory
+                  .trim()
+                  .slice(0, 500)
+
+              : null
+
+        };
+
+      }
+
+    }
 
 
     /* ========================================
@@ -660,40 +1119,18 @@ Kein Markdown außerhalb des JSON-Objekts.
 
 
     /* ========================================
-       LANGZEITERINNERUNG AKTUALISIEREN
+       LANGZEITGEDÄCHTNIS V3.8
     ======================================== */
 
-    if (newMemory) {
-
-      const normalizedNew =
-        newMemory.toLowerCase();
-
-
-      const alreadyExists =
-        memories.some(
-          memory =>
-            memory.toLowerCase() ===
-            normalizedNew
-        );
-
-
-      if (!alreadyExists) {
-        memories.push(
-          newMemory
-        );
-      }
-
-
-      memories =
-        memories.slice(
-          -MAX_LONGTERM_MEMORIES
-        );
-
-    }
+    memories =
+      applyMemoryAction(
+        memories,
+        memoryAction
+      );
 
 
     /* ========================================
-       BEIDES IN REDIS SPEICHERN
+       REDIS SPEICHERN
     ======================================== */
 
     await redisPipeline([
@@ -713,6 +1150,10 @@ Kein Markdown außerhalb des JSON-Objekts.
     ]);
 
 
+    /* ========================================
+       ANTWORT
+    ======================================== */
+
     return res.status(200).json({
 
       reply,
@@ -731,14 +1172,16 @@ Kein Markdown außerhalb des JSON-Objekts.
   } catch (error) {
 
     console.error(
-      "Sofia V3.7 server error:",
+      "Sofia V3.8 server error:",
       error
     );
 
 
     return res.status(500).json({
+
       error:
         "Interner Sofia-Fehler."
+
     });
 
   }
@@ -794,14 +1237,18 @@ async function redisGetJSON(
 
 
   if (data.error) {
+
     throw new Error(
       data.error
     );
+
   }
 
 
   if (!data.result) {
+
     return fallback;
+
   }
 
 
