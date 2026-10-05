@@ -1,25 +1,29 @@
 /*
-  Sofia V4.3.3
-  Live Voice + Live Memory + Visual Avatar
+  Sofia V4.3.4
 
-  Änderungen gegenüber V4.3.2:
-  - RMS Lip Sync bleibt erhalten
-  - Echo-/False-Barge-In Schutz
-  - kurze Speech-Starts während Sofias eigener Ausgabe
-    werden UI-seitig ignoriert
-  - robustere Response-State-Verwaltung
+  Live Voice
+  Live Memory
+  Visual Avatar
+  RMS Lip Sync
+  Stable Turn Taking
+
+  WICHTIG:
+  Die eigentliche VAD-Konfiguration wird bereits
+  serverseitig in /api/realtime.js gesetzt.
+
+  interrupt_response = false
 */
+
 
 (() => {
   "use strict";
+
 
   /* =====================================================
      CONFIG
   ===================================================== */
 
   const CONFIG = {
-    echoGuardMs: 900,
-    afterSpeechGuardMs: 500,
     rmsGain: 7.5,
     rmsNoiseFloor: 0.018
   };
@@ -31,6 +35,7 @@
 
   let peerConnection = null;
   let dataChannel = null;
+
   let localStream = null;
   let remoteAudio = null;
 
@@ -38,9 +43,6 @@
   let connecting = false;
 
   let assistantResponding = false;
-
-  let assistantSpeechStartedAt = 0;
-  let assistantSpeechEndedAt = 0;
 
 
   /* =====================================================
@@ -50,11 +52,12 @@
   let pendingUserText = "";
   let pendingAssistantText = "";
 
-  let memoryQueue = Promise.resolve();
+  let memoryQueue =
+    Promise.resolve();
 
 
   /* =====================================================
-     AVATAR AUDIO ANALYSIS
+     AVATAR AUDIO
   ===================================================== */
 
   let avatarAudioContext = null;
@@ -84,18 +87,31 @@
   const liveButton =
     document.createElement("button");
 
-  liveButton.type = "button";
-  liveButton.id = "liveVoiceButton";
-  liveButton.textContent = "◉ LIVE";
+
+  liveButton.type =
+    "button";
+
+  liveButton.id =
+    "liveVoiceButton";
+
+  liveButton.textContent =
+    "◉ LIVE";
 
 
   Object.assign(
     liveButton.style,
     {
-      position: "fixed",
-      right: "18px",
-      bottom: "92px",
-      zIndex: "5000",
+      position:
+        "fixed",
+
+      right:
+        "18px",
+
+      bottom:
+        "92px",
+
+      zIndex:
+        "5000",
 
       border:
         "1px solid rgba(255,255,255,0.16)",
@@ -115,11 +131,14 @@
       WebkitBackdropFilter:
         "blur(14px)",
 
-      color: "#fff",
+      color:
+        "#fff",
 
-      fontSize: "12px",
+      fontSize:
+        "12px",
 
-      fontWeight: "700",
+      fontWeight:
+        "700",
 
       letterSpacing:
         "0.08em",
@@ -127,7 +146,8 @@
       boxShadow:
         "0 8px 30px rgba(0,0,0,0.28)",
 
-      cursor: "pointer"
+      cursor:
+        "pointer"
     }
   );
 
@@ -138,12 +158,17 @@
 
 
   /* =====================================================
-     UI HELPERS
+     UI
   ===================================================== */
 
-  function setLiveButtonState(state) {
+  function setLiveButtonState(
+    state
+  ) {
 
-    if (state === "connecting") {
+    if (
+      state ===
+      "connecting"
+    ) {
 
       liveButton.textContent =
         "◌ VERBINDE…";
@@ -155,7 +180,10 @@
     }
 
 
-    if (state === "active") {
+    if (
+      state ===
+      "active"
+    ) {
 
       liveButton.textContent =
         "● LIVE";
@@ -194,44 +222,6 @@
 
     if (thought) {
       thought.textContent = text;
-    }
-
-  }
-
-
-  /* =====================================================
-     DATA CHANNEL SEND
-  ===================================================== */
-
-  function sendRealtimeEvent(event) {
-
-    if (
-      !dataChannel ||
-      dataChannel.readyState !== "open"
-    ) {
-      return false;
-    }
-
-
-    try {
-
-      dataChannel.send(
-        JSON.stringify(event)
-      );
-
-      return true;
-
-    }
-
-    catch (error) {
-
-      console.warn(
-        "Realtime Event konnte nicht gesendet werden:",
-        error
-      );
-
-      return false;
-
     }
 
   }
@@ -280,11 +270,25 @@
       ) {
 
         try {
+
           await avatarAudioContext.resume();
+
+        } catch (error) {
+
+          console.warn(
+            "AudioContext konnte nicht fortgesetzt werden:",
+            error
+          );
+
         }
-        catch {}
+
       }
 
+
+      /*
+        Direkte Analyse des empfangenen
+        WebRTC MediaStreams.
+      */
 
       avatarAudioSource =
         avatarAudioContext
@@ -304,12 +308,20 @@
 
       avatarAnalyser
         .smoothingTimeConstant =
-        0.25;
+          0.25;
 
 
       avatarAudioSource.connect(
         avatarAnalyser
       );
+
+
+      /*
+        Kein connect(destination).
+
+        Die Audio-Wiedergabe übernimmt
+        remoteAudio selbst.
+      */
 
 
       const samples =
@@ -344,12 +356,17 @@
         ) {
 
           const sample =
-            (samples[i] - 128) /
+            (
+              samples[i] -
+              128
+            ) /
             128;
 
 
           sumSquares +=
-            sample * sample;
+            sample *
+            sample;
+
         }
 
 
@@ -369,7 +386,9 @@
           level <
           CONFIG.rmsNoiseFloor
         ) {
+
           level = 0;
+
         }
 
 
@@ -383,8 +402,29 @@
           );
 
 
-        window.SofiaAvatar
-          ?.setAudioLevel(level);
+        /*
+          Nur während Sofia tatsächlich
+          eine Response erzeugt, wird der
+          Mundpegel verwendet.
+
+          Dadurch können Restgeräusche nach
+          einer Antwort keine Mundbewegung
+          verursachen.
+        */
+
+        if (assistantResponding) {
+
+          window.SofiaAvatar
+            ?.setAudioLevel(
+              level
+            );
+
+        } else {
+
+          window.SofiaAvatar
+            ?.setAudioLevel(0);
+
+        }
 
 
         avatarAudioFrame =
@@ -399,7 +439,7 @@
 
 
       console.log(
-        "Sofia RMS Lip Sync aktiv."
+        "Sofia V4.3.4 RMS Lip Sync aktiv."
       );
 
     }
@@ -410,6 +450,7 @@
         "Avatar Audio Analyse:",
         error
       );
+
 
       stopAvatarAudioAnalysis();
 
@@ -426,40 +467,54 @@
         avatarAudioFrame
       );
 
-      avatarAudioFrame = null;
+      avatarAudioFrame =
+        null;
+
     }
 
 
     if (avatarAudioSource) {
 
       try {
-        avatarAudioSource.disconnect();
-      }
-      catch {}
 
-      avatarAudioSource = null;
+        avatarAudioSource.disconnect();
+
+      } catch {}
+
+
+      avatarAudioSource =
+        null;
+
     }
 
 
     if (avatarAnalyser) {
 
       try {
-        avatarAnalyser.disconnect();
-      }
-      catch {}
 
-      avatarAnalyser = null;
+        avatarAnalyser.disconnect();
+
+      } catch {}
+
+
+      avatarAnalyser =
+        null;
+
     }
 
 
     if (avatarAudioContext) {
 
       try {
-        avatarAudioContext.close();
-      }
-      catch {}
 
-      avatarAudioContext = null;
+        avatarAudioContext.close();
+
+      } catch {}
+
+
+      avatarAudioContext =
+        null;
+
     }
 
 
@@ -470,7 +525,7 @@
 
 
   /* =====================================================
-     MEMORY
+     MEMORY QUEUE
   ===================================================== */
 
   function queueLiveMemory(
@@ -497,6 +552,7 @@
 
     memoryQueue =
       memoryQueue
+
         .then(
           () =>
             saveLiveMemory(
@@ -504,6 +560,7 @@
               cleanAssistant
             )
         )
+
         .catch(
           error => {
 
@@ -518,6 +575,10 @@
   }
 
 
+  /* =====================================================
+     SAVE MEMORY
+  ===================================================== */
+
   async function saveLiveMemory(
     userText,
     assistantText
@@ -527,7 +588,8 @@
       await fetch(
         "/api/live-memory",
         {
-          method: "POST",
+          method:
+            "POST",
 
           credentials:
             "same-origin",
@@ -549,11 +611,15 @@
       );
 
 
-    if (response.status === 401) {
+    if (
+      response.status ===
+      401
+    ) {
 
       window.location.reload();
 
       return;
+
     }
 
 
@@ -579,6 +645,10 @@
   }
 
 
+  /* =====================================================
+     COMMIT TURN
+  ===================================================== */
+
   function commitCurrentTurn() {
 
     const userText =
@@ -591,9 +661,11 @@
 
     if (!userText) {
 
-      pendingAssistantText = "";
+      pendingAssistantText =
+        "";
 
       return;
+
     }
 
 
@@ -609,11 +681,19 @@
     );
 
 
-    pendingUserText = "";
-    pendingAssistantText = "";
+    pendingUserText =
+      "";
+
+
+    pendingAssistantText =
+      "";
 
   }
 
+
+  /* =====================================================
+     LOCAL HISTORY
+  ===================================================== */
 
   function mirrorTurnToLocalChat(
     userText,
@@ -627,7 +707,9 @@
 
 
       const raw =
-        localStorage.getItem(key);
+        localStorage.getItem(
+          key
+        );
 
 
       let history = [];
@@ -639,14 +721,20 @@
           JSON.parse(raw);
 
 
-        if (Array.isArray(parsed)) {
+        if (
+          Array.isArray(parsed)
+        ) {
 
           history =
             parsed.filter(
               item =>
                 item &&
-                ["user", "assistant"]
-                  .includes(item.role) &&
+                [
+                  "user",
+                  "assistant"
+                ].includes(
+                  item.role
+                ) &&
                 typeof item.content ===
                   "string"
             );
@@ -657,28 +745,38 @@
 
 
       history.push({
-        role: "user",
-        content: userText
+        role:
+          "user",
+
+        content:
+          userText
       });
 
 
       if (assistantText) {
 
         history.push({
-          role: "assistant",
-          content: assistantText
+          role:
+            "assistant",
+
+        content:
+          assistantText
         });
 
       }
 
 
       history =
-        history.slice(-100);
+        history.slice(
+          -100
+        );
 
 
       localStorage.setItem(
         key,
-        JSON.stringify(history)
+        JSON.stringify(
+          history
+        )
       );
 
     }
@@ -691,74 +789,6 @@
       );
 
     }
-
-  }
-
-
-  /* =====================================================
-     ECHO GUARD
-  ===================================================== */
-
-  function isLikelySpeakerEcho() {
-
-    const time =
-      performance.now();
-
-
-    /*
-      Während Sofia gerade eine Antwort
-      erzeugt bzw. spricht, behandeln wir
-      sehr frühe speech_started-Ereignisse
-      zunächst als wahrscheinliches Echo.
-    */
-
-    if (assistantResponding) {
-
-      const sinceStart =
-        time -
-        assistantSpeechStartedAt;
-
-
-      if (
-        sinceStart >= 0 &&
-        sinceStart <
-          CONFIG.echoGuardMs
-      ) {
-
-        return true;
-
-      }
-
-    }
-
-
-    /*
-      Auch unmittelbar nach Sofias Ausgabe
-      kann der Lautsprecher noch einen kurzen
-      Echo-/Hall-Impuls erzeugen.
-    */
-
-    if (assistantSpeechEndedAt) {
-
-      const sinceEnd =
-        time -
-        assistantSpeechEndedAt;
-
-
-      if (
-        sinceEnd >= 0 &&
-        sinceEnd <
-          CONFIG.afterSpeechGuardMs
-      ) {
-
-        return true;
-
-      }
-
-    }
-
-
-    return false;
 
   }
 
@@ -777,15 +807,20 @@
     }
 
 
-    connecting = true;
+    connecting =
+      true;
 
-    pendingUserText = "";
-    pendingAssistantText = "";
 
-    assistantResponding = false;
+    assistantResponding =
+      false;
 
-    assistantSpeechStartedAt = 0;
-    assistantSpeechEndedAt = 0;
+
+    pendingUserText =
+      "";
+
+
+    pendingAssistantText =
+      "";
 
 
     setLiveButtonState(
@@ -810,16 +845,19 @@
     try {
 
       /* -------------------------------------
-         EPHEMERAL TOKEN
+         TOKEN
       ------------------------------------- */
 
       const tokenResponse =
         await fetch(
           "/api/realtime",
           {
-            method: "POST",
+            method:
+              "POST",
+
             credentials:
               "same-origin",
+
             cache:
               "no-store"
           }
@@ -832,7 +870,9 @@
       ) {
 
         window.location.reload();
+
         return;
+
       }
 
 
@@ -872,9 +912,16 @@
           .mediaDevices
           .getUserMedia({
             audio: {
-              echoCancellation: true,
-              noiseSuppression: true,
-              autoGainControl: true
+
+              echoCancellation:
+                true,
+
+              noiseSuppression:
+                true,
+
+              autoGainControl:
+                true
+
             }
           });
 
@@ -883,7 +930,9 @@
         "speechSynthesis"
         in window
       ) {
+
         speechSynthesis.cancel();
+
       }
 
 
@@ -895,25 +944,46 @@
         new RTCPeerConnection();
 
 
+      /* -------------------------------------
+         REMOTE AUDIO
+      ------------------------------------- */
+
       remoteAudio =
         document.createElement(
           "audio"
         );
 
 
-      remoteAudio.autoplay = true;
-      remoteAudio.playsInline = true;
+      remoteAudio.autoplay =
+        true;
+
+
+      remoteAudio.playsInline =
+        true;
 
 
       peerConnection.ontrack =
         async event => {
 
           const stream =
-            event.streams?.[0];
+            event.streams?.[0] ||
+            (
+              event.track
+                ? new MediaStream([
+                    event.track
+                  ])
+                : null
+            );
 
 
           if (!stream) {
+
+            console.warn(
+              "Kein Remote MediaStream erhalten."
+            );
+
             return;
+
           }
 
 
@@ -922,8 +992,11 @@
 
 
           try {
+
             await remoteAudio.play();
+
           }
+
           catch (error) {
 
             console.warn(
@@ -940,6 +1013,10 @@
 
         };
 
+
+      /* -------------------------------------
+         MICROPHONE TRACKS
+      ------------------------------------- */
 
       for (
         const track
@@ -969,49 +1046,12 @@
         "open",
         () => {
 
-          /*
-            Zusätzliche Realtime-Konfiguration.
-
-            VAD bleibt aktiv.
-
-            WICHTIG:
-            Wir verändern hier bewusst noch
-            nicht interrupt_response, weil
-            echte Unterbrechungen weiterhin
-            möglich bleiben sollen.
-          */
-
-          sendRealtimeEvent({
-            type: "session.update",
-
-            session: {
-              type: "realtime",
-
-              audio: {
-                input: {
-
-                  turn_detection: {
-                    type: "server_vad",
-
-                    threshold: 0.65,
-
-                    prefix_padding_ms: 300,
-
-                    silence_duration_ms: 650,
-
-                    create_response: true,
-
-                    interrupt_response: true
-                  }
-
-                }
-              }
-            }
-          });
+          liveActive =
+            true;
 
 
-          liveActive = true;
-          connecting = false;
+          connecting =
+            false;
 
 
           setLiveButtonState(
@@ -1019,7 +1059,9 @@
           );
 
 
-          setMode("Live");
+          setMode(
+            "Live"
+          );
 
 
           setThought(
@@ -1032,13 +1074,35 @@
 
 
           if (app) {
+
             app.dataset.live =
               "true";
+
           }
+
+
+          /*
+            WICHTIG:
+
+            KEIN session.update mit
+            interrupt_response:true mehr.
+
+            Die VAD-Konfiguration kommt
+            bereits aus api/realtime.js.
+          */
+
+
+          console.log(
+            "Sofia V4.3.4 Realtime verbunden."
+          );
 
         }
       );
 
+
+      /* -------------------------------------
+         EVENTS
+      ------------------------------------- */
 
       dataChannel.addEventListener(
         "message",
@@ -1046,10 +1110,14 @@
 
           try {
 
-            handleRealtimeEvent(
+            const data =
               JSON.parse(
                 event.data
-              )
+              );
+
+
+            handleRealtimeEvent(
+              data
             );
 
           }
@@ -1072,28 +1140,32 @@
         () => {
 
           if (liveActive) {
+
             stopLive(false);
+
           }
 
         }
       );
 
 
+      /* -------------------------------------
+         CONNECTION
+      ------------------------------------- */
+
       peerConnection
         .addEventListener(
           "connectionstatechange",
           () => {
 
-            const connectionState =
+            const state =
               peerConnection
                 ?.connectionState;
 
 
             if (
-              connectionState ===
-                "failed" ||
-              connectionState ===
-                "closed"
+              state === "failed" ||
+              state === "closed"
             ) {
 
               stopLive(false);
@@ -1105,7 +1177,7 @@
 
 
       /* -------------------------------------
-         SDP
+         SDP OFFER
       ------------------------------------- */
 
       const offer =
@@ -1119,11 +1191,16 @@
         );
 
 
+      /* -------------------------------------
+         REALTIME CALL
+      ------------------------------------- */
+
       const sdpResponse =
         await fetch(
           "https://api.openai.com/v1/realtime/calls",
           {
-            method: "POST",
+            method:
+              "POST",
 
             body:
               offer.sdp,
@@ -1156,7 +1233,9 @@
 
 
       const answer = {
-        type: "answer",
+        type:
+          "answer",
+
         sdp:
           await sdpResponse.text()
       };
@@ -1182,6 +1261,11 @@
       );
 
 
+      setMode(
+        "bereit"
+      );
+
+
       window.SofiaAvatar
         ?.idle();
 
@@ -1192,7 +1276,8 @@
 
     finally {
 
-      connecting = false;
+      connecting =
+        false;
 
     }
 
@@ -1203,51 +1288,42 @@
      REALTIME EVENTS
   ===================================================== */
 
-  function handleRealtimeEvent(event) {
+  function handleRealtimeEvent(
+    event
+  ) {
 
     switch (event.type) {
 
 
-      /* -------------------------------------------------
+      /* -------------------------------------
          USER SPEECH START
-      ------------------------------------------------- */
+      ------------------------------------- */
 
       case
         "input_audio_buffer.speech_started": {
 
 
         /*
-          Wichtig:
+          interrupt_response:false bedeutet:
 
-          Das Event wird vom SERVER erzeugt.
+          Dieses Event darf auftreten,
+          während Sofia spricht.
 
-          Wenn Sofia gerade erst angefangen hat zu
-          sprechen, ist ein sofortiger speech_started
-          sehr wahrscheinlich Lautsprecher-Echo.
+          Es beendet ihre laufende Response
+          aber nicht mehr automatisch.
         */
 
-        if (isLikelySpeakerEcho()) {
 
-          console.log(
-            "Sofia Echo Guard: speech_started ignoriert."
+        if (!assistantResponding) {
+
+          setMode(
+            "hört zu…"
           );
 
-          return;
-        }
 
+          window.SofiaAvatar
+            ?.listen();
 
-        setMode(
-          "hört zu…"
-        );
-
-
-        window.SofiaAvatar
-          ?.listen();
-
-
-        if (app) {
-          app.dataset.speaking =
-            "false";
         }
 
 
@@ -1255,45 +1331,42 @@
       }
 
 
-      /* -------------------------------------------------
+      /* -------------------------------------
          USER SPEECH STOP
-      ------------------------------------------------- */
+      ------------------------------------- */
 
       case
         "input_audio_buffer.speech_stopped": {
 
 
         /*
-          Wenn Sofia selbst noch spricht, soll
-          ein Echo-Stop nicht unsere Avatar-
-          Darstellung auf thinking setzen.
+          Während Sofia noch spricht,
+          verändern wir ihren Avatarzustand
+          nicht aufgrund eines möglichen
+          Lautsprecher-Echos.
         */
 
-        if (
-          assistantResponding &&
-          isLikelySpeakerEcho()
-        ) {
 
-          return;
+        if (!assistantResponding) {
+
+          setMode(
+            "denkt nach…"
+          );
+
+
+          window.SofiaAvatar
+            ?.think();
+
         }
-
-
-        setMode(
-          "denkt nach…"
-        );
-
-
-        window.SofiaAvatar
-          ?.think();
 
 
         break;
       }
 
 
-      /* -------------------------------------------------
+      /* -------------------------------------
          USER TRANSCRIPT
-      ------------------------------------------------- */
+      ------------------------------------- */
 
       case
         "conversation.item.input_audio_transcription.completed": {
@@ -1321,9 +1394,9 @@
       }
 
 
-      /* -------------------------------------------------
-         RESPONSE START
-      ------------------------------------------------- */
+      /* -------------------------------------
+         RESPONSE CREATED
+      ------------------------------------- */
 
       case
         "response.created": {
@@ -1331,10 +1404,6 @@
 
         assistantResponding =
           true;
-
-
-        assistantSpeechStartedAt =
-          performance.now();
 
 
         pendingAssistantText =
@@ -1354,22 +1423,12 @@
       }
 
 
-      /* -------------------------------------------------
+      /* -------------------------------------
          AUDIO OUTPUT
-      ------------------------------------------------- */
+      ------------------------------------- */
 
       case
         "response.output_audio.delta": {
-
-
-        if (
-          !assistantSpeechStartedAt
-        ) {
-
-          assistantSpeechStartedAt =
-            performance.now();
-
-        }
 
 
         assistantResponding =
@@ -1386,8 +1445,10 @@
 
 
         if (app) {
+
           app.dataset.speaking =
             "true";
+
         }
 
 
@@ -1395,9 +1456,9 @@
       }
 
 
-      /* -------------------------------------------------
-         ASSISTANT TRANSCRIPT DELTA
-      ------------------------------------------------- */
+      /* -------------------------------------
+         TRANSCRIPT DELTA
+      ------------------------------------- */
 
       case
         "response.output_audio_transcript.delta": {
@@ -1423,9 +1484,9 @@
       }
 
 
-      /* -------------------------------------------------
-         ASSISTANT TRANSCRIPT DONE
-      ------------------------------------------------- */
+      /* -------------------------------------
+         TRANSCRIPT DONE
+      ------------------------------------- */
 
       case
         "response.output_audio_transcript.done": {
@@ -1452,9 +1513,9 @@
       }
 
 
-      /* -------------------------------------------------
+      /* -------------------------------------
          RESPONSE DONE
-      ------------------------------------------------- */
+      ------------------------------------- */
 
       case
         "response.done": {
@@ -1464,17 +1525,11 @@
           false;
 
 
-        assistantSpeechEndedAt =
-          performance.now();
-
-
-        assistantSpeechStartedAt =
-          0;
-
-
         if (app) {
+
           app.dataset.speaking =
             "false";
+
         }
 
 
@@ -1482,25 +1537,23 @@
           ?.setAudioLevel(0);
 
 
-        setMode("Live");
-
-
         window.SofiaAvatar
           ?.idle();
 
 
-        /*
-          Eine abgebrochene Antwort nicht wie
-          eine vollständig abgeschlossene Antwort
-          behandeln.
+        setMode(
+          "Live"
+        );
 
-          Realtime kann response.done auch für
-          cancelled/incomplete Responses senden.
-        */
 
         const status =
           event.response?.status;
 
+
+        /*
+          Nur vollständige Antworten werden
+          als normaler Gesprächszug gespeichert.
+        */
 
         if (
           !status ||
@@ -1514,7 +1567,7 @@
         else {
 
           console.log(
-            "Realtime Response beendet mit Status:",
+            "Realtime Response Status:",
             status
           );
 
@@ -1525,17 +1578,28 @@
       }
 
 
-      /* -------------------------------------------------
+      /* -------------------------------------
          ERROR
-      ------------------------------------------------- */
+      ------------------------------------- */
 
-      case "error": {
+      case
+        "error": {
 
 
         console.error(
           "OpenAI Realtime:",
           event.error
         );
+
+
+        setThought(
+          event?.error?.message ||
+          "Live Voice hat einen Fehler gemeldet."
+        );
+
+
+        assistantResponding =
+          false;
 
 
         window.SofiaAvatar
@@ -1571,39 +1635,58 @@
     }
 
 
-    liveActive = false;
-    connecting = false;
+    liveActive =
+      false;
 
-    assistantResponding = false;
 
-    assistantSpeechStartedAt = 0;
-    assistantSpeechEndedAt = 0;
+    connecting =
+      false;
 
+
+    assistantResponding =
+      false;
+
+
+    /* AVATAR */
 
     stopAvatarAudioAnalysis();
 
 
+    /* DATA CHANNEL */
+
     if (dataChannel) {
 
       try {
-        dataChannel.close();
-      }
-      catch {}
 
-      dataChannel = null;
+        dataChannel.close();
+
+      } catch {}
+
+
+      dataChannel =
+        null;
+
     }
 
+
+    /* WEBRTC */
 
     if (peerConnection) {
 
       try {
-        peerConnection.close();
-      }
-      catch {}
 
-      peerConnection = null;
+        peerConnection.close();
+
+      } catch {}
+
+
+      peerConnection =
+        null;
+
     }
 
+
+    /* MICROPHONE */
 
     if (localStream) {
 
@@ -1611,32 +1694,46 @@
         const track
         of localStream.getTracks()
       ) {
+
         track.stop();
+
       }
 
-      localStream = null;
+
+      localStream =
+        null;
+
     }
 
+
+    /* REMOTE AUDIO */
 
     if (remoteAudio) {
 
       try {
+
         remoteAudio.pause();
-      }
-      catch {}
+
+      } catch {}
 
 
       remoteAudio.srcObject =
         null;
 
-      remoteAudio = null;
+
+      remoteAudio =
+        null;
+
     }
 
+
+    /* UI */
 
     if (app) {
 
       app.dataset.live =
         "false";
+
 
       app.dataset.speaking =
         "false";
@@ -1701,7 +1798,7 @@
 
 
   /* =====================================================
-     CLEANUP
+     PAGE CLEANUP
   ===================================================== */
 
   window.addEventListener(
@@ -1722,7 +1819,7 @@
 
 
   console.log(
-    "Sofia V4.3.3 Live Voice + Memory + RMS Lip Sync + Echo Guard geladen."
+    "Sofia V4.3.4 Live Voice + Memory + Stable Turn Taking geladen."
   );
 
 })();
