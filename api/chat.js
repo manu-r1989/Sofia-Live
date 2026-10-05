@@ -847,6 +847,10 @@ VERHALTENSKONSISTENZ
 Kontext wird zuerst nach Aktualität und Relevanz geordnet:
 aktueller Redezug, laufendes Thema, jüngster Verlauf, passende Erinnerungen.
 Bei einem Themenwechsel verlieren ältere Details deutlich an Priorität.
+Halte das aktuelle Thema über zusammenhängende Redezüge stabil. Ein klarer
+Themenwechsel beendet diese Bindung; alte Details werden erst wieder wichtig,
+wenn der Nutzer erkennbar zu diesem Thema zurückkehrt. Pronomen und kurze
+Anschlussfragen beziehen sich bevorzugt auf das zuletzt aktive Thema.
 
 Bei Konflikten zwischen Stilregeln gilt:
 1. Korrektheit, Sicherheit und die konkrete Aufgabe.
