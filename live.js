@@ -1,9 +1,11 @@
 /*
-  Sofia V4.3
+  Sofia V4.3.2
   Live Voice + Live Memory + Visual Avatar
+  WebRTC Audio -> RMS -> Avatar Lip Sync
 */
 
 (() => {
+  "use strict";
 
   /* ========================================
      LIVE / WEBRTC STATE
@@ -38,6 +40,8 @@
   let avatarAudioSource = null;
   let avatarAudioFrame = null;
 
+  let avatarAudioStream = null;
+
 
   /* ========================================
      EXISTING APP ELEMENTS
@@ -68,6 +72,7 @@
 
   liveButton.textContent =
     "◉ LIVE";
+
 
   Object.assign(
     liveButton.style,
@@ -115,6 +120,7 @@
     }
   );
 
+
   document.body.appendChild(
     liveButton
   );
@@ -132,6 +138,7 @@
       state ===
       "connecting"
     ) {
+
       liveButton.textContent =
         "◌ VERBINDE…";
 
@@ -146,6 +153,7 @@
       state ===
       "active"
     ) {
+
       liveButton.textContent =
         "● LIVE";
 
@@ -173,8 +181,10 @@
   function setMode(text) {
 
     if (mode) {
+
       mode.textContent =
         text;
+
     }
 
   }
@@ -183,8 +193,10 @@
   function setThought(text) {
 
     if (thought) {
+
       thought.textContent =
         text;
+
     }
 
   }
@@ -192,45 +204,89 @@
 
   /* ========================================
      AVATAR AUDIO ANALYSIS
+     WebRTC MediaStream -> RMS
   ======================================== */
 
-  function startAvatarAudioAnalysis(
-    audioElement
+  async function startAvatarAudioAnalysis(
+    mediaStream
   ) {
 
     try {
 
       if (
-        !audioElement ||
+        !mediaStream ||
         avatarAudioContext
       ) {
+
         return;
+
       }
 
 
-      const AudioContext =
+      const AudioContextClass =
         window.AudioContext ||
         window.webkitAudioContext;
 
 
-      if (!AudioContext) {
+      if (!AudioContextClass) {
 
         console.warn(
           "Web Audio API nicht verfügbar."
         );
 
         return;
+
       }
 
 
-      avatarAudioContext =
-        new AudioContext();
+      avatarAudioStream =
+        mediaStream;
 
+
+      avatarAudioContext =
+        new AudioContextClass();
+
+
+      /*
+        Auf iPhone/Safari kann ein neuer
+        AudioContext zunächst suspended sein.
+      */
+
+      if (
+        avatarAudioContext.state ===
+        "suspended"
+      ) {
+
+        try {
+
+          await avatarAudioContext.resume();
+
+        } catch (error) {
+
+          console.warn(
+            "AudioContext resume:",
+            error
+          );
+
+        }
+
+      }
+
+
+      /*
+        WICHTIG:
+
+        Nicht mehr:
+        createMediaElementSource(remoteAudio)
+
+        Sondern direkt der empfangene
+        WebRTC MediaStream.
+      */
 
       avatarAudioSource =
         avatarAudioContext
-          .createMediaElementSource(
-            audioElement
+          .createMediaStreamSource(
+            mediaStream
           );
 
 
@@ -239,87 +295,135 @@
           .createAnalyser();
 
 
+      /*
+        512 Samples reichen für eine
+        schnelle Mundbewegung und belasten
+        das iPhone kaum.
+      */
+
       avatarAnalyser.fftSize =
-        256;
+        512;
 
 
       avatarAnalyser
         .smoothingTimeConstant =
-          0.72;
+          0.25;
 
-
-      /*
-        Audio muss durch den Analyzer
-        und danach wieder zum Lautsprecher.
-
-        Sonst würde Sofia stumm werden.
-      */
 
       avatarAudioSource.connect(
         avatarAnalyser
       );
 
 
-      avatarAnalyser.connect(
-        avatarAudioContext.destination
-      );
+      /*
+        Der Analyzer wird absichtlich NICHT
+        mit audioContext.destination verbunden.
+
+        Die hörbare Wiedergabe übernimmt
+        weiterhin remoteAudio direkt.
+
+        So analysieren wir nur das Signal und
+        erzeugen keine doppelte Audiowiedergabe.
+      */
 
 
-      const data =
+      const samples =
         new Uint8Array(
-          avatarAnalyser
-            .frequencyBinCount
+          avatarAnalyser.fftSize
         );
 
 
       function analyse() {
 
-        if (!avatarAnalyser) {
+        if (
+          !avatarAnalyser ||
+          !avatarAudioContext
+        ) {
+
           return;
+
         }
 
 
         avatarAnalyser
-          .getByteFrequencyData(
-            data
+          .getByteTimeDomainData(
+            samples
           );
 
 
-        let total = 0;
+        /*
+          RMS = Root Mean Square.
+
+          128 entspricht bei Uint8
+          ungefähr der Nulllinie.
+        */
+
+        let sumSquares = 0;
 
 
         for (
           let i = 0;
-          i < data.length;
+          i < samples.length;
           i++
         ) {
 
-          total +=
-            data[i];
+          const normalized =
+            (
+              samples[i] -
+              128
+            ) /
+            128;
+
+
+          sumSquares +=
+            normalized *
+            normalized;
 
         }
 
 
-        const average =
-          total /
-          data.length;
+        const rms =
+          Math.sqrt(
+            sumSquares /
+            samples.length
+          );
 
 
         /*
-          Frequenzenergie auf 0–1
-          normalisieren.
+          Sprache hat bei WebRTC häufig
+          relativ kleine RMS-Werte.
 
-          Faktor 3.2 macht normale
-          Sprache deutlich genug.
+          Verstärkung für die Avatar-
+          Schwellenwerte in
+          sofia-avatar.js.
         */
 
-        const level =
-          Math.min(
-            1,
-            (
-              average /
-              255
-            ) * 3.2
+        let level =
+          rms * 7.5;
+
+
+        /*
+          Sehr kleine Restwerte / digitales
+          Rauschen auf echte Stille setzen.
+        */
+
+        if (
+          level <
+          0.018
+        ) {
+
+          level = 0;
+
+        }
+
+
+        level =
+          Math.max(
+            0,
+            Math.min(
+              1,
+              level
+            )
           );
 
 
@@ -340,28 +444,21 @@
       analyse();
 
 
-      /*
-        Safari kann AudioContexts
-        gelegentlich suspended starten.
-      */
+      console.log(
+        "Sofia Avatar Audioanalyse aktiv."
+      );
 
-      if (
-        avatarAudioContext.state ===
-        "suspended"
-      ) {
+    }
 
-        avatarAudioContext
-          .resume()
-          .catch(() => {});
-
-      }
-
-    } catch (error) {
+    catch (error) {
 
       console.warn(
         "Avatar Audio Analyse:",
         error
       );
+
+
+      stopAvatarAudioAnalysis();
 
     }
 
@@ -393,7 +490,10 @@
         avatarAudioSource
           .disconnect();
 
-      } catch {}
+      }
+
+      catch {}
+
 
       avatarAudioSource =
         null;
@@ -408,7 +508,10 @@
         avatarAnalyser
           .disconnect();
 
-      } catch {}
+      }
+
+      catch {}
+
 
       avatarAnalyser =
         null;
@@ -423,12 +526,19 @@
         avatarAudioContext
           .close();
 
-      } catch {}
+      }
+
+      catch {}
+
 
       avatarAudioContext =
         null;
 
     }
+
+
+    avatarAudioStream =
+      null;
 
 
     window.SofiaAvatar
@@ -459,19 +569,15 @@
 
 
     if (!cleanUser) {
+
       return;
+
     }
 
 
-    /*
-      Requests nacheinander ausführen.
-
-      Dadurch bleibt die Reihenfolge
-      der Unterhaltung in Redis erhalten.
-    */
-
     memoryQueue =
       memoryQueue
+
         .then(
           () =>
             saveLiveMemory(
@@ -479,14 +585,17 @@
               cleanAssistant
             )
         )
-        .catch(error => {
 
-          console.error(
-            "Live Memory Queue:",
-            error
-          );
+        .catch(
+          error => {
 
-        });
+            console.error(
+              "Live Memory Queue:",
+              error
+            );
+
+          }
+        );
 
   }
 
@@ -535,6 +644,7 @@
       window.location.reload();
 
       return;
+
     }
 
 
@@ -581,6 +691,7 @@
         "";
 
       return;
+
     }
 
 
@@ -694,7 +805,9 @@
         )
       );
 
-    } catch (error) {
+    }
+
+    catch (error) {
 
       console.warn(
         "Live Local Memory:",
@@ -716,7 +829,9 @@
       liveActive ||
       connecting
     ) {
+
       return;
+
     }
 
 
@@ -781,6 +896,7 @@
         window.location.reload();
 
         return;
+
       }
 
 
@@ -820,6 +936,7 @@
           .mediaDevices
           .getUserMedia({
             audio: {
+
               echoCancellation:
                 true,
 
@@ -828,16 +945,10 @@
 
               autoGainControl:
                 true
+
             }
           });
 
-
-      /*
-        Normale Browser-Sprachausgabe
-        stoppen.
-
-        Realtime übernimmt jetzt.
-      */
 
       if (
         "speechSynthesis"
@@ -875,35 +986,60 @@
         true;
 
 
+      /*
+        WEBRTC REMOTE TRACK
+
+        Hier wird jetzt sowohl das Audio
+        abgespielt als auch der MediaStream
+        direkt an den Avatar-Analyzer gegeben.
+      */
+
       peerConnection.ontrack =
-        event => {
+        async event => {
+
+          const stream =
+            event.streams?.[0];
+
+
+          if (!stream) {
+
+            console.warn(
+              "Kein Remote MediaStream erhalten."
+            );
+
+            return;
+
+          }
+
 
           remoteAudio.srcObject =
-            event.streams[0];
+            stream;
 
 
-          remoteAudio
-            .play()
-            .then(() => {
+          try {
 
-              /*
-                Ab jetzt analysieren wir
-                Sofias tatsächliches Audio.
-              */
+            await remoteAudio.play();
 
-              startAvatarAudioAnalysis(
-                remoteAudio
-              );
+          }
 
-            })
-            .catch(error => {
+          catch (error) {
 
-              console.warn(
-                "Remote Audio:",
-                error
-              );
+            console.warn(
+              "Remote Audio:",
+              error
+            );
 
-            });
+          }
+
+
+          /*
+            Direkt den WebRTC Stream
+            analysieren.
+          */
+
+          await startAvatarAudioAnalysis(
+            stream
+          );
 
         };
 
@@ -998,7 +1134,9 @@
               data
             );
 
-          } catch (error) {
+          }
+
+          catch (error) {
 
             console.warn(
               "Realtime Event:",
@@ -1034,15 +1172,15 @@
           "connectionstatechange",
           () => {
 
-            const state =
+            const connectionState =
               peerConnection
                 ?.connectionState;
 
 
             if (
-              state ===
+              connectionState ===
                 "failed" ||
-              state ===
+              connectionState ===
                 "closed"
             ) {
 
@@ -1084,11 +1222,13 @@
               offer.sdp,
 
             headers: {
+
               Authorization:
                 `Bearer ${ephemeralKey}`,
 
               "Content-Type":
                 "application/sdp"
+
             }
           }
         );
@@ -1109,11 +1249,13 @@
 
 
       const answer = {
+
         type:
           "answer",
 
         sdp:
           await sdpResponse.text()
+
       };
 
 
@@ -1122,8 +1264,9 @@
           answer
         );
 
+    }
 
-    } catch (error) {
+    catch (error) {
 
       console.error(
         "Sofia Live Fehler:",
@@ -1147,8 +1290,9 @@
 
       stopLive(false);
 
+    }
 
-    } finally {
+    finally {
 
       connecting =
         false;
@@ -1218,7 +1362,7 @@
 
 
       /* ====================================
-         USER TRANSKRIPT FERTIG
+         USER TRANSKRIPT
       ==================================== */
 
       case
@@ -1262,6 +1406,11 @@
           "antwortet…"
         );
 
+
+        /*
+          Noch nicht zwingend hörbares Audio,
+          aber Avatar auf Speaking vorbereiten.
+        */
 
         window.SofiaAvatar
           ?.speak();
@@ -1354,7 +1503,7 @@
 
 
       /* ====================================
-         KOMPLETTER TURN FERTIG
+         TURN FERTIG
       ==================================== */
 
       case
@@ -1369,6 +1518,14 @@
         }
 
 
+        /*
+          Audiopegel sofort zurücksetzen.
+        */
+
+        window.SofiaAvatar
+          ?.setAudioLevel(0);
+
+
         setMode(
           "Live"
         );
@@ -1377,14 +1534,6 @@
         window.SofiaAvatar
           ?.idle();
 
-
-        /*
-          User + Sofia sind vollständig.
-
-          Jetzt wird der Gesprächszug
-          in Redis gespeichert und ggf.
-          Long-Term-Memory aktualisiert.
-        */
 
         commitCurrentTurn();
 
@@ -1413,6 +1562,10 @@
 
 
         window.SofiaAvatar
+          ?.setAudioLevel(0);
+
+
+        window.SofiaAvatar
           ?.idle();
 
 
@@ -1431,13 +1584,6 @@
     userInitiated = true
   ) {
 
-    /*
-      Falls bereits ein fertiges
-      User-Transkript vorhanden ist,
-      beim manuellen Beenden nicht
-      verlieren.
-    */
-
     if (
       pendingUserText.trim()
     ) {
@@ -1455,6 +1601,11 @@
       false;
 
 
+    /* AVATAR AUDIO */
+
+    stopAvatarAudioAnalysis();
+
+
     /* DATA CHANNEL */
 
     if (dataChannel) {
@@ -1463,7 +1614,9 @@
 
         dataChannel.close();
 
-      } catch {}
+      }
+
+      catch {}
 
 
       dataChannel =
@@ -1480,7 +1633,9 @@
 
         peerConnection.close();
 
-      } catch {}
+      }
+
+      catch {}
 
 
       peerConnection =
@@ -1517,7 +1672,9 @@
 
         remoteAudio.pause();
 
-      } catch {}
+      }
+
+      catch {}
 
 
       remoteAudio.srcObject =
@@ -1528,11 +1685,6 @@
         null;
 
     }
-
-
-    /* AVATAR AUDIO */
-
-    stopAvatarAudioAnalysis();
 
 
     /* APP STATE */
@@ -1547,6 +1699,10 @@
         "false";
 
     }
+
+
+    window.SofiaAvatar
+      ?.setAudioLevel(0);
 
 
     window.SofiaAvatar
@@ -1575,7 +1731,7 @@
 
 
   /* ========================================
-     LIVE BUTTON EVENT
+     LIVE BUTTON
   ======================================== */
 
   liveButton.addEventListener(
@@ -1589,7 +1745,9 @@
 
         stopLive();
 
-      } else {
+      }
+
+      else {
 
         startLive();
 
@@ -1621,7 +1779,7 @@
 
 
   console.log(
-    "Sofia V4.3 Live Voice + Memory + Avatar geladen."
+    "Sofia V4.3.2 Live Voice + Memory + RMS Lip Sync geladen."
   );
 
 })();
