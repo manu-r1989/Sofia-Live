@@ -198,15 +198,16 @@ export default async function handler(
               typeof item.content === "string" &&
               item.content.trim()
             )
-            .slice(-10)
+            .slice(-12)
         : [];
 
     const historyText =
       recentHistory.length
         ? recentHistory
-            .map(item =>
-              `${item.role === "user" ? "Nutzer" : "Sofia"}: ${item.content.trim()}`
-            )
+            .map(item => {
+              const content = item.content.trim().slice(0, 900);
+              return `${item.role === "user" ? "Nutzer" : "Sofia"}: ${content}`;
+            })
             .join("\n")
         : "Noch kein vorheriger Gesprächskontext vorhanden.";
 
@@ -294,7 +295,7 @@ ${memoryText}
 LETZTER GESPRÄCHSKONTEXT:
 Die folgenden Zeilen sind der jüngste gemeinsame Gesprächsverlauf aus Textchat und Live Voice.
 Nutze ihn nur, wenn er für den aktuellen Redezug relevant ist.
-Führe das Gespräch natürlich fort, ohne den Verlauf ungefragt zusammenzufassen oder zu wiederholen.
+Führe das Gespräch natürlich fort, ohne den Verlauf ungefragt zusammenzufassen oder zu wiederholen.\nBehandle die letzte offene Nutzerfrage oder Aufgabe als fortsetzbaren Kontext, aber beantworte sie nicht erneut, wenn sie bereits erledigt wurde.\nBei Widersprüchen gilt der aktuelle Redezug des Nutzers vor älterem Gesprächskontext.
 
 ${historyText}
 `.trim();
