@@ -5,17 +5,86 @@ const form = document.querySelector('#form');
 const mode = document.querySelector('#mode');
 const thought = document.querySelector('#thought');
 
+const MEMORY_KEY = 'sofia_conversation_v33';
+const MAX_STORED_MESSAGES = 100;
+const MAX_API_HISTORY = 20;
+
 let voiceOn = true;
 let isResponding = false;
-const conversationHistory = [];
+let conversationHistory = loadMemory();
+
+/* ---------- MEMORY ---------- */
+
+function loadMemory() {
+  try {
+    const saved = localStorage.getItem(MEMORY_KEY);
+
+    if (!saved) return [];
+
+    const parsed = JSON.parse(saved);
+
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed.filter(item =>
+      item &&
+      ['user', 'assistant'].includes(item.role) &&
+      typeof item.content === 'string'
+    );
+  } catch (error) {
+    console.error('Sofia Memory konnte nicht geladen werden:', error);
+    return [];
+  }
+}
+
+function saveMemory() {
+  try {
+    if (conversationHistory.length > MAX_STORED_MESSAGES) {
+      conversationHistory =
+        conversationHistory.slice(-MAX_STORED_MESSAGES);
+    }
+
+    localStorage.setItem(
+      MEMORY_KEY,
+      JSON.stringify(conversationHistory)
+    );
+  } catch (error) {
+    console.error('Sofia Memory konnte nicht gespeichert werden:', error);
+  }
+}
+
+function clearMemory() {
+  conversationHistory = [];
+  localStorage.removeItem(MEMORY_KEY);
+  console.log('Sofia Memory gelöscht.');
+}
+
+/* ---------- CHAT ---------- */
 
 function addMessage(text, who = 'sofia') {
   const div = document.createElement('div');
   div.className = 'msg ' + who;
   div.textContent = text;
+
   messages.appendChild(div);
   messages.scrollTop = messages.scrollHeight;
 }
+
+function restoreConversation() {
+  if (!messages || conversationHistory.length === 0) return;
+
+  conversationHistory.forEach(item => {
+    addMessage(
+      item.content,
+      item.role === 'user' ? 'user' : 'sofia'
+    );
+  });
+
+  console.log(
+    `Sofia V3.3: ${conversationHistory.length} gespeicherte Nachrichten geladen.`
+  );
+}
+
+/* ---------- MOOD ---------- */
 
 function applyMood(mood) {
   const validMoods = [
@@ -27,11 +96,14 @@ function applyMood(mood) {
     'ernst'
   ];
 
-  const next = validMoods.includes(mood)
-    ? mood
-    : 'entspannt';
+  const next =
+    validMoods.includes(mood)
+      ? mood
+      : 'entspannt';
 
-  app.dataset.mood = next;
+  if (app) {
+    app.dataset.mood = next;
+  }
 
   document.querySelectorAll('[data-mood]').forEach(button => {
     button.classList.toggle(
@@ -41,31 +113,51 @@ function applyMood(mood) {
   });
 }
 
+/* ---------- VOICE ---------- */
+
 function speak(text) {
-  if (!voiceOn || !('speechSynthesis' in window)) return;
+  if (
+    !voiceOn ||
+    !('speechSynthesis' in window)
+  ) {
+    return;
+  }
 
   speechSynthesis.cancel();
 
-  const utterance = new SpeechSynthesisUtterance(
-    text.replace(/[😏😂🙄]/g, '')
-  );
+  const utterance =
+    new SpeechSynthesisUtterance(
+      text.replace(/[😏😂🙄]/g, '')
+    );
 
   utterance.lang = 'de-DE';
   utterance.rate = 0.96;
   utterance.pitch = 1.08;
 
   utterance.onstart = () => {
-    app.dataset.speaking = 'true';
-    if (mode) mode.textContent = 'spricht…';
+    if (app) {
+      app.dataset.speaking = 'true';
+    }
+
+    if (mode) {
+      mode.textContent = 'spricht…';
+    }
   };
 
   utterance.onend = () => {
-    app.dataset.speaking = 'false';
-    if (mode) mode.textContent = 'bereit';
+    if (app) {
+      app.dataset.speaking = 'false';
+    }
+
+    if (mode) {
+      mode.textContent = 'bereit';
+    }
   };
 
   speechSynthesis.speak(utterance);
 }
+
+/* ---------- API ---------- */
 
 async function askSofia(userMessage) {
   if (isResponding) return;
@@ -73,40 +165,57 @@ async function askSofia(userMessage) {
   isResponding = true;
   input.disabled = true;
 
-  if (mode) mode.textContent = 'denkt nach…';
-  if (thought) thought.textContent = '…';
+  if (mode) {
+    mode.textContent = 'denkt nach…';
+  }
+
+  if (thought) {
+    thought.textContent = '…';
+  }
 
   try {
-    console.log('Sende Nachricht an /api/chat:', userMessage);
+    const historyForAPI =
+      conversationHistory.slice(-MAX_API_HISTORY);
 
-    const response = await fetch('/api/chat', {
-      method: 'POST',
+    console.log(
+      'Sende Nachricht an Sofia:',
+      userMessage
+    );
 
-      headers: {
-        'Content-Type': 'application/json'
-      },
+    const response =
+      await fetch('/api/chat', {
+        method: 'POST',
 
-      body: JSON.stringify({
-        message: userMessage,
-        history: conversationHistory.slice(-16)
-      })
-    });
+        headers: {
+          'Content-Type': 'application/json'
+        },
 
-    console.log('API Status:', response.status);
+        body: JSON.stringify({
+          message: userMessage,
+          history: historyForAPI
+        })
+      });
 
-    const data = await response.json();
+    console.log(
+      'Sofia API Status:',
+      response.status
+    );
 
-    console.log('API Antwort:', data);
+    const data =
+      await response.json();
 
     if (!response.ok) {
       throw new Error(
-        data.error || 'Sofia konnte nicht antworten.'
+        data.error ||
+        'Sofia konnte nicht antworten.'
       );
     }
 
     const reply =
       data.reply ||
       'Hm. Da ist gerade etwas schiefgelaufen.';
+
+    /* Antwort jetzt dauerhaft speichern */
 
     conversationHistory.push(
       {
@@ -119,32 +228,48 @@ async function askSofia(userMessage) {
       }
     );
 
-    if (conversationHistory.length > 32) {
-      conversationHistory.splice(
-        0,
-        conversationHistory.length - 32
-      );
-    }
+    saveMemory();
 
     applyMood(data.mood);
 
-    addMessage(reply, 'sofia');
+    addMessage(
+      reply,
+      'sofia'
+    );
 
-    if (thought) thought.textContent = reply;
-    if (mode) mode.textContent = 'bereit';
+    if (thought) {
+      thought.textContent = reply;
+    }
+
+    if (mode) {
+      mode.textContent = 'bereit';
+    }
 
     speak(reply);
 
   } catch (error) {
-    console.error('Sofia API Fehler:', error);
+    console.error(
+      'Sofia API Fehler:',
+      error
+    );
 
     const errorMessage =
       'Okay… meine Verbindung ist gerade weg. Versuch es noch einmal. 🙄';
 
-    addMessage(errorMessage, 'sofia');
+    addMessage(
+      errorMessage,
+      'sofia'
+    );
 
-    if (thought) thought.textContent = errorMessage;
-    if (mode) mode.textContent = 'Verbindungsfehler';
+    if (thought) {
+      thought.textContent =
+        errorMessage;
+    }
+
+    if (mode) {
+      mode.textContent =
+        'Verbindungsfehler';
+    }
 
   } finally {
     isResponding = false;
@@ -153,77 +278,102 @@ async function askSofia(userMessage) {
   }
 }
 
-if (!form) {
-  console.error('FEHLER: #form wurde nicht gefunden.');
+/* ---------- SEND ---------- */
+
+if (form && input) {
+  form.addEventListener(
+    'submit',
+    event => {
+      event.preventDefault();
+
+      const value =
+        input.value.trim();
+
+      if (
+        !value ||
+        isResponding
+      ) {
+        return;
+      }
+
+      addMessage(
+        value,
+        'user'
+      );
+
+      input.value = '';
+
+      askSofia(value);
+    }
+  );
 }
-
-if (!input) {
-  console.error('FEHLER: #input wurde nicht gefunden.');
-}
-
-form.addEventListener('submit', event => {
-  event.preventDefault();
-
-  const value = input.value.trim();
-
-  if (!value || isResponding) return;
-
-  addMessage(value, 'user');
-
-  input.value = '';
-
-  askSofia(value);
-});
-
 
 /* ---------- MOOD BUTTONS ---------- */
 
-document.querySelectorAll('[data-mood]').forEach(button => {
-  button.addEventListener('click', () => {
-    applyMood(button.dataset.mood);
+document
+  .querySelectorAll('[data-mood]')
+  .forEach(button => {
+
+    button.addEventListener(
+      'click',
+      () => {
+        applyMood(
+          button.dataset.mood
+        );
+      }
+    );
+
   });
-});
 
-
-/* ---------- VOICE ---------- */
+/* ---------- VOICE BUTTON ---------- */
 
 const voiceToggle =
   document.querySelector('#voiceToggle');
 
 if (voiceToggle) {
-  voiceToggle.onclick = event => {
-    voiceOn = !voiceOn;
+  voiceToggle.onclick =
+    event => {
 
-    event.currentTarget.classList.toggle(
-      'active',
-      voiceOn
-    );
+      voiceOn = !voiceOn;
 
-    if (!voiceOn && 'speechSynthesis' in window) {
-      speechSynthesis.cancel();
-    }
-  };
+      event.currentTarget
+        .classList.toggle(
+          'active',
+          voiceOn
+        );
+
+      if (
+        !voiceOn &&
+        'speechSynthesis' in window
+      ) {
+        speechSynthesis.cancel();
+      }
+    };
 }
-
 
 const mute =
   document.querySelector('#mute');
 
 if (mute) {
-  mute.onclick = event => {
-    voiceOn = !voiceOn;
+  mute.onclick =
+    event => {
 
-    event.currentTarget.classList.toggle(
-      'on',
-      !voiceOn
-    );
+      voiceOn = !voiceOn;
 
-    if (!voiceOn && 'speechSynthesis' in window) {
-      speechSynthesis.cancel();
-    }
-  };
+      event.currentTarget
+        .classList.toggle(
+          'on',
+          !voiceOn
+        );
+
+      if (
+        !voiceOn &&
+        'speechSynthesis' in window
+      ) {
+        speechSynthesis.cancel();
+      }
+    };
 }
-
 
 /* ---------- FOCUS ---------- */
 
@@ -231,12 +381,19 @@ const focus =
   document.querySelector('#focus');
 
 if (focus) {
-  focus.onclick = event => {
-    app.classList.toggle('focus');
-    event.currentTarget.classList.toggle('on');
-  };
-}
+  focus.onclick =
+    event => {
 
+      app.classList.toggle(
+        'focus'
+      );
+
+      event.currentTarget
+        .classList.toggle(
+          'on'
+        );
+    };
+}
 
 /* ---------- CAMERA ---------- */
 
@@ -244,18 +401,21 @@ const camera =
   document.querySelector('#camera');
 
 if (camera) {
-  camera.onclick = event => {
-    event.currentTarget.classList.toggle('on');
+  camera.onclick =
+    event => {
 
-    if (thought) {
-      thought.textContent =
-        event.currentTarget.classList.contains('on')
-          ? 'Kamera-Modus aktiv. 👀'
-          : 'Kamera-Modus aus.';
-    }
-  };
+      event.currentTarget
+        .classList.toggle('on');
+
+      if (thought) {
+        thought.textContent =
+          event.currentTarget
+            .classList.contains('on')
+            ? 'Kamera-Modus aktiv. 👀'
+            : 'Kamera-Modus aus.';
+      }
+    };
 }
-
 
 /* ---------- MICROPHONE ---------- */
 
@@ -266,51 +426,75 @@ const SpeechRecognition =
   window.SpeechRecognition ||
   window.webkitSpeechRecognition;
 
-if (mic && SpeechRecognition) {
+if (
+  mic &&
+  SpeechRecognition
+) {
 
   const recognition =
     new SpeechRecognition();
 
-  recognition.lang = 'de-DE';
-  recognition.interimResults = false;
+  recognition.lang =
+    'de-DE';
 
-  recognition.onstart = () => {
-    mic.classList.add('active');
+  recognition.interimResults =
+    false;
 
-    if (mode) {
-      mode.textContent = 'hört zu…';
-    }
-  };
+  recognition.onstart =
+    () => {
 
-  recognition.onend = () => {
-    mic.classList.remove('active');
+      mic.classList.add(
+        'active'
+      );
 
-    if (!isResponding && mode) {
-      mode.textContent = 'bereit';
-    }
-  };
+      if (mode) {
+        mode.textContent =
+          'hört zu…';
+      }
+    };
 
-  recognition.onresult = event => {
-    input.value =
-      event.results[0][0].transcript;
+  recognition.onend =
+    () => {
 
-    form.requestSubmit();
-  };
+      mic.classList.remove(
+        'active'
+      );
 
-  mic.onclick = () => {
-    recognition.start();
-  };
+      if (
+        !isResponding &&
+        mode
+      ) {
+        mode.textContent =
+          'bereit';
+      }
+    };
+
+  recognition.onresult =
+    event => {
+
+      input.value =
+        event.results[0][0]
+          .transcript;
+
+      form.requestSubmit();
+    };
+
+  mic.onclick =
+    () => {
+      recognition.start();
+    };
 
 } else if (mic) {
 
-  mic.onclick = () => {
-    if (thought) {
-      thought.textContent =
-        'Spracheingabe wird von diesem Browser nicht unterstützt.';
-    }
-  };
-}
+  mic.onclick =
+    () => {
 
+      if (thought) {
+        thought.textContent =
+          'Spracheingabe wird von diesem Browser nicht unterstützt.';
+      }
+    };
+}
 
 /* ---------- CLOCK ---------- */
 
@@ -321,16 +505,36 @@ function updateClock() {
   if (!clock) return;
 
   clock.textContent =
-    new Date().toLocaleTimeString(
-      'de-DE',
-      {
-        hour: '2-digit',
-        minute: '2-digit'
-      }
-    );
+    new Date()
+      .toLocaleTimeString(
+        'de-DE',
+        {
+          hour: '2-digit',
+          minute: '2-digit'
+        }
+      );
 }
 
 updateClock();
-setInterval(updateClock, 1000);
 
-console.log('Sofia V3.2 Frontend geladen.');
+setInterval(
+  updateClock,
+  1000
+);
+
+/* ---------- START ---------- */
+
+restoreConversation();
+
+console.log(
+  'Sofia V3.3 mit lokalem Gedächtnis geladen.'
+);
+
+/*
+  Falls du Sofias lokales Gedächtnis
+  irgendwann manuell löschen möchtest:
+
+  Öffne die Browser-Konsole und führe aus:
+
+  localStorage.removeItem('sofia_conversation_v33')
+*/
