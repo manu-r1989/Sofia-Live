@@ -870,11 +870,30 @@ async function loadLongTermMemories() {
       return;
     }
 
+    const categoryOrder = [
+      'Personen',
+      'Vorlieben',
+      'Projekte & Arbeit',
+      'Ziele & Pläne',
+      'Gewohnheiten',
+      'Beziehung',
+      'Persönliches'
+    ];
+
+    const groupedItems = [...memoryItems].sort((a, b) => {
+      const aIndex = categoryOrder.indexOf(a.category);
+      const bIndex = categoryOrder.indexOf(b.category);
+      const aOrder = aIndex === -1 ? categoryOrder.length : aIndex;
+      const bOrder = bIndex === -1 ? categoryOrder.length : bIndex;
+      return aOrder - bOrder;
+    });
+
     let lastCategory = '';
-    memoryItems.forEach((item, index) => {
-      if (item.category !== lastCategory) {
+    groupedItems.forEach((item, index) => {
+      const category = item.category || 'Persönliches';
+      if (category !== lastCategory) {
         const heading = document.createElement('div');
-        heading.textContent = item.category;
+        heading.textContent = category;
         Object.assign(heading.style, {
           padding: '14px 4px 8px',
           color: 'rgba(255,255,255,0.5)',
@@ -884,7 +903,7 @@ async function loadLongTermMemories() {
           textTransform: 'uppercase'
         });
         memoryList.appendChild(heading);
-        lastCategory = item.category;
+        lastCategory = category;
       }
       renderMemoryItem(item.text, index);
     });
