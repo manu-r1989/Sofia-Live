@@ -292,6 +292,13 @@ ${memoryText}
               max_output_tokens: 500,
 
               audio: {
+                input: {
+                  transcription: {
+                    model: "gpt-4o-mini-transcribe",
+                    language: "de"
+                  }
+                },
+
                 output: {
                   voice: "marin",
                   speed: 1.0
