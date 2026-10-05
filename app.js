@@ -14,6 +14,7 @@ const MAX_API_HISTORY = 20;
 
 let voiceOn = true;
 let isResponding = false;
+let pendingCameraImage = null;
 
 /* =========================
    LOCAL CHAT MEMORY
@@ -226,7 +227,7 @@ function speak(text) {
    SOFIA API
 ========================= */
 
-async function askSofia(userMessage) {
+async function askSofia(userMessage, imageDataUrl = null) {
   if (isResponding) return;
 
   isResponding = true;
@@ -269,7 +270,8 @@ async function askSofia(userMessage) {
 
         body: JSON.stringify({
           message: userMessage,
-          history: historyForAPI
+          history: historyForAPI,
+          image: imageDataUrl
         })
       });
 
@@ -369,12 +371,16 @@ function submitChatMessage(event) {
   if (!input || isResponding) return false;
 
   const value = input.value.trim();
-  if (!value) return false;
+  if (!value && !pendingCameraImage) return false;
 
-  addMessage(value, 'user');
+  const messageText = value || 'Was siehst du auf diesem Foto?';
+  const imageForRequest = pendingCameraImage;
+
+  addMessage(imageForRequest ? `📷 ${messageText}` : messageText, 'user');
   input.value = '';
+  clearCameraAttachment();
 
-  askSofia(value);
+  askSofia(messageText, imageForRequest);
   return false;
 }
 
@@ -1078,55 +1084,55 @@ document
   });
 
 /* =========================
-   VOICE BUTTONS
+   LIVE + MUTE CONTROLS
 ========================= */
 
-const voiceToggle =
-  document.querySelector('#voiceToggle');
+const voiceToggle = document.querySelector('#voiceToggle');
+const mute = document.querySelector('#mute');
 
-if (voiceToggle) {
-  voiceToggle.onclick =
-    event => {
-      voiceOn =
-        !voiceOn;
-
-      event.currentTarget
-        .classList.toggle(
-          'active',
-          voiceOn
-        );
-
-      if (
-        !voiceOn &&
-        'speechSynthesis' in window
-      ) {
-        speechSynthesis.cancel();
-      }
-    };
+function syncTopLiveButton() {
+  if (!voiceToggle || !app) return;
+  const isLive = app.dataset.live === 'true';
+  voiceToggle.classList.toggle('active', isLive);
+  voiceToggle.classList.toggle('live-active', isLive);
+  voiceToggle.setAttribute('aria-pressed', isLive ? 'true' : 'false');
+  voiceToggle.title = isLive ? 'Live-Sprachchat beenden' : 'Live-Sprachchat starten';
 }
 
-const mute =
-  document.querySelector('#mute');
+if (voiceToggle) {
+  voiceToggle.onclick = event => {
+    event.preventDefault();
+    event.stopPropagation();
+    const liveButton = document.querySelector('#liveVoiceButton');
+    if (!liveButton) {
+      if (thought) thought.textContent = 'Live Voice ist noch nicht bereit.';
+      return;
+    }
+    liveButton.click();
+  };
+}
+
+if (app) {
+  const observer = new MutationObserver(syncTopLiveButton);
+  observer.observe(app, { attributes: true, attributeFilter: ['data-live'] });
+}
+
+syncTopLiveButton();
 
 if (mute) {
-  mute.onclick =
-    event => {
-      voiceOn =
-        !voiceOn;
+  mute.onclick = event => {
+    const nextMuted = !event.currentTarget.classList.contains('on');
+    const applied = window.SofiaLive?.setMuted?.(nextMuted);
 
-      event.currentTarget
-        .classList.toggle(
-          'on',
-          !voiceOn
-        );
+    // Text-Sprachausgabe ebenfalls stummschalten.
+    voiceOn = !nextMuted;
+    if (nextMuted && 'speechSynthesis' in window) speechSynthesis.cancel();
 
-      if (
-        !voiceOn &&
-        'speechSynthesis' in window
-      ) {
-        speechSynthesis.cancel();
-      }
-    };
+    event.currentTarget.classList.toggle('on', nextMuted);
+    event.currentTarget.setAttribute('aria-pressed', nextMuted ? 'true' : 'false');
+    const label = event.currentTarget.querySelector('span');
+    if (label) label.textContent = nextMuted ? 'Ton an' : 'Stumm';
+  };
 }
 
 /* =========================
@@ -1153,74 +1159,118 @@ if (focus) {
 }
 
 /* =========================
-   CAMERA
+   CAMERA / FOTO-FRAGEN
 ========================= */
 
-const camera =
-  document.querySelector('#camera');
+const camera = document.querySelector('#camera');
+let cameraOverlay = null;
+let cameraStream = null;
 
-if (camera) {
-  camera.onclick =
-    event => {
-      event.currentTarget
-        .classList.toggle('on');
-
-      if (thought) {
-        thought.textContent =
-          event.currentTarget
-            .classList.contains('on')
-            ? 'Kamera-Modus aktiv. 👀'
-            : 'Kamera-Modus aus.';
-      }
-    };
+function clearCameraAttachment() {
+  pendingCameraImage = null;
+  document.querySelector('#cameraAttachment')?.remove();
+  camera?.classList.remove('on');
 }
 
-/* =========================
-   LIVE MICROPHONE BUTTON
-========================= */
+function showCameraAttachment(dataUrl) {
+  clearCameraAttachment();
+  pendingCameraImage = dataUrl;
+  camera?.classList.add('on');
 
-const mic = document.querySelector('#mic');
-
-function syncLiveMicButton() {
-  if (!mic || !app) return;
-
-  const isLive = app.dataset.live === 'true';
-  mic.classList.toggle('active', isLive);
-  mic.classList.toggle('live-active', isLive);
-  mic.setAttribute('aria-pressed', isLive ? 'true' : 'false');
-  mic.title = isLive ? 'Live-Sprachchat beenden' : 'Live-Sprachchat starten';
+  const preview = document.createElement('div');
+  preview.id = 'cameraAttachment';
+  preview.className = 'cameraAttachment';
+  preview.innerHTML = `<img alt="Foto-Vorschau"><button type="button" aria-label="Foto entfernen">×</button>`;
+  preview.querySelector('img').src = dataUrl;
+  preview.querySelector('button').onclick = clearCameraAttachment;
+  form?.insertBefore(preview, input);
+  input?.focus();
 }
 
-if (mic) {
-  mic.setAttribute('aria-label', 'Live-Sprachchat starten');
-  mic.setAttribute('aria-pressed', 'false');
+async function closeCamera() {
+  if (cameraStream) {
+    cameraStream.getTracks().forEach(track => track.stop());
+    cameraStream = null;
+  }
+  cameraOverlay?.remove();
+  cameraOverlay = null;
+}
 
-  mic.onclick = event => {
-    event.preventDefault();
-    event.stopPropagation();
+async function openCamera() {
+  if (!navigator.mediaDevices?.getUserMedia) {
+    if (thought) thought.textContent = 'Die Kamera ist in diesem Browser nicht verfügbar.';
+    return;
+  }
 
-    const liveButton = document.querySelector('#liveVoiceButton');
+  try {
+    cameraStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' } },
+      audio: false
+    });
 
-    if (!liveButton) {
-      if (thought) {
-        thought.textContent = 'Live Voice ist noch nicht bereit.';
-      }
-      return;
-    }
+    cameraOverlay = document.createElement('div');
+    cameraOverlay.className = 'cameraOverlay';
+    cameraOverlay.innerHTML = `
+      <div class="cameraView">
+        <video autoplay playsinline muted></video>
+        <div class="cameraTop"><button type="button" data-close>×</button></div>
+        <div class="cameraBottom"><button type="button" class="shutter" data-shot aria-label="Foto aufnehmen"></button></div>
+      </div>`;
+    document.body.appendChild(cameraOverlay);
 
-    liveButton.click();
+    const video = cameraOverlay.querySelector('video');
+    video.srcObject = cameraStream;
+    await video.play();
+
+    cameraOverlay.querySelector('[data-close]').onclick = closeCamera;
+    cameraOverlay.querySelector('[data-shot]').onclick = () => captureCameraPhoto(video);
+  } catch (error) {
+    console.error('Kamera:', error);
+    if (thought) thought.textContent = 'Die Rückkamera konnte nicht geöffnet werden.';
+    await closeCamera();
+  }
+}
+
+function captureCameraPhoto(video) {
+  const maxSide = 1280;
+  const sourceW = video.videoWidth || 1280;
+  const sourceH = video.videoHeight || 960;
+  const scale = Math.min(1, maxSide / Math.max(sourceW, sourceH));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(sourceW * scale);
+  canvas.height = Math.round(sourceH * scale);
+  canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+  const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+
+  const review = document.createElement('div');
+  review.className = 'cameraReview';
+  review.innerHTML = `
+    <img alt="Aufgenommenes Foto">
+    <div><button type="button" data-retake>Wiederholen</button><button type="button" class="primary" data-use>Verwenden</button></div>`;
+  review.querySelector('img').src = dataUrl;
+  cameraOverlay.querySelector('.cameraView').appendChild(review);
+  cameraOverlay.querySelector('video').style.visibility = 'hidden';
+  cameraOverlay.querySelector('.cameraBottom').style.display = 'none';
+
+  review.querySelector('[data-retake]').onclick = () => {
+    review.remove();
+    cameraOverlay.querySelector('video').style.visibility = '';
+    cameraOverlay.querySelector('.cameraBottom').style.display = '';
+  };
+  review.querySelector('[data-use]').onclick = async () => {
+    showCameraAttachment(dataUrl);
+    await closeCamera();
+    if (thought) thought.textContent = 'Foto angehängt. Was möchtest du darüber wissen?';
   };
 }
 
-if (app) {
-  const micLiveObserver = new MutationObserver(syncLiveMicButton);
-  micLiveObserver.observe(app, {
-    attributes: true,
-    attributeFilter: ['data-live']
-  });
+if (camera) {
+  camera.onclick = event => {
+    event.preventDefault();
+    openCamera();
+  };
 }
 
-syncLiveMicButton();
 
 /* =========================
    CLOCK

@@ -60,7 +60,7 @@
 
   <link
     rel="stylesheet"
-    href="./style.css?v=435"
+    href="./style.css?v=440"
   >
 </head>
 
@@ -404,11 +404,12 @@
           <button
             type="button"
             id="voiceToggle"
-            class="icon active"
-            title="Sprachausgabe"
-            aria-label="Sprachausgabe"
+            class="icon liveMic"
+            title="Live-Sprachchat starten"
+            aria-label="Live-Sprachchat starten"
+            aria-pressed="false"
           >
-            🔊
+            🎙️<span class="liveDot" aria-hidden="true"></span>
           </button>
 
           <button
@@ -445,16 +446,6 @@
 
 
       <form id="form">
-
-        <button
-          type="button"
-          id="mic"
-          class="icon"
-          title="Live-Sprachchat starten"
-        >
-          🎙
-        </button>
-
 
         <input
           id="input"
@@ -763,7 +754,7 @@
 
   <script src="./sofia-avatar.js?v=435"></script>
 
-  <script src="./live.js?v=434"></script>
+  <script src="./live.js?v=440"></script>
 
 
   <!-- =====================================

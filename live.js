@@ -1,53 +1,26 @@
 /*
-  Sofia V4.3.4
-
-  Live Voice
-  Live Memory
-  Visual Avatar
-  RMS Lip Sync
-  Stable Turn Taking
-
-  WICHTIG:
-  Die eigentliche VAD-Konfiguration wird bereits
-  serverseitig in /api/realtime.js gesetzt.
-
-  interrupt_response = false
+  Sofia V4.3
+  Live Voice + Live Memory + Visual Avatar
 */
 
-
 (() => {
-  "use strict";
 
-
-  /* =====================================================
-     CONFIG
-  ===================================================== */
-
-  const CONFIG = {
-    rmsGain: 7.5,
-    rmsNoiseFloor: 0.018
-  };
-
-
-  /* =====================================================
-     WEBRTC STATE
-  ===================================================== */
+  /* ========================================
+     LIVE / WEBRTC STATE
+  ======================================== */
 
   let peerConnection = null;
   let dataChannel = null;
-
   let localStream = null;
   let remoteAudio = null;
 
   let liveActive = false;
   let connecting = false;
 
-  let assistantResponding = false;
 
-
-  /* =====================================================
-     MEMORY STATE
-  ===================================================== */
+  /* ========================================
+     LIVE MEMORY STATE
+  ======================================== */
 
   let pendingUserText = "";
   let pendingAssistantText = "";
@@ -56,9 +29,9 @@
     Promise.resolve();
 
 
-  /* =====================================================
-     AVATAR AUDIO
-  ===================================================== */
+  /* ========================================
+     AVATAR AUDIO ANALYSIS
+  ======================================== */
 
   let avatarAudioContext = null;
   let avatarAnalyser = null;
@@ -66,9 +39,9 @@
   let avatarAudioFrame = null;
 
 
-  /* =====================================================
-     APP ELEMENTS
-  ===================================================== */
+  /* ========================================
+     EXISTING APP ELEMENTS
+  ======================================== */
 
   const app =
     document.querySelector("#app");
@@ -80,13 +53,12 @@
     document.querySelector("#thought");
 
 
-  /* =====================================================
+  /* ========================================
      LIVE BUTTON
-  ===================================================== */
+  ======================================== */
 
   const liveButton =
     document.createElement("button");
-
 
   liveButton.type =
     "button";
@@ -97,21 +69,13 @@
   liveButton.textContent =
     "◉ LIVE";
 
-
   Object.assign(
     liveButton.style,
     {
-      position:
-        "fixed",
-
-      right:
-        "18px",
-
-      bottom:
-        "92px",
-
-      zIndex:
-        "5000",
+      position: "fixed",
+      right: "18px",
+      bottom: "92px",
+      zIndex: "5000",
 
       border:
         "1px solid rgba(255,255,255,0.16)",
@@ -151,15 +115,14 @@
     }
   );
 
-
   document.body.appendChild(
     liveButton
   );
 
 
-  /* =====================================================
-     UI
-  ===================================================== */
+  /* ========================================
+     UI HELPERS
+  ======================================== */
 
   function setLiveButtonState(
     state
@@ -169,7 +132,6 @@
       state ===
       "connecting"
     ) {
-
       liveButton.textContent =
         "◌ VERBINDE…";
 
@@ -184,7 +146,6 @@
       state ===
       "active"
     ) {
-
       liveButton.textContent =
         "● LIVE";
 
@@ -212,7 +173,8 @@
   function setMode(text) {
 
     if (mode) {
-      mode.textContent = text;
+      mode.textContent =
+        text;
     }
 
   }
@@ -221,243 +183,54 @@
   function setThought(text) {
 
     if (thought) {
-      thought.textContent = text;
+      thought.textContent =
+        text;
     }
 
   }
 
 
-  /* =====================================================
+  /* ========================================
      AVATAR AUDIO ANALYSIS
-  ===================================================== */
+  ======================================== */
 
-  async function startAvatarAudioAnalysis(
-    mediaStream
-  ) {
-
+  async function startAvatarAudioAnalysis(mediaStream) {
     try {
-
-      if (
-        !mediaStream ||
-        avatarAudioContext
-      ) {
-        return;
+      if (!mediaStream || avatarAudioContext) return;
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextClass) return;
+      avatarAudioContext = new AudioContextClass();
+      if (avatarAudioContext.state === "suspended") {
+        try { await avatarAudioContext.resume(); } catch {}
       }
-
-
-      const AudioContextClass =
-        window.AudioContext ||
-        window.webkitAudioContext;
-
-
-      if (!AudioContextClass) {
-
-        console.warn(
-          "Web Audio API nicht verfügbar."
-        );
-
-        return;
-      }
-
-
-      avatarAudioContext =
-        new AudioContextClass();
-
-
-      if (
-        avatarAudioContext.state ===
-        "suspended"
-      ) {
-
-        try {
-
-          await avatarAudioContext.resume();
-
-        } catch (error) {
-
-          console.warn(
-            "AudioContext konnte nicht fortgesetzt werden:",
-            error
-          );
-
+      avatarAudioSource = avatarAudioContext.createMediaStreamSource(mediaStream);
+      avatarAnalyser = avatarAudioContext.createAnalyser();
+      avatarAnalyser.fftSize = 512;
+      avatarAnalyser.smoothingTimeConstant = 0.25;
+      avatarAudioSource.connect(avatarAnalyser);
+      const samples = new Uint8Array(avatarAnalyser.fftSize);
+      const analyse = () => {
+        if (!avatarAnalyser || !avatarAudioContext) return;
+        avatarAnalyser.getByteTimeDomainData(samples);
+        let sum = 0;
+        for (let i=0;i<samples.length;i++) {
+          const v=(samples[i]-128)/128; sum += v*v;
         }
-
-      }
-
-
-      /*
-        Direkte Analyse des empfangenen
-        WebRTC MediaStreams.
-      */
-
-      avatarAudioSource =
-        avatarAudioContext
-          .createMediaStreamSource(
-            mediaStream
-          );
-
-
-      avatarAnalyser =
-        avatarAudioContext
-          .createAnalyser();
-
-
-      avatarAnalyser.fftSize =
-        512;
-
-
-      avatarAnalyser
-        .smoothingTimeConstant =
-          0.25;
-
-
-      avatarAudioSource.connect(
-        avatarAnalyser
-      );
-
-
-      /*
-        Kein connect(destination).
-
-        Die Audio-Wiedergabe übernimmt
-        remoteAudio selbst.
-      */
-
-
-      const samples =
-        new Uint8Array(
-          avatarAnalyser.fftSize
-        );
-
-
-      function analyse() {
-
-        if (
-          !avatarAnalyser ||
-          !avatarAudioContext
-        ) {
-          return;
-        }
-
-
-        avatarAnalyser
-          .getByteTimeDomainData(
-            samples
-          );
-
-
-        let sumSquares = 0;
-
-
-        for (
-          let i = 0;
-          i < samples.length;
-          i++
-        ) {
-
-          const sample =
-            (
-              samples[i] -
-              128
-            ) /
-            128;
-
-
-          sumSquares +=
-            sample *
-            sample;
-
-        }
-
-
-        const rms =
-          Math.sqrt(
-            sumSquares /
-            samples.length
-          );
-
-
-        let level =
-          rms *
-          CONFIG.rmsGain;
-
-
-        if (
-          level <
-          CONFIG.rmsNoiseFloor
-        ) {
-
-          level = 0;
-
-        }
-
-
-        level =
-          Math.max(
-            0,
-            Math.min(
-              1,
-              level
-            )
-          );
-
-
-        /*
-          Nur während Sofia tatsächlich
-          eine Response erzeugt, wird der
-          Mundpegel verwendet.
-
-          Dadurch können Restgeräusche nach
-          einer Antwort keine Mundbewegung
-          verursachen.
-        */
-
-        if (assistantResponding) {
-
-          window.SofiaAvatar
-            ?.setAudioLevel(
-              level
-            );
-
-        } else {
-
-          window.SofiaAvatar
-            ?.setAudioLevel(0);
-
-        }
-
-
-        avatarAudioFrame =
-          requestAnimationFrame(
-            analyse
-          );
-
-      }
-
-
+        const rms=Math.sqrt(sum/samples.length);
+        const level=Math.max(0,Math.min(1,rms*7.5));
+        window.SofiaAvatar?.setAudioLevel(level < 0.018 ? 0 : level);
+        avatarAudioFrame=requestAnimationFrame(analyse);
+      };
       analyse();
-
-
-      console.log(
-        "Sofia V4.3.4 RMS Lip Sync aktiv."
-      );
-
-    }
-
-    catch (error) {
-
-      console.warn(
-        "Avatar Audio Analyse:",
-        error
-      );
-
-
+    } catch (error) {
+      console.warn("Avatar Audio Analyse:", error);
       stopAvatarAudioAnalysis();
-
     }
-
   }
 
+  /* ========================================
+     STOP AVATAR AUDIO ANALYSIS
+  ======================================== */
 
   function stopAvatarAudioAnalysis() {
 
@@ -477,10 +250,10 @@
 
       try {
 
-        avatarAudioSource.disconnect();
+        avatarAudioSource
+          .disconnect();
 
       } catch {}
-
 
       avatarAudioSource =
         null;
@@ -492,10 +265,10 @@
 
       try {
 
-        avatarAnalyser.disconnect();
+        avatarAnalyser
+          .disconnect();
 
       } catch {}
-
 
       avatarAnalyser =
         null;
@@ -507,10 +280,10 @@
 
       try {
 
-        avatarAudioContext.close();
+        avatarAudioContext
+          .close();
 
       } catch {}
-
 
       avatarAudioContext =
         null;
@@ -524,9 +297,9 @@
   }
 
 
-  /* =====================================================
-     MEMORY QUEUE
-  ===================================================== */
+  /* ========================================
+     LIVE MEMORY QUEUE
+  ======================================== */
 
   function queueLiveMemory(
     userText,
@@ -550,9 +323,15 @@
     }
 
 
+    /*
+      Requests nacheinander ausführen.
+
+      Dadurch bleibt die Reihenfolge
+      der Unterhaltung in Redis erhalten.
+    */
+
     memoryQueue =
       memoryQueue
-
         .then(
           () =>
             saveLiveMemory(
@@ -560,24 +339,21 @@
               cleanAssistant
             )
         )
+        .catch(error => {
 
-        .catch(
-          error => {
+          console.error(
+            "Live Memory Queue:",
+            error
+          );
 
-            console.error(
-              "Live Memory Queue:",
-              error
-            );
-
-          }
-        );
+        });
 
   }
 
 
-  /* =====================================================
-     SAVE MEMORY
-  ===================================================== */
+  /* ========================================
+     LIVE MEMORY SERVER
+  ======================================== */
 
   async function saveLiveMemory(
     userText,
@@ -619,7 +395,6 @@
       window.location.reload();
 
       return;
-
     }
 
 
@@ -639,15 +414,16 @@
 
     console.log(
       "Sofia Live Memory:",
-      data.memoryAction
+      data.memoryAction,
+      `(${data.longTermMemories} Memories)`
     );
 
   }
 
 
-  /* =====================================================
-     COMMIT TURN
-  ===================================================== */
+  /* ========================================
+     TURN ABSCHLIESSEN
+  ======================================== */
 
   function commitCurrentTurn() {
 
@@ -665,7 +441,6 @@
         "";
 
       return;
-
     }
 
 
@@ -691,9 +466,9 @@
   }
 
 
-  /* =====================================================
-     LOCAL HISTORY
-  ===================================================== */
+  /* ========================================
+     LOCAL CHAT MEMORY
+  ======================================== */
 
   function mirrorTurnToLocalChat(
     userText,
@@ -759,8 +534,8 @@
           role:
             "assistant",
 
-        content:
-          assistantText
+          content:
+            assistantText
         });
 
       }
@@ -779,9 +554,7 @@
         )
       );
 
-    }
-
-    catch (error) {
+    } catch (error) {
 
       console.warn(
         "Live Local Memory:",
@@ -793,9 +566,9 @@
   }
 
 
-  /* =====================================================
+  /* ========================================
      START LIVE
-  ===================================================== */
+  ======================================== */
 
   async function startLive() {
 
@@ -809,10 +582,6 @@
 
     connecting =
       true;
-
-
-    assistantResponding =
-      false;
 
 
     pendingUserText =
@@ -844,9 +613,9 @@
 
     try {
 
-      /* -------------------------------------
-         TOKEN
-      ------------------------------------- */
+      /* ====================================
+         REALTIME TOKEN
+      ==================================== */
 
       const tokenResponse =
         await fetch(
@@ -872,7 +641,6 @@
         window.location.reload();
 
         return;
-
       }
 
 
@@ -903,16 +671,15 @@
       }
 
 
-      /* -------------------------------------
+      /* ====================================
          MICROPHONE
-      ------------------------------------- */
+      ==================================== */
 
       localStream =
         await navigator
           .mediaDevices
           .getUserMedia({
             audio: {
-
               echoCancellation:
                 true,
 
@@ -921,10 +688,16 @@
 
               autoGainControl:
                 true
-
             }
           });
 
+
+      /*
+        Normale Browser-Sprachausgabe
+        stoppen.
+
+        Realtime übernimmt jetzt.
+      */
 
       if (
         "speechSynthesis"
@@ -936,17 +709,17 @@
       }
 
 
-      /* -------------------------------------
+      /* ====================================
          WEBRTC
-      ------------------------------------- */
+      ==================================== */
 
       peerConnection =
         new RTCPeerConnection();
 
 
-      /* -------------------------------------
-         REMOTE AUDIO
-      ------------------------------------- */
+      /* ====================================
+         SOFIA AUDIO
+      ==================================== */
 
       remoteAudio =
         document.createElement(
@@ -963,60 +736,41 @@
 
 
       peerConnection.ontrack =
-        async event => {
-
-          const stream =
-            event.streams?.[0] ||
-            (
-              event.track
-                ? new MediaStream([
-                    event.track
-                  ])
-                : null
-            );
-
-
-          if (!stream) {
-
-            console.warn(
-              "Kein Remote MediaStream erhalten."
-            );
-
-            return;
-
-          }
-
+        event => {
 
           remoteAudio.srcObject =
-            stream;
+            event.streams[0];
 
 
-          try {
+          remoteAudio
+            .play()
+            .then(() => {
 
-            await remoteAudio.play();
+              /*
+                Ab jetzt analysieren wir
+                Sofias tatsächliches Audio.
+              */
 
-          }
+              startAvatarAudioAnalysis(
+                remoteAudio
+              );
 
-          catch (error) {
+            })
+            .catch(error => {
 
-            console.warn(
-              "Remote Audio:",
-              error
-            );
+              console.warn(
+                "Remote Audio:",
+                error
+              );
 
-          }
-
-
-          await startAvatarAudioAnalysis(
-            stream
-          );
+            });
 
         };
 
 
-      /* -------------------------------------
-         MICROPHONE TRACKS
-      ------------------------------------- */
+      /* ====================================
+         USER AUDIO
+      ==================================== */
 
       for (
         const track
@@ -1031,9 +785,9 @@
       }
 
 
-      /* -------------------------------------
+      /* ====================================
          DATA CHANNEL
-      ------------------------------------- */
+      ==================================== */
 
       dataChannel =
         peerConnection
@@ -1080,29 +834,13 @@
 
           }
 
-
-          /*
-            WICHTIG:
-
-            KEIN session.update mit
-            interrupt_response:true mehr.
-
-            Die VAD-Konfiguration kommt
-            bereits aus api/realtime.js.
-          */
-
-
-          console.log(
-            "Sofia V4.3.4 Realtime verbunden."
-          );
-
         }
       );
 
 
-      /* -------------------------------------
-         EVENTS
-      ------------------------------------- */
+      /* ====================================
+         REALTIME EVENTS
+      ==================================== */
 
       dataChannel.addEventListener(
         "message",
@@ -1120,9 +858,7 @@
               data
             );
 
-          }
-
-          catch (error) {
+          } catch (error) {
 
             console.warn(
               "Realtime Event:",
@@ -1149,9 +885,9 @@
       );
 
 
-      /* -------------------------------------
-         CONNECTION
-      ------------------------------------- */
+      /* ====================================
+         CONNECTION STATE
+      ==================================== */
 
       peerConnection
         .addEventListener(
@@ -1164,8 +900,10 @@
 
 
             if (
-              state === "failed" ||
-              state === "closed"
+              state ===
+                "failed" ||
+              state ===
+                "closed"
             ) {
 
               stopLive(false);
@@ -1176,9 +914,9 @@
         );
 
 
-      /* -------------------------------------
+      /* ====================================
          SDP OFFER
-      ------------------------------------- */
+      ==================================== */
 
       const offer =
         await peerConnection
@@ -1191,9 +929,9 @@
         );
 
 
-      /* -------------------------------------
-         REALTIME CALL
-      ------------------------------------- */
+      /* ====================================
+         OPENAI REALTIME WEBRTC
+      ==================================== */
 
       const sdpResponse =
         await fetch(
@@ -1206,13 +944,11 @@
               offer.sdp,
 
             headers: {
-
               Authorization:
                 `Bearer ${ephemeralKey}`,
 
               "Content-Type":
                 "application/sdp"
-
             }
           }
         );
@@ -1246,9 +982,8 @@
           answer
         );
 
-    }
 
-    catch (error) {
+    } catch (error) {
 
       console.error(
         "Sofia Live Fehler:",
@@ -1272,9 +1007,8 @@
 
       stopLive(false);
 
-    }
 
-    finally {
+    } finally {
 
       connecting =
         false;
@@ -1284,9 +1018,9 @@
   }
 
 
-  /* =====================================================
-     REALTIME EVENTS
-  ===================================================== */
+  /* ========================================
+     REALTIME EVENT HANDLER
+  ======================================== */
 
   function handleRealtimeEvent(
     event
@@ -1295,81 +1029,60 @@
     switch (event.type) {
 
 
-      /* -------------------------------------
-         USER SPEECH START
-      ------------------------------------- */
+      /* ====================================
+         USER BEGINNT ZU REDEN
+      ==================================== */
 
       case
-        "input_audio_buffer.speech_started": {
+        "input_audio_buffer.speech_started":
 
 
-        /*
-          interrupt_response:false bedeutet:
-
-          Dieses Event darf auftreten,
-          während Sofia spricht.
-
-          Es beendet ihre laufende Response
-          aber nicht mehr automatisch.
-        */
+        setMode(
+          "hört zu…"
+        );
 
 
-        if (!assistantResponding) {
-
-          setMode(
-            "hört zu…"
-          );
+        window.SofiaAvatar
+          ?.listen();
 
 
-          window.SofiaAvatar
-            ?.listen();
+        if (app) {
+
+          app.dataset.speaking =
+            "false";
 
         }
 
 
         break;
-      }
 
 
-      /* -------------------------------------
-         USER SPEECH STOP
-      ------------------------------------- */
+      /* ====================================
+         USER HÖRT AUF
+      ==================================== */
 
       case
-        "input_audio_buffer.speech_stopped": {
+        "input_audio_buffer.speech_stopped":
 
 
-        /*
-          Während Sofia noch spricht,
-          verändern wir ihren Avatarzustand
-          nicht aufgrund eines möglichen
-          Lautsprecher-Echos.
-        */
+        setMode(
+          "denkt nach…"
+        );
 
 
-        if (!assistantResponding) {
-
-          setMode(
-            "denkt nach…"
-          );
-
-
-          window.SofiaAvatar
-            ?.think();
-
-        }
+        window.SofiaAvatar
+          ?.think();
 
 
         break;
-      }
 
 
-      /* -------------------------------------
-         USER TRANSCRIPT
-      ------------------------------------- */
+      /* ====================================
+         USER TRANSKRIPT FERTIG
+      ==================================== */
 
       case
-        "conversation.item.input_audio_transcription.completed": {
+        "conversation.item.input_audio_transcription.completed":
 
 
         if (
@@ -1391,19 +1104,14 @@
 
 
         break;
-      }
 
 
-      /* -------------------------------------
-         RESPONSE CREATED
-      ------------------------------------- */
+      /* ====================================
+         SOFIA BEGINNT ANTWORT
+      ==================================== */
 
       case
-        "response.created": {
-
-
-        assistantResponding =
-          true;
+        "response.created":
 
 
         pendingAssistantText =
@@ -1420,19 +1128,14 @@
 
 
         break;
-      }
 
 
-      /* -------------------------------------
-         AUDIO OUTPUT
-      ------------------------------------- */
+      /* ====================================
+         SOFIA AUDIO
+      ==================================== */
 
       case
-        "response.output_audio.delta": {
-
-
-        assistantResponding =
-          true;
+        "response.output_audio.delta":
 
 
         setMode(
@@ -1453,15 +1156,14 @@
 
 
         break;
-      }
 
 
-      /* -------------------------------------
-         TRANSCRIPT DELTA
-      ------------------------------------- */
+      /* ====================================
+         SOFIA TRANSKRIPT STREAM
+      ==================================== */
 
       case
-        "response.output_audio_transcript.delta": {
+        "response.output_audio_transcript.delta":
 
 
         if (
@@ -1481,15 +1183,14 @@
 
 
         break;
-      }
 
 
-      /* -------------------------------------
-         TRANSCRIPT DONE
-      ------------------------------------- */
+      /* ====================================
+         SOFIA TRANSKRIPT FERTIG
+      ==================================== */
 
       case
-        "response.output_audio_transcript.done": {
+        "response.output_audio_transcript.done":
 
 
         if (
@@ -1510,19 +1211,14 @@
 
 
         break;
-      }
 
 
-      /* -------------------------------------
-         RESPONSE DONE
-      ------------------------------------- */
+      /* ====================================
+         KOMPLETTER TURN FERTIG
+      ==================================== */
 
       case
-        "response.done": {
-
-
-        assistantResponding =
-          false;
+        "response.done":
 
 
         if (app) {
@@ -1533,57 +1229,35 @@
         }
 
 
-        window.SofiaAvatar
-          ?.setAudioLevel(0);
+        setMode(
+          "Live"
+        );
 
 
         window.SofiaAvatar
           ?.idle();
 
 
-        setMode(
-          "Live"
-        );
-
-
-        const status =
-          event.response?.status;
-
-
         /*
-          Nur vollständige Antworten werden
-          als normaler Gesprächszug gespeichert.
+          User + Sofia sind vollständig.
+
+          Jetzt wird der Gesprächszug
+          in Redis gespeichert und ggf.
+          Long-Term-Memory aktualisiert.
         */
 
-        if (
-          !status ||
-          status === "completed"
-        ) {
-
-          commitCurrentTurn();
-
-        }
-
-        else {
-
-          console.log(
-            "Realtime Response Status:",
-            status
-          );
-
-        }
+        commitCurrentTurn();
 
 
         break;
-      }
 
 
-      /* -------------------------------------
-         ERROR
-      ------------------------------------- */
+      /* ====================================
+         REALTIME ERROR
+      ==================================== */
 
       case
-        "error": {
+        "error":
 
 
         console.error(
@@ -1598,33 +1272,31 @@
         );
 
 
-        assistantResponding =
-          false;
-
-
-        window.SofiaAvatar
-          ?.setAudioLevel(0);
-
-
         window.SofiaAvatar
           ?.idle();
 
 
         break;
-      }
 
     }
 
   }
 
 
-  /* =====================================================
+  /* ========================================
      STOP LIVE
-  ===================================================== */
+  ======================================== */
 
   function stopLive(
     userInitiated = true
   ) {
+
+    /*
+      Falls bereits ein fertiges
+      User-Transkript vorhanden ist,
+      beim manuellen Beenden nicht
+      verlieren.
+    */
 
     if (
       pendingUserText.trim()
@@ -1641,15 +1313,6 @@
 
     connecting =
       false;
-
-
-    assistantResponding =
-      false;
-
-
-    /* AVATAR */
-
-    stopAvatarAudioAnalysis();
 
 
     /* DATA CHANNEL */
@@ -1727,7 +1390,12 @@
     }
 
 
-    /* UI */
+    /* AVATAR AUDIO */
+
+    stopAvatarAudioAnalysis();
+
+
+    /* APP STATE */
 
     if (app) {
 
@@ -1739,10 +1407,6 @@
         "false";
 
     }
-
-
-    window.SofiaAvatar
-      ?.setAudioLevel(0);
 
 
     window.SofiaAvatar
@@ -1770,9 +1434,9 @@
   }
 
 
-  /* =====================================================
-     BUTTON
-  ===================================================== */
+  /* ========================================
+     LIVE BUTTON EVENT
+  ======================================== */
 
   liveButton.addEventListener(
     "click",
@@ -1785,9 +1449,7 @@
 
         stopLive();
 
-      }
-
-      else {
+      } else {
 
         startLive();
 
@@ -1797,9 +1459,9 @@
   );
 
 
-  /* =====================================================
+  /* ========================================
      PAGE CLEANUP
-  ===================================================== */
+  ======================================== */
 
   window.addEventListener(
     "pagehide",
@@ -1818,8 +1480,19 @@
   );
 
 
+
+  window.SofiaLive = {
+    setMuted(muted) {
+      const value = Boolean(muted);
+      if (remoteAudio) remoteAudio.muted = value;
+      return value;
+    },
+    isMuted() { return Boolean(remoteAudio?.muted); },
+    isActive() { return liveActive; }
+  };
+
   console.log(
-    "Sofia V4.3.4 Live Voice + Memory + Stable Turn Taking geladen."
+    "Sofia V4.3 Live Voice + Memory + Avatar geladen."
   );
 
 })();
