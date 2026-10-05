@@ -766,7 +766,36 @@
               "same-origin",
 
             cache:
-              "no-store"
+              "no-store",
+
+            headers: {
+              "Content-Type":
+                "application/json"
+            },
+
+            body: JSON.stringify({
+              history: (() => {
+                try {
+                  const parsed =
+                    JSON.parse(
+                      localStorage.getItem("sofia_memory") || "[]"
+                    );
+
+                  return Array.isArray(parsed)
+                    ? parsed
+                        .filter(item =>
+                          item &&
+                          ["user", "assistant"].includes(item.role) &&
+                          typeof item.content === "string" &&
+                          item.content.trim()
+                        )
+                        .slice(-12)
+                    : [];
+                } catch {
+                  return [];
+                }
+              })()
+            })
           }
         );
 
