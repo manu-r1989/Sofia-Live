@@ -2,7 +2,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "4.5.2";
+  const VERSION = "4.5.3";
   const ASSETS = {
     neutral: "./sofia-avatar.PNG",
     blink: "./avatar/sofia-blink-closed.png",
@@ -69,7 +69,7 @@
       .sofia-avatar-v435{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;overflow:hidden;transform:translateZ(0);backface-visibility:hidden;-webkit-backface-visibility:hidden}
       .sofia-avatar-v435-layer{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:50% 36%;opacity:0;pointer-events:none;user-select:none;-webkit-user-select:none;backface-visibility:hidden;-webkit-backface-visibility:hidden;will-change:opacity;transform:translateZ(0)}
       .sofia-avatar-v435-layer[data-frame="neutral"]{opacity:1!important}
-      .sofia-avatar-v435-layer.expression-layer{transition:opacity .22s cubic-bezier(.22,.7,.25,1)}
+      .sofia-avatar-v435-layer.expression-layer{transition:opacity .26s cubic-bezier(.22,.7,.25,1)}
       .sofia-avatar-v435-layer.expression-layer.active{opacity:1}
       .sofia-avatar-v435-layer.transient-frame.active{opacity:1}
       .sofia-avatar-v435-glow,.sofia-avatar-v435-shade{position:absolute;inset:0;pointer-events:none}
