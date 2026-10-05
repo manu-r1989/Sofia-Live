@@ -465,3 +465,194 @@
     top:max(60px,calc(env(safe-area-inset-top) + 52px))!important;
   }
 }
+
+
+/* =========================================================
+   V4.6.5 — final placement correction
+   ========================================================= */
+
+/* Toggle visually matches the adjacent microphone control. */
+#toolsToggle{
+  width:64px!important;
+  height:64px!important;
+  min-width:64px!important;
+  padding:0!important;
+  border:0!important;
+  border-radius:18px!important;
+  background:rgba(255,255,255,.08)!important;
+  color:#fff!important;
+  box-shadow:none!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+}
+#toolsToggle.on,
+#toolsToggle[aria-expanded="true"]{
+  background:rgba(255,255,255,.08)!important;
+  color:#fff!important;
+}
+#toolsToggle .toolsGlyph{
+  font-size:25px!important;
+  line-height:1!important;
+  font-weight:400!important;
+}
+
+/* Portrait: chat anchored to bottom; toolbar sits immediately above it. */
+@media (orientation:portrait) and (max-width:850px){
+  .chatPanel{
+    position:absolute!important;
+    left:18px!important;
+    right:18px!important;
+    top:auto!important;
+    bottom:126px!important;
+    width:auto!important;
+    max-width:none!important;
+    height:auto!important;
+    max-height:min(52vh,520px)!important;
+    margin:0!important;
+  }
+
+  .actions{
+    position:absolute!important;
+    left:18px!important;
+    right:18px!important;
+    top:auto!important;
+    bottom:calc(126px + min(52vh,520px) + 8px)!important;
+    width:auto!important;
+    max-width:none!important;
+    height:64px!important;
+    transform:none!important;
+  }
+
+  /* When the bar is hidden the chat stays fixed at the bottom. */
+  .app.tools-closed .actions{
+    transform:translateY(8px)!important;
+  }
+}
+
+/* Landscape is a true two-column composition.
+   Sofia is constrained to the left half; UI is constrained to the right.
+   No chat element may extend into Sofia's half. */
+@media (orientation:landscape){
+  .avatarStage{
+    position:absolute!important;
+    left:0!important;
+    top:0!important;
+    bottom:0!important;
+    width:50%!important;
+    max-width:50%!important;
+    overflow:hidden!important;
+  }
+
+  .sofia-avatar-v435{
+    width:100%!important;
+    height:100%!important;
+  }
+
+  .sofia-avatar-v435-layer{
+    object-fit:cover!important;
+    object-position:50% 36%!important;
+  }
+
+  .chatPanel{
+    position:absolute!important;
+    left:calc(50% + 16px)!important;
+    right:18px!important;
+    top:auto!important;
+    bottom:18px!important;
+    width:auto!important;
+    max-width:none!important;
+    height:min(58vh,440px)!important;
+    max-height:calc(100vh - 110px)!important;
+    margin:0!important;
+    transform:none!important;
+    z-index:120!important;
+  }
+
+  .actions{
+    position:absolute!important;
+    left:calc(50% + 16px)!important;
+    right:18px!important;
+    top:auto!important;
+    bottom:calc(18px + min(58vh,440px) + 8px)!important;
+    width:auto!important;
+    max-width:none!important;
+    height:58px!important;
+    margin:0!important;
+    transform:none!important;
+    z-index:170!important;
+  }
+
+  .moodPanel{
+    position:absolute!important;
+    left:calc(50% + 16px)!important;
+    right:18px!important;
+    top:auto!important;
+    bottom:calc(18px + min(58vh,440px) + 74px)!important;
+    width:auto!important;
+    max-width:none!important;
+    transform:translateY(8px)!important;
+    z-index:190!important;
+  }
+  .app.mood-open .moodPanel{
+    transform:translateY(0)!important;
+  }
+}
+
+/* Short iPhone landscape: keep enough room for both the toolbar and chat. */
+@media (orientation:landscape) and (max-height:500px){
+  .chatPanel{
+    left:calc(50% + 10px)!important;
+    right:max(10px,env(safe-area-inset-right))!important;
+    bottom:max(8px,env(safe-area-inset-bottom))!important;
+    height:calc(100vh - 76px - env(safe-area-inset-top) - env(safe-area-inset-bottom))!important;
+    max-height:none!important;
+  }
+
+  .actions{
+    left:calc(50% + 10px)!important;
+    right:max(10px,env(safe-area-inset-right))!important;
+    top:max(8px,env(safe-area-inset-top))!important;
+    bottom:auto!important;
+    height:52px!important;
+  }
+
+  .moodPanel{
+    left:calc(50% + 10px)!important;
+    right:max(10px,env(safe-area-inset-right))!important;
+    top:max(66px,calc(env(safe-area-inset-top) + 62px))!important;
+    bottom:auto!important;
+  }
+
+  #toolsToggle{
+    width:56px!important;
+    height:56px!important;
+    min-width:56px!important;
+    border-radius:16px!important;
+  }
+}
+
+/* MacBook / larger landscape: right column is deliberately narrower,
+   so it cannot reach into Sofia's face. */
+@media (orientation:landscape) and (min-width:1000px) and (min-height:501px){
+  .avatarStage{
+    width:58%!important;
+    max-width:58%!important;
+  }
+  .chatPanel,
+  .actions,
+  .moodPanel{
+    left:60%!important;
+    right:28px!important;
+  }
+  .chatPanel{
+    bottom:28px!important;
+    height:min(56vh,470px)!important;
+  }
+  .actions{
+    bottom:calc(28px + min(56vh,470px) + 10px)!important;
+  }
+  .moodPanel{
+    bottom:calc(28px + min(56vh,470px) + 78px)!important;
+  }
+}
