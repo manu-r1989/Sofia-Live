@@ -311,6 +311,7 @@
           // iOS may emit response.done while buffered assistant audio is still
           // audible. Only arm microphone restoration after actual silence.
           if (micSuppressedForAssistant && !responseLocked) {
+            setPresence("ready", "bereit zum Zuhören");
             restoreMicAfterAssistant(650);
           }
         }
@@ -1475,9 +1476,12 @@
       // precede the end of buffered audio playback. The analyser above
       // returns the mouth to neutral only after actual audio silence.
 
+        // response.done describes generation, not necessarily the end of
+        // buffered playback on iOS. Keep the UI in speaking state and the
+        // microphone gated until the remote-audio analyser confirms silence.
         setPresence(
-          "ready",
-          "bereit zum Zuhören"
+          "speaking",
+          "spricht…"
         );
 
 
