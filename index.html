@@ -66,7 +66,9 @@
 
 <body>
 
-  <!-- LOGIN -->
+  <!-- =====================================
+       LOGIN
+  ====================================== -->
 
   <div
     id="loginOverlay"
@@ -175,32 +177,54 @@
   </div>
 
 
-  <!-- SOFIA -->
+  <!-- =====================================
+       SOFIA
+  ====================================== -->
 
   <div
     class="app"
     id="app"
     data-mood="flirty"
     data-speaking="false"
+    data-live="false"
   >
 
     <section class="avatarStage">
 
-      <img
-        class="avatar"
-        src="./sofia-avatar.png"
-        alt="Sofia"
-      >
+      <!--
+        V4.3:
+        Eindeutiger Avatar-Container.
+
+        sofia-avatar.js übernimmt dieses
+        Bild und animiert es.
+      -->
+
+      <div id="sofiaAvatar">
+
+        <img
+          class="avatar"
+          src="./sofia-avatar.png"
+          alt="Sofia"
+        >
+
+      </div>
+
 
       <div class="cinema"></div>
+
       <div class="breathGlow"></div>
 
+
       <div class="presence">
+
         <i></i>
+
         <span id="presenceText">
           SOFIA · LIVE
         </span>
+
       </div>
+
 
       <div
         class="thought"
@@ -209,23 +233,33 @@
         Na? Ich bin da. 😏
       </div>
 
+
       <div
         class="voiceBars"
         aria-hidden="true"
       >
+
         <b></b>
         <b></b>
         <b></b>
         <b></b>
         <b></b>
+
       </div>
 
     </section>
 
 
+    <!-- =====================================
+         NAVIGATION
+    ====================================== -->
+
     <aside class="rail">
 
-      <div class="logo">S</div>
+      <div class="logo">
+        S
+      </div>
+
 
       <button
         class="railBtn active"
@@ -234,12 +268,14 @@
         ✦
       </button>
 
+
       <button
         class="railBtn"
         data-view="memory"
       >
         ◷
       </button>
+
 
       <button
         class="railBtn"
@@ -251,33 +287,57 @@
     </aside>
 
 
+    <!-- =====================================
+         HEADER
+    ====================================== -->
+
     <header>
 
       <div>
-        <strong>Sofia</strong>
+
+        <strong>
+          Sofia
+        </strong>
 
         <span class="online">
           ● online
         </span>
+
       </div>
 
+
       <div class="meta">
-        <span>Hamburg</span>
+
+        <span>
+          Hamburg
+        </span>
+
         <span id="clock"></span>
+
       </div>
 
     </header>
 
 
+    <!-- =====================================
+         MOODS
+    ====================================== -->
+
     <section class="moodPanel">
 
-      <small>STIMMUNG</small>
+      <small>
+        STIMMUNG
+      </small>
+
 
       <div class="moods">
 
-        <button data-mood="entspannt">
+        <button
+          data-mood="entspannt"
+        >
           Entspannt
         </button>
+
 
         <button
           class="active"
@@ -286,19 +346,31 @@
           Flirty
         </button>
 
-        <button data-mood="amüsiert">
+
+        <button
+          data-mood="amüsiert"
+        >
           Amüsiert
         </button>
 
-        <button data-mood="skeptisch">
+
+        <button
+          data-mood="skeptisch"
+        >
           Skeptisch
         </button>
 
-        <button data-mood="genervt">
+
+        <button
+          data-mood="genervt"
+        >
           Genervt
         </button>
 
-        <button data-mood="ernst">
+
+        <button
+          data-mood="ernst"
+        >
           Ernst
         </button>
 
@@ -307,11 +379,16 @@
     </section>
 
 
+    <!-- =====================================
+         CHAT
+    ====================================== -->
+
     <section class="chatPanel">
 
       <div class="chatHead">
 
         <div>
+
           <strong>
             Live conversation
           </strong>
@@ -319,7 +396,9 @@
           <small id="mode">
             bereit
           </small>
+
         </div>
+
 
         <button
           id="voiceToggle"
@@ -338,9 +417,13 @@
       >
 
         <div class="msg sofia">
+
           Na? Endlich da. 😏
+
           <br>
+
           Was hast du heute vor?
+
         </div>
 
       </div>
@@ -357,11 +440,13 @@
           🎙
         </button>
 
+
         <input
           id="input"
           autocomplete="off"
           placeholder="Schreib Sofia etwas …"
         >
+
 
         <button
           class="send"
@@ -375,21 +460,42 @@
     </section>
 
 
+    <!-- =====================================
+         ACTIONS
+    ====================================== -->
+
     <div class="actions">
 
       <button id="camera">
+
         ◉
-        <span>Kamera</span>
+
+        <span>
+          Kamera
+        </span>
+
       </button>
+
 
       <button id="focus">
+
         ⌁
-        <span>Fokus</span>
+
+        <span>
+          Fokus
+        </span>
+
       </button>
 
+
       <button id="mute">
+
         ♬
-        <span>Stumm</span>
+
+        <span>
+          Stumm
+        </span>
+
       </button>
 
     </div>
@@ -397,44 +503,45 @@
   </div>
 
 
-  <!-- APP.JS -->
-
-  <script src="./app.js?v=39"></script>
-  <script src="./live.js?v=41"></script>
-
-
-  <!-- SESSION + LOGIN -->
+  <!-- =====================================
+       SESSION + LOGIN
+  ====================================== -->
 
   <script>
 
     const loginOverlay =
       document.querySelector(
-        '#loginOverlay'
+        "#loginOverlay"
       );
+
 
     const loginForm =
       document.querySelector(
-        '#loginForm'
+        "#loginForm"
       );
+
 
     const loginPassword =
       document.querySelector(
-        '#loginPassword'
+        "#loginPassword"
       );
+
 
     const loginError =
       document.querySelector(
-        '#loginError'
+        "#loginError"
       );
+
 
     const loginStatus =
       document.querySelector(
-        '#loginStatus'
+        "#loginStatus"
       );
+
 
     const loginButton =
       document.querySelector(
-        '#loginButton'
+        "#loginButton"
       );
 
 
@@ -444,11 +551,16 @@
 
         const response =
           await fetch(
-            '/api/session',
+            "/api/session",
             {
-              method: 'GET',
-              credentials: 'same-origin',
-              cache: 'no-store'
+              method:
+                "GET",
+
+              credentials:
+                "same-origin",
+
+              cache:
+                "no-store"
             }
           );
 
@@ -456,16 +568,19 @@
         if (response.ok) {
 
           loginOverlay.style.display =
-            'none';
+            "none";
 
           return true;
+
         }
 
 
         loginStatus.textContent =
-          'Privatbereich';
+          "Privatbereich";
+
 
         loginPassword.focus();
+
 
         return false;
 
@@ -473,53 +588,61 @@
       } catch (error) {
 
         console.error(
-          'Session check:',
+          "Session check:",
           error
         );
 
+
         loginStatus.textContent =
-          'Privatbereich';
+          "Privatbereich";
+
 
         loginError.textContent =
-          'Verbindung konnte nicht geprüft werden.';
+          "Verbindung konnte nicht geprüft werden.";
+
 
         return false;
+
       }
 
     }
 
 
     loginForm.addEventListener(
-      'submit',
+      "submit",
       async event => {
 
         event.preventDefault();
 
+
         loginButton.disabled =
           true;
 
+
         loginError.textContent =
-          '';
+          "";
+
 
         loginStatus.textContent =
-          'Prüfe Passwort …';
+          "Prüfe Passwort …";
 
 
         try {
 
           const response =
             await fetch(
-              '/api/login',
+              "/api/login",
               {
-                method: 'POST',
+                method:
+                  "POST",
 
                 headers: {
-                  'Content-Type':
-                    'application/json'
+                  "Content-Type":
+                    "application/json"
                 },
 
                 credentials:
-                  'same-origin',
+                  "same-origin",
 
                 body:
                   JSON.stringify({
@@ -532,49 +655,60 @@
 
           let data = {};
 
+
           try {
+
             data =
               await response.json();
+
           } catch {}
 
 
           if (!response.ok) {
 
             loginStatus.textContent =
-              'Privatbereich';
+              "Privatbereich";
+
 
             loginError.textContent =
               data.error ||
-              'Login fehlgeschlagen.';
+              "Login fehlgeschlagen.";
+
 
             loginPassword.select();
 
+
             return;
+
           }
 
 
           loginPassword.value =
-            '';
+            "";
+
 
           loginError.textContent =
-            '';
+            "";
+
 
           loginOverlay.style.display =
-            'none';
+            "none";
 
 
         } catch (error) {
 
           console.error(
-            'Sofia Login:',
+            "Sofia Login:",
             error
           );
 
+
           loginStatus.textContent =
-            'Privatbereich';
+            "Privatbereich";
+
 
           loginError.textContent =
-            'Verbindungsfehler.';
+            "Verbindungsfehler.";
 
 
         } finally {
@@ -593,14 +727,41 @@
   </script>
 
 
-  <!-- ALTE SERVICE WORKER ENTFERNEN -->
+  <!-- =====================================
+       SOFIA APPLICATION
+  ====================================== -->
+
+  <!--
+    Reihenfolge wichtig:
+
+    1. app.js
+    2. Avatar Engine
+    3. Live Voice
+
+    live.js kann dadurch direkt
+    window.SofiaAvatar verwenden.
+  -->
+
+  <script src="./app.js?v=39"></script>
+
+  <script src="./sofia-avatar.js?v=43"></script>
+
+  <script src="./live.js?v=43"></script>
+
+
+  <!-- =====================================
+       ALTE SERVICE WORKER ENTFERNEN
+  ====================================== -->
 
   <script>
 
-    if ('serviceWorker' in navigator) {
+    if (
+      "serviceWorker"
+      in navigator
+    ) {
 
       window.addEventListener(
-        'load',
+        "load",
         async () => {
 
           try {
@@ -623,14 +784,14 @@
 
 
             console.log(
-              'Alte Sofia Service Worker entfernt.'
+              "Alte Sofia Service Worker entfernt."
             );
 
 
           } catch (error) {
 
             console.error(
-              'Service Worker cleanup:',
+              "Service Worker cleanup:",
               error
             );
 
@@ -644,4 +805,5 @@
   </script>
 
 </body>
+
 </html>
