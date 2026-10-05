@@ -7,6 +7,7 @@ const thought = document.querySelector('#thought');
 const sendButton = document.querySelector('#sendButton');
 const chatPanel = document.querySelector('.chatPanel');
 const chatMinimize = document.querySelector('#chatMinimize');
+const chatRestore = document.querySelector('#chatRestore');
 
 const MEMORY_KEY = 'sofia_memory';
 const MAX_STORED_MESSAGES = 100;
@@ -422,6 +423,7 @@ function applyChatState(state) {
   chatPanel.classList.toggle('chat-hidden', next === 'hidden');
   chatPanel.classList.toggle('minimized', next === 'compact');
   chatPanel.classList.toggle('chat-full', next === 'full');
+  app?.classList.toggle('chat-is-hidden', next === 'hidden');
 
   if (chatMinimize) {
     chatMinimize.textContent = next === 'hidden' ? '▴' : next === 'full' ? '▾' : '•';
@@ -444,6 +446,14 @@ if (chatMinimize) {
   });
 }
 
+
+if (chatRestore) {
+  chatRestore.addEventListener('click', event => {
+    event.preventDefault();
+    chatStateStep = 1;
+    applyChatState('compact');
+  });
+}
 
 if (app) {
   let previousLive = app.dataset.live === 'true';
