@@ -339,7 +339,7 @@ export default async function handler(req, res) {
 
   try {
 
-    const { message } =
+    const { message, image } =
       req.body || {};
 
 
@@ -858,13 +858,38 @@ Kein Markdown außerhalb des JSON-Objekts.
        OPENAI
     ======================================== */
 
+    let imageDataUrl = null;
+
+    if (image != null) {
+      if (typeof image !== "string") {
+        return res.status(400).json({ error: "Ungültiges Bild." });
+      }
+
+      const match = image.match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
+      if (!match) {
+        return res.status(400).json({ error: "Nicht unterstütztes Bildformat." });
+      }
+
+      // Base64-Grenze: ca. 6 MB Binärdaten.
+      if (match[2].length > 8_000_000) {
+        return res.status(413).json({ error: "Das Foto ist zu groß." });
+      }
+
+      imageDataUrl = image;
+    }
+
+    const userContent = imageDataUrl
+      ? [
+          { type: "input_text", text: message.trim() },
+          { type: "input_image", image_url: imageDataUrl, detail: "auto" }
+        ]
+      : message.trim();
+
     const input = [
       ...history,
-
       {
         role: "user",
-        content:
-          message.trim()
+        content: userContent
       }
     ];
 
