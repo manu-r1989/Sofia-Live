@@ -168,6 +168,8 @@ function applyMood(mood) {
     app.dataset.mood = next;
   }
 
+  window.SofiaAvatar?.setMood?.(next);
+
   document
     .querySelectorAll('[data-mood]')
     .forEach(button => {

@@ -2,13 +2,19 @@
 (() => {
   "use strict";
 
-  const VERSION = "4.3.5";
+  const VERSION = "4.5";
   const ASSETS = {
     neutral: "./sofia-avatar.PNG",
     blink: "./avatar/sofia-blink-closed.png",
     small: "./avatar/sofia-mouth-small.png",
     medium: "./avatar/sofia-mouth-medium.png",
-    wide: "./avatar/sofia-mouth-wide.png"
+    wide: "./avatar/sofia-mouth-wide.png",
+    smile: "./avatar/sofia-expression-smile.png",
+    laugh: "./avatar/sofia-expression-laugh.png",
+    wink: "./avatar/sofia-expression-wink.png",
+    smirk: "./avatar/sofia-expression-smirk.png",
+    skeptical: "./avatar/sofia-expression-skeptical.png",
+    annoyed: "./avatar/sofia-expression-annoyed.png"
   };
 
   const CONFIG = {
@@ -40,6 +46,9 @@
   let lastVoiceAt = 0;
   let blinkActive = false;
   let blinkTimer = null;
+  let expressionTimer = null;
+  let expression = "neutral";
+  let expressionUntil = 0;
   let raf = null;
   let startAt = performance.now();
 
@@ -150,18 +159,53 @@
     return "neutral";
   }
 
+  function baseExpression() {
+    if (mood === "amüsiert") return "smile";
+    if (mood === "flirty") return "smirk";
+    if (mood === "skeptisch") return "skeptical";
+    if (mood === "genervt") return "annoyed";
+    return "neutral";
+  }
+
+  function currentRestFrame() {
+    return now() < expressionUntil ? expression : baseExpression();
+  }
+
+  function playExpression(name, duration = 1200) {
+    if (!layers[name] || state === "speaking") return;
+    expression = name;
+    expressionUntil = now() + duration;
+    if (!blinkActive) showFrame(name, true);
+  }
+
+  function scheduleExpression() {
+    clearTimeout(expressionTimer);
+    expressionTimer = setTimeout(() => {
+      if (initialized && state !== "speaking") {
+        const r = Math.random();
+        if (mood === "amüsiert" && r < .55) playExpression("laugh", 1050);
+        else if (mood === "flirty" && r < .34) playExpression("wink", 650);
+        else if (mood === "flirty" && r < .72) playExpression("smirk", 1250);
+        else if (mood === "skeptisch") playExpression("skeptical", 1300);
+        else if (mood === "genervt") playExpression("annoyed", 1300);
+        else if (r < .22) playExpression("smile", 950);
+      }
+      scheduleExpression();
+    }, random(5200, 10500));
+  }
+
   function updateLip() {
     smoothLevel = smoothLevel * CONFIG.lip.smoothing + audioLevel * (1 - CONFIG.lip.smoothing);
     const t = now();
 
     if (state !== "speaking") {
-      if (!blinkActive) showFrame("neutral");
+      if (!blinkActive) showFrame(currentRestFrame());
       return;
     }
 
     if (smoothLevel > CONFIG.lip.silence) lastVoiceAt = t;
     if (smoothLevel <= CONFIG.lip.silence && t - lastVoiceAt > CONFIG.lip.releaseMs) {
-      if (!blinkActive) showFrame("neutral");
+      if (!blinkActive) showFrame(currentRestFrame());
       return;
     }
 
@@ -183,7 +227,7 @@
     showFrame("blink", true);
     setTimeout(() => {
       blinkActive = false;
-      showFrame(state === "speaking" ? chooseMouth(smoothLevel) : "neutral", true);
+      showFrame(state === "speaking" ? chooseMouth(smoothLevel) : currentRestFrame(), true);
       scheduleBlink();
     }, CONFIG.blink.duration);
   }
@@ -230,7 +274,7 @@
     if (state !== "speaking") {
       audioLevel = 0;
       smoothLevel = 0;
-      if (!blinkActive) showFrame("neutral", true);
+      if (!blinkActive) showFrame(currentRestFrame(), true);
     } else {
       lastVoiceAt = now();
     }
@@ -252,6 +296,7 @@
     startAt = now();
     applyMood();
     scheduleBlink();
+    scheduleExpression();
     raf = requestAnimationFrame(loop);
     console.log(`Sofia V${VERSION} Layered Avatar geladen.`);
     return true;
@@ -259,6 +304,7 @@
 
   function destroy() {
     clearTimeout(blinkTimer);
+    clearTimeout(expressionTimer);
     if (raf) cancelAnimationFrame(raf);
     raf = null;
     initialized = false;
@@ -272,7 +318,14 @@
     speak: () => setState("speaking"),
     setState,
     setAudioLevel,
-    setMood(next) { mood = String(next || "entspannt").toLowerCase(); applyMood(); },
+    setMood(next) { mood = String(next || "entspannt").toLowerCase(); applyMood(); if (state !== "speaking" && !blinkActive) showFrame(baseExpression(), true); },
+    setExpression: playExpression,
+    smile: () => playExpression("smile", 1200),
+    laugh: () => playExpression("laugh", 1100),
+    wink: () => playExpression("wink", 650),
+    smirk: () => playExpression("smirk", 1300),
+    skeptical: () => playExpression("skeptical", 1300),
+    annoyed: () => playExpression("annoyed", 1300),
     blink,
     getState: () => ({ version: VERSION, initialized, state, mood, audioLevel, smoothedAudioLevel: smoothLevel, currentFrame: mouthFrame, blinkActive }),
     destroy

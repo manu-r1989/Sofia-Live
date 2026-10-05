@@ -156,3 +156,10 @@
   content:" · Live";
   color:#ff7b83;
 }
+
+
+/* SOFIA V4.5 — photo composer + expressions */
+#form .cameraAttachment{grid-column:1 / -1;grid-row:auto;width:64px;height:64px;flex:none;margin:0 0 2px 0}
+#form #input{grid-column:1;grid-row:auto;width:100%;min-width:0}
+#form .send{grid-column:2;grid-row:auto}
+@media(max-width:850px){#form .cameraAttachment{width:58px;height:58px}}
