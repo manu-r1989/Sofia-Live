@@ -311,6 +311,34 @@ async function askSofia(userMessage, imageDataUrl = null) {
       await (window.SofiaLiveHistoryReady || Promise.resolve());
     } catch {}
 
+    // Live Voice mirrors completed turns into localStorage, while this
+    // module keeps its own in-memory array. Refresh that array after the Live
+    // persistence barrier so the first text follow-up sees the actual Live turn.
+    const currentUserTurn =
+      conversationHistory[conversationHistory.length - 1];
+
+    const mirroredHistory =
+      loadMemory();
+
+    if (mirroredHistory.length) {
+      conversationHistory =
+        mirroredHistory;
+
+      const last =
+        conversationHistory[conversationHistory.length - 1];
+
+      if (
+        currentUserTurn &&
+        (
+          !last ||
+          last.role !== currentUserTurn.role ||
+          last.content !== currentUserTurn.content
+        )
+      ) {
+        conversationHistory.push(currentUserTurn);
+      }
+    }
+
     const historyForAPI =
       conversationHistory
         .slice(0, -1)
