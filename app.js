@@ -305,6 +305,12 @@ async function askSofia(userMessage, imageDataUrl = null) {
   saveMemory();
 
   try {
+    // If the previous turn came from Live Voice, wait until that turn has
+    // reached the shared Redis history before asking the text backend.
+    try {
+      await (window.SofiaLiveHistoryReady || Promise.resolve());
+    } catch {}
+
     const historyForAPI =
       conversationHistory
         .slice(0, -1)
