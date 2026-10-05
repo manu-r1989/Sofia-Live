@@ -832,7 +832,8 @@ Schema:
   "memory_action": {
     "action": "none",
     "old_memory": null,
-    "new_memory": null
+    "new_memory": null,
+    "category": null
   }
 }
 
@@ -861,16 +862,28 @@ Bei add:
 
 "old_memory": null
 "new_memory": "Neue Erinnerung"
+"category": "Vorlieben"
 
 Bei update:
 
 "old_memory": "Bestehende Erinnerung"
 "new_memory": "Neue Fassung"
+"category": "Passende Kategorie"
 
 Bei delete:
 
 "old_memory": "Zu löschende Erinnerung"
 "new_memory": null
+"category": null
+
+Erlaubte category-Werte bei add/update sind exakt:
+"Personen"
+"Vorlieben"
+"Projekte & Arbeit"
+"Ziele & Pläne"
+"Gewohnheiten"
+"Beziehung"
+"Persönliches"
 
 Kein Markdown außerhalb des JSON-Objekts.
 `;
@@ -1069,7 +1082,8 @@ Kein Markdown außerhalb des JSON-Objekts.
 
       old_memory: null,
 
-      new_memory: null
+      new_memory: null,
+      category: null
 
     };
 
@@ -1119,16 +1133,14 @@ Kein Markdown außerhalb des JSON-Objekts.
               : null,
 
           new_memory:
-            typeof parsed
-              .memory_action
-              .new_memory === "string"
+            typeof parsed.memory_action.new_memory === "string"
+              ? parsed.memory_action.new_memory.trim().slice(0, 500)
+              : null,
 
-              ? parsed
-                  .memory_action
-                  .new_memory
-                  .trim()
-                  .slice(0, 500)
-
+          category:
+            ["Personen","Vorlieben","Projekte & Arbeit","Ziele & Pläne","Gewohnheiten","Beziehung","Persönliches"]
+              .includes(parsed.memory_action.category)
+              ? parsed.memory_action.category
               : null
 
         };
