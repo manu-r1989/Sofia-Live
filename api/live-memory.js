@@ -204,7 +204,7 @@ function applyMemoryAction(
       );
 
     if (!duplicate) {
-      result.push({ text: newMemory, category: memoryAction.category || "Persönliches", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+      result.push({ text: newMemory, category: memoryAction.category || "Sonstiges", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
     }
   }
 
@@ -221,7 +221,7 @@ function applyMemoryAction(
       );
 
     if (index !== -1) {
-      result[index] = { text: newMemory, category: memoryAction.category || result[index]?.category || "Persönliches", createdAt: result[index]?.createdAt || new Date().toISOString(), updatedAt: new Date().toISOString() };
+      result[index] = { text: newMemory, category: memoryAction.category || result[index]?.category || "Sonstiges", createdAt: result[index]?.createdAt || new Date().toISOString(), updatedAt: new Date().toISOString() };
     } else {
       const duplicate =
         result.some(
@@ -231,7 +231,7 @@ function applyMemoryAction(
         );
 
       if (!duplicate) {
-        result.push({ text: newMemory, category: memoryAction.category || "Persönliches", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+        result.push({ text: newMemory, category: memoryAction.category || "Sonstiges", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
       }
     }
   }
