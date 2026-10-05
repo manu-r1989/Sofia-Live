@@ -393,8 +393,22 @@ async function askSofia(userMessage, imageDataUrl = null) {
     }
 
     if (data.calendarAction) {
-      try {
-        const action = data.calendarAction;
+      const action = data.calendarAction;
+      const nativeCalendar = window.webkit?.messageHandlers?.calendar;
+      if (nativeCalendar?.postMessage) {
+        try {
+          const result = await nativeCalendar.postMessage({
+            title: action.title,
+            start: action.start,
+            durationMinutes: action.duration_minutes || 15,
+            alarmMinutes: action.alarm_minutes || 0,
+            notes: action.notes || ""
+          });
+          if (!result?.ok) console.warn('Nativer Kalender:', result?.status || 'save_failed');
+        } catch (calendarError) {
+          console.warn('Nativer Kalender:', calendarError);
+        }
+      } else {
         const start = new Date(action.start);
         if (!Number.isNaN(start.getTime())) {
           const end = new Date(start.getTime() + (action.duration_minutes || 15) * 60000);
@@ -417,6 +431,7 @@ async function askSofia(userMessage, imageDataUrl = null) {
         }
       } catch (calendarError) {
         console.warn('Kalender-Erinnerung:', calendarError);
+      }
       }
     }
 
