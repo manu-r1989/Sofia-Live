@@ -77,6 +77,7 @@
   let avatarAnalyser = null;
   let avatarLastAudibleAt = 0;
   let avatarWasAudible = false;
+  let assistantPlaybackDoneAt = 0;
   let avatarAudioSource = null;
   let avatarAudioFrame = null;
 
@@ -288,6 +289,7 @@
 
         if (audible) {
           avatarLastAudibleAt = performance.now();
+          assistantPlaybackDoneAt = 0;
           avatarWasAudible = true;
           window.SofiaAvatar?.speak();
           // V4.5.9: lip-sync is visualized by SofiaAvatar only; legacy voice bars stay off.
@@ -306,14 +308,22 @@
           window.SofiaAvatar?.setAudioLevel(0);
           window.SofiaAvatar?.idle();
           // Legacy voice bars remain disabled.
+        }
 
-          // V4.5.7 half-duplex must follow REAL playback, not response.done.
-          // iOS may emit response.done while buffered assistant audio is still
-          // audible. Only arm microphone restoration after actual silence.
-          if (micSuppressedForAssistant && !responseLocked) {
-            setPresence("ready", "bereit zum Zuhören");
-            restoreMicAfterAssistant(650);
-          }
+        // Do not reopen the microphone from a short pause inside Sofia's
+        // speech. iOS playback can contain >450 ms natural pauses. Require
+        // BOTH response.done and a long period of real remote-audio silence.
+        if (
+          micSuppressedForAssistant &&
+          !responseLocked &&
+          assistantPlaybackDoneAt > 0 &&
+          !audible &&
+          performance.now() - avatarLastAudibleAt > 2200 &&
+          performance.now() - assistantPlaybackDoneAt > 1200
+        ) {
+          assistantPlaybackDoneAt = 0;
+          setPresence("ready", "bereit zum Zuhören");
+          restoreMicAfterAssistant(350);
         }
 
         avatarAudioFrame = requestAnimationFrame(analyse);
@@ -1466,7 +1476,8 @@
         // Keep the outgoing microphone track physically disabled.
         setRealtimeMicEnabled(false);
         responseLocked = false;
-        ignoreInputUntil = Date.now() + 2300;
+        assistantPlaybackDoneAt = performance.now();
+        ignoreInputUntil = Date.now() + 3000;
 
         // Do not restore the microphone on a fixed timer here. On iOS,
         // response.done can arrive before buffered assistant audio finishes.
