@@ -1,4 +1,14 @@
+/*
+  Sofia V4.3
+  Live Voice + Live Memory + Visual Avatar
+*/
+
 (() => {
+
+  /* ========================================
+     LIVE / WEBRTC STATE
+  ======================================== */
+
   let peerConnection = null;
   let dataChannel = null;
   let localStream = null;
@@ -7,91 +17,101 @@
   let liveActive = false;
   let connecting = false;
 
-  /*
-    Temporäre Transkripte für
-    den aktuellen Redezug.
-  */
+
+  /* ========================================
+     LIVE MEMORY STATE
+  ======================================== */
 
   let pendingUserText = "";
   let pendingAssistantText = "";
 
-  /*
-    Verhindert, dass mehrere Memory-
-    Requests gleichzeitig durcheinanderlaufen.
-  */
-
   let memoryQueue =
     Promise.resolve();
 
+
+  /* ========================================
+     AVATAR AUDIO ANALYSIS
+  ======================================== */
+
+  let avatarAudioContext = null;
+  let avatarAnalyser = null;
+  let avatarAudioSource = null;
+  let avatarAudioFrame = null;
+
+
+  /* ========================================
+     EXISTING APP ELEMENTS
+  ======================================== */
+
   const app =
-    document.querySelector('#app');
+    document.querySelector("#app");
 
   const mode =
-    document.querySelector('#mode');
+    document.querySelector("#mode");
 
   const thought =
-    document.querySelector('#thought');
+    document.querySelector("#thought");
 
 
-  /* =========================
+  /* ========================================
      LIVE BUTTON
-  ========================= */
+  ======================================== */
 
   const liveButton =
-    document.createElement('button');
+    document.createElement("button");
 
   liveButton.type =
-    'button';
+    "button";
 
   liveButton.id =
-    'liveVoiceButton';
+    "liveVoiceButton";
 
   liveButton.textContent =
-    '◉ LIVE';
+    "◉ LIVE";
 
   Object.assign(
     liveButton.style,
     {
-      position: 'fixed',
-      right: '18px',
-      bottom: '92px',
-      zIndex: '5000',
+      position: "fixed",
+      right: "18px",
+      bottom: "92px",
+      zIndex: "5000",
 
       border:
-        '1px solid rgba(255,255,255,0.16)',
+        "1px solid rgba(255,255,255,0.16)",
 
       borderRadius:
-        '999px',
+        "999px",
 
       padding:
-        '11px 16px',
+        "11px 16px",
 
       background:
-        'rgba(15,18,24,0.88)',
+        "rgba(15,18,24,0.88)",
 
       backdropFilter:
-        'blur(14px)',
+        "blur(14px)",
 
       WebkitBackdropFilter:
-        'blur(14px)',
+        "blur(14px)",
 
       color:
-        '#fff',
+        "#fff",
 
       fontSize:
-        '12px',
+        "12px",
 
       fontWeight:
-        '700',
+        "700",
 
       letterSpacing:
-        '0.08em',
+        "0.08em",
 
       boxShadow:
-        '0 8px 30px rgba(0,0,0,0.28)',
+        "0 8px 30px rgba(0,0,0,0.28)",
 
       cursor:
-        'pointer'
+        "pointer"
     }
   );
 
@@ -100,96 +120,354 @@
   );
 
 
-  /* =========================
-     HELPERS
-  ========================= */
+  /* ========================================
+     UI HELPERS
+  ======================================== */
 
   function setLiveButtonState(
     state
   ) {
+
     if (
       state ===
-      'connecting'
+      "connecting"
     ) {
       liveButton.textContent =
-        '◌ VERBINDE…';
+        "◌ VERBINDE…";
 
       liveButton.style.opacity =
-        '0.7';
+        "0.7";
 
       return;
     }
 
+
     if (
       state ===
-      'active'
+      "active"
     ) {
       liveButton.textContent =
-        '● LIVE';
+        "● LIVE";
 
       liveButton.style.opacity =
-        '1';
+        "1";
 
       liveButton.style.background =
-        'rgba(110,35,45,0.92)';
+        "rgba(110,35,45,0.92)";
 
       return;
     }
 
+
     liveButton.textContent =
-      '◉ LIVE';
+      "◉ LIVE";
 
     liveButton.style.opacity =
-      '1';
+      "1";
 
     liveButton.style.background =
-      'rgba(15,18,24,0.88)';
+      "rgba(15,18,24,0.88)";
   }
 
 
   function setMode(text) {
+
     if (mode) {
       mode.textContent =
         text;
     }
+
   }
 
 
   function setThought(text) {
+
     if (thought) {
       thought.textContent =
         text;
     }
+
   }
 
 
-  /* =========================
-     LIVE MEMORY
-  ========================= */
+  /* ========================================
+     AVATAR AUDIO ANALYSIS
+  ======================================== */
+
+  function startAvatarAudioAnalysis(
+    audioElement
+  ) {
+
+    try {
+
+      if (
+        !audioElement ||
+        avatarAudioContext
+      ) {
+        return;
+      }
+
+
+      const AudioContext =
+        window.AudioContext ||
+        window.webkitAudioContext;
+
+
+      if (!AudioContext) {
+
+        console.warn(
+          "Web Audio API nicht verfügbar."
+        );
+
+        return;
+      }
+
+
+      avatarAudioContext =
+        new AudioContext();
+
+
+      avatarAudioSource =
+        avatarAudioContext
+          .createMediaElementSource(
+            audioElement
+          );
+
+
+      avatarAnalyser =
+        avatarAudioContext
+          .createAnalyser();
+
+
+      avatarAnalyser.fftSize =
+        256;
+
+
+      avatarAnalyser
+        .smoothingTimeConstant =
+          0.72;
+
+
+      /*
+        Audio muss durch den Analyzer
+        und danach wieder zum Lautsprecher.
+
+        Sonst würde Sofia stumm werden.
+      */
+
+      avatarAudioSource.connect(
+        avatarAnalyser
+      );
+
+
+      avatarAnalyser.connect(
+        avatarAudioContext.destination
+      );
+
+
+      const data =
+        new Uint8Array(
+          avatarAnalyser
+            .frequencyBinCount
+        );
+
+
+      function analyse() {
+
+        if (!avatarAnalyser) {
+          return;
+        }
+
+
+        avatarAnalyser
+          .getByteFrequencyData(
+            data
+          );
+
+
+        let total = 0;
+
+
+        for (
+          let i = 0;
+          i < data.length;
+          i++
+        ) {
+
+          total +=
+            data[i];
+
+        }
+
+
+        const average =
+          total /
+          data.length;
+
+
+        /*
+          Frequenzenergie auf 0–1
+          normalisieren.
+
+          Faktor 3.2 macht normale
+          Sprache deutlich genug.
+        */
+
+        const level =
+          Math.min(
+            1,
+            (
+              average /
+              255
+            ) * 3.2
+          );
+
+
+        window.SofiaAvatar
+          ?.setAudioLevel(
+            level
+          );
+
+
+        avatarAudioFrame =
+          requestAnimationFrame(
+            analyse
+          );
+
+      }
+
+
+      analyse();
+
+
+      /*
+        Safari kann AudioContexts
+        gelegentlich suspended starten.
+      */
+
+      if (
+        avatarAudioContext.state ===
+        "suspended"
+      ) {
+
+        avatarAudioContext
+          .resume()
+          .catch(() => {});
+
+      }
+
+    } catch (error) {
+
+      console.warn(
+        "Avatar Audio Analyse:",
+        error
+      );
+
+    }
+
+  }
+
+
+  /* ========================================
+     STOP AVATAR AUDIO ANALYSIS
+  ======================================== */
+
+  function stopAvatarAudioAnalysis() {
+
+    if (avatarAudioFrame) {
+
+      cancelAnimationFrame(
+        avatarAudioFrame
+      );
+
+      avatarAudioFrame =
+        null;
+
+    }
+
+
+    if (avatarAudioSource) {
+
+      try {
+
+        avatarAudioSource
+          .disconnect();
+
+      } catch {}
+
+      avatarAudioSource =
+        null;
+
+    }
+
+
+    if (avatarAnalyser) {
+
+      try {
+
+        avatarAnalyser
+          .disconnect();
+
+      } catch {}
+
+      avatarAnalyser =
+        null;
+
+    }
+
+
+    if (avatarAudioContext) {
+
+      try {
+
+        avatarAudioContext
+          .close();
+
+      } catch {}
+
+      avatarAudioContext =
+        null;
+
+    }
+
+
+    window.SofiaAvatar
+      ?.setAudioLevel(0);
+
+  }
+
+
+  /* ========================================
+     LIVE MEMORY QUEUE
+  ======================================== */
 
   function queueLiveMemory(
     userText,
     assistantText
   ) {
+
     const cleanUser =
       String(
-        userText || ''
+        userText || ""
       ).trim();
+
 
     const cleanAssistant =
       String(
-        assistantText || ''
+        assistantText || ""
       ).trim();
+
 
     if (!cleanUser) {
       return;
     }
 
+
     /*
-      Queue statt paralleler Requests.
+      Requests nacheinander ausführen.
 
       Dadurch bleibt die Reihenfolge
-      des Gesprächs in Redis erhalten.
+      der Unterhaltung in Redis erhalten.
     */
 
     memoryQueue =
@@ -202,34 +480,42 @@
             )
         )
         .catch(error => {
+
           console.error(
-            'Live Memory Queue:',
+            "Live Memory Queue:",
             error
           );
+
         });
+
   }
 
+
+  /* ========================================
+     LIVE MEMORY SERVER
+  ======================================== */
 
   async function saveLiveMemory(
     userText,
     assistantText
   ) {
+
     const response =
       await fetch(
-        '/api/live-memory',
+        "/api/live-memory",
         {
           method:
-            'POST',
+            "POST",
 
           credentials:
-            'same-origin',
+            "same-origin",
 
           cache:
-            'no-store',
+            "no-store",
 
           headers: {
-            'Content-Type':
-              'application/json'
+            "Content-Type":
+              "application/json"
           },
 
           body:
@@ -240,134 +526,192 @@
         }
       );
 
+
     if (
-      response.status === 401
+      response.status ===
+      401
     ) {
+
       window.location.reload();
+
       return;
     }
+
 
     const data =
       await response.json();
 
+
     if (!response.ok) {
+
       throw new Error(
         data.error ||
-        'Live Memory fehlgeschlagen.'
+        "Live Memory fehlgeschlagen."
       );
+
     }
 
+
     console.log(
-      'Sofia Live Memory:',
+      "Sofia Live Memory:",
       data.memoryAction,
       `(${data.longTermMemories} Memories)`
     );
+
   }
 
 
+  /* ========================================
+     TURN ABSCHLIESSEN
+  ======================================== */
+
   function commitCurrentTurn() {
+
     const userText =
       pendingUserText.trim();
+
 
     const assistantText =
       pendingAssistantText.trim();
 
+
     if (!userText) {
-      pendingAssistantText = "";
+
+      pendingAssistantText =
+        "";
+
       return;
     }
+
 
     queueLiveMemory(
       userText,
       assistantText
     );
 
-    /*
-      Optional auch in den lokalen
-      Chat-Speicher spiegeln.
-
-      app.js verwendet dafür
-      localStorage "sofia_memory".
-    */
 
     mirrorTurnToLocalChat(
       userText,
       assistantText
     );
 
-    pendingUserText = "";
-    pendingAssistantText = "";
+
+    pendingUserText =
+      "";
+
+
+    pendingAssistantText =
+      "";
+
   }
 
+
+  /* ========================================
+     LOCAL CHAT MEMORY
+  ======================================== */
 
   function mirrorTurnToLocalChat(
     userText,
     assistantText
   ) {
+
     try {
+
       const key =
-        'sofia_memory';
+        "sofia_memory";
+
 
       const raw =
         localStorage.getItem(
           key
         );
 
+
       let history = [];
 
+
       if (raw) {
+
         const parsed =
           JSON.parse(raw);
+
 
         if (
           Array.isArray(parsed)
         ) {
+
           history =
             parsed.filter(
               item =>
                 item &&
-                ['user', 'assistant']
-                  .includes(item.role) &&
+                [
+                  "user",
+                  "assistant"
+                ].includes(
+                  item.role
+                ) &&
                 typeof item.content ===
-                  'string'
+                  "string"
             );
+
         }
+
       }
+
 
       history.push({
-        role: 'user',
-        content: userText
+        role:
+          "user",
+
+        content:
+          userText
       });
 
+
       if (assistantText) {
+
         history.push({
-          role: 'assistant',
-          content: assistantText
+          role:
+            "assistant",
+
+          content:
+            assistantText
         });
+
       }
 
+
       history =
-        history.slice(-100);
+        history.slice(
+          -100
+        );
+
 
       localStorage.setItem(
         key,
-        JSON.stringify(history)
+        JSON.stringify(
+          history
+        )
       );
 
     } catch (error) {
+
       console.warn(
-        'Live Local Memory:',
+        "Live Local Memory:",
         error
       );
+
     }
+
   }
 
 
-  /* =========================
+  /* ========================================
      START LIVE
-  ========================= */
+  ======================================== */
 
   async function startLive() {
+
     if (
       liveActive ||
       connecting
@@ -375,68 +719,101 @@
       return;
     }
 
-    connecting = true;
 
-    pendingUserText = "";
-    pendingAssistantText = "";
+    connecting =
+      true;
+
+
+    pendingUserText =
+      "";
+
+
+    pendingAssistantText =
+      "";
+
 
     setLiveButtonState(
-      'connecting'
+      "connecting"
     );
+
 
     setMode(
-      'Live wird gestartet…'
+      "Live wird gestartet…"
     );
+
 
     setThought(
-      'Einen Moment…'
+      "Einen Moment…"
     );
 
+
+    window.SofiaAvatar
+      ?.think();
+
+
     try {
+
+      /* ====================================
+         REALTIME TOKEN
+      ==================================== */
+
       const tokenResponse =
         await fetch(
-          '/api/realtime',
+          "/api/realtime",
           {
             method:
-              'POST',
+              "POST",
 
             credentials:
-              'same-origin',
+              "same-origin",
 
             cache:
-              'no-store'
+              "no-store"
           }
         );
+
 
       if (
         tokenResponse.status ===
         401
       ) {
+
         window.location.reload();
+
         return;
       }
+
 
       const tokenData =
         await tokenResponse.json();
 
+
       if (!tokenResponse.ok) {
+
         throw new Error(
           tokenData.error ||
-          'Realtime-Token fehlt.'
+          "Realtime-Token fehlt."
         );
+
       }
+
 
       const ephemeralKey =
         tokenData.value;
 
+
       if (!ephemeralKey) {
+
         throw new Error(
-          'Kein Realtime-Token erhalten.'
+          "Kein Realtime-Token erhalten."
         );
+
       }
 
 
-      /* MICROPHONE */
+      /* ====================================
+         MICROPHONE
+      ==================================== */
 
       localStream =
         await navigator
@@ -455,151 +832,236 @@
           });
 
 
+      /*
+        Normale Browser-Sprachausgabe
+        stoppen.
+
+        Realtime übernimmt jetzt.
+      */
+
       if (
-        'speechSynthesis'
+        "speechSynthesis"
         in window
       ) {
+
         speechSynthesis.cancel();
+
       }
 
 
-      /* WEBRTC */
+      /* ====================================
+         WEBRTC
+      ==================================== */
 
       peerConnection =
         new RTCPeerConnection();
 
 
-      /* SOFIA AUDIO */
+      /* ====================================
+         SOFIA AUDIO
+      ==================================== */
 
       remoteAudio =
         document.createElement(
-          'audio'
+          "audio"
         );
+
 
       remoteAudio.autoplay =
         true;
 
+
       remoteAudio.playsInline =
         true;
 
+
       peerConnection.ontrack =
         event => {
+
           remoteAudio.srcObject =
             event.streams[0];
 
+
           remoteAudio
             .play()
-            .catch(() => {});
+            .then(() => {
+
+              /*
+                Ab jetzt analysieren wir
+                Sofias tatsächliches Audio.
+              */
+
+              startAvatarAudioAnalysis(
+                remoteAudio
+              );
+
+            })
+            .catch(error => {
+
+              console.warn(
+                "Remote Audio:",
+                error
+              );
+
+            });
+
         };
 
 
-      /* USER AUDIO */
+      /* ====================================
+         USER AUDIO
+      ==================================== */
 
       for (
         const track
         of localStream.getTracks()
       ) {
+
         peerConnection.addTrack(
           track,
           localStream
         );
+
       }
 
 
-      /* DATA CHANNEL */
+      /* ====================================
+         DATA CHANNEL
+      ==================================== */
 
       dataChannel =
         peerConnection
           .createDataChannel(
-            'oai-events'
+            "oai-events"
           );
 
 
       dataChannel.addEventListener(
-        'open',
+        "open",
         () => {
+
           liveActive =
             true;
+
 
           connecting =
             false;
 
+
           setLiveButtonState(
-            'active'
+            "active"
           );
+
 
           setMode(
-            'Live'
+            "Live"
           );
+
 
           setThought(
-            'Ich höre dir zu.'
+            "Ich höre dir zu."
           );
 
+
+          window.SofiaAvatar
+            ?.idle();
+
+
           if (app) {
+
             app.dataset.live =
-              'true';
+              "true";
+
           }
+
         }
       );
 
 
+      /* ====================================
+         REALTIME EVENTS
+      ==================================== */
+
       dataChannel.addEventListener(
-        'message',
+        "message",
         event => {
+
           try {
+
             const data =
               JSON.parse(
                 event.data
               );
+
 
             handleRealtimeEvent(
               data
             );
 
           } catch (error) {
+
             console.warn(
-              'Realtime Event:',
+              "Realtime Event:",
               error
             );
+
           }
+
         }
       );
 
 
       dataChannel.addEventListener(
-        'close',
+        "close",
         () => {
+
           if (liveActive) {
+
             stopLive(false);
+
           }
+
         }
       );
 
 
+      /* ====================================
+         CONNECTION STATE
+      ==================================== */
+
       peerConnection
         .addEventListener(
-          'connectionstatechange',
+          "connectionstatechange",
           () => {
+
             const state =
               peerConnection
                 ?.connectionState;
 
+
             if (
-              state === 'failed' ||
-              state === 'closed'
+              state ===
+                "failed" ||
+              state ===
+                "closed"
             ) {
+
               stopLive(false);
+
             }
+
           }
         );
 
 
-      /* SDP */
+      /* ====================================
+         SDP OFFER
+      ==================================== */
 
       const offer =
         await peerConnection
           .createOffer();
+
 
       await peerConnection
         .setLocalDescription(
@@ -607,12 +1069,16 @@
         );
 
 
+      /* ====================================
+         OPENAI REALTIME WEBRTC
+      ==================================== */
+
       const sdpResponse =
         await fetch(
-          'https://api.openai.com/v1/realtime/calls',
+          "https://api.openai.com/v1/realtime/calls",
           {
             method:
-              'POST',
+              "POST",
 
             body:
               offer.sdp,
@@ -621,27 +1087,30 @@
               Authorization:
                 `Bearer ${ephemeralKey}`,
 
-              'Content-Type':
-                'application/sdp'
+              "Content-Type":
+                "application/sdp"
             }
           }
         );
 
 
       if (!sdpResponse.ok) {
+
         const errorText =
           await sdpResponse.text();
 
+
         throw new Error(
           errorText ||
-          'WebRTC-Verbindung fehlgeschlagen.'
+          "WebRTC-Verbindung fehlgeschlagen."
         );
+
       }
 
 
       const answer = {
         type:
-          'answer',
+          "answer",
 
         sdp:
           await sdpResponse.text()
@@ -653,337 +1122,506 @@
           answer
         );
 
+
     } catch (error) {
+
       console.error(
-        'Sofia Live Fehler:',
+        "Sofia Live Fehler:",
         error
       );
 
+
       setThought(
-        'Live Voice konnte gerade nicht gestartet werden.'
+        "Live Voice konnte gerade nicht gestartet werden."
       );
 
+
       setMode(
-        'bereit'
+        "bereit"
       );
+
+
+      window.SofiaAvatar
+        ?.idle();
+
 
       stopLive(false);
 
+
     } finally {
+
       connecting =
         false;
+
     }
+
   }
 
 
-  /* =========================
-     REALTIME EVENTS
-  ========================= */
+  /* ========================================
+     REALTIME EVENT HANDLER
+  ======================================== */
 
   function handleRealtimeEvent(
     event
   ) {
+
     switch (event.type) {
 
-      /*
-        USER BEGINNT ZU REDEN
-      */
+
+      /* ====================================
+         USER BEGINNT ZU REDEN
+      ==================================== */
 
       case
-        'input_audio_buffer.speech_started':
+        "input_audio_buffer.speech_started":
+
 
         setMode(
-          'hört zu…'
+          "hört zu…"
         );
+
+
+        window.SofiaAvatar
+          ?.listen();
+
 
         if (app) {
+
           app.dataset.speaking =
-            'false';
+            "false";
+
         }
 
+
         break;
 
 
-      /*
-        USER HÖRT AUF
-      */
+      /* ====================================
+         USER HÖRT AUF
+      ==================================== */
 
       case
-        'input_audio_buffer.speech_stopped':
+        "input_audio_buffer.speech_stopped":
+
 
         setMode(
-          'denkt nach…'
+          "denkt nach…"
         );
+
+
+        window.SofiaAvatar
+          ?.think();
+
 
         break;
 
 
-      /*
-        FERTIGES USER-TRANSKRIPT
-      */
+      /* ====================================
+         USER TRANSKRIPT FERTIG
+      ==================================== */
 
       case
-        'conversation.item.input_audio_transcription.completed':
+        "conversation.item.input_audio_transcription.completed":
+
 
         if (
           typeof event.transcript ===
-            'string' &&
+            "string" &&
           event.transcript.trim()
         ) {
+
           pendingUserText =
             event.transcript.trim();
 
+
           console.log(
-            'Live User:',
+            "Live User:",
             pendingUserText
           );
+
         }
+
 
         break;
 
 
-      /*
-        SOFIA BEGINNT ANTWORT
-      */
+      /* ====================================
+         SOFIA BEGINNT ANTWORT
+      ==================================== */
 
       case
-        'response.created':
+        "response.created":
+
 
         pendingAssistantText =
-          '';
+          "";
+
 
         setMode(
-          'antwortet…'
+          "antwortet…"
         );
+
+
+        window.SofiaAvatar
+          ?.speak();
+
 
         break;
 
 
-      /*
-        SOFIA AUDIO
-      */
+      /* ====================================
+         SOFIA AUDIO
+      ==================================== */
 
       case
-        'response.output_audio.delta':
+        "response.output_audio.delta":
+
 
         setMode(
-          'spricht…'
+          "spricht…"
         );
+
+
+        window.SofiaAvatar
+          ?.speak();
+
 
         if (app) {
+
           app.dataset.speaking =
-            'true';
+            "true";
+
         }
+
 
         break;
 
 
-      /*
-        SOFIA TRANSKRIPT STREAM
-      */
+      /* ====================================
+         SOFIA TRANSKRIPT STREAM
+      ==================================== */
 
       case
-        'response.output_audio_transcript.delta':
+        "response.output_audio_transcript.delta":
+
 
         if (
           typeof event.delta ===
-          'string'
+          "string"
         ) {
+
           pendingAssistantText +=
             event.delta;
 
+
           setThought(
             pendingAssistantText
           );
+
         }
+
 
         break;
 
 
-      /*
-        SOFIA TRANSKRIPT FERTIG
-      */
+      /* ====================================
+         SOFIA TRANSKRIPT FERTIG
+      ==================================== */
 
       case
-        'response.output_audio_transcript.done':
+        "response.output_audio_transcript.done":
+
 
         if (
           typeof event.transcript ===
-            'string' &&
+            "string" &&
           event.transcript.trim()
         ) {
+
           pendingAssistantText =
             event.transcript.trim();
+
 
           setThought(
             pendingAssistantText
           );
+
         }
+
 
         break;
 
 
-      /*
-        KOMPLETTER REDEZUG FERTIG
-      */
+      /* ====================================
+         KOMPLETTER TURN FERTIG
+      ==================================== */
 
       case
-        'response.done':
+        "response.done":
+
 
         if (app) {
+
           app.dataset.speaking =
-            'false';
+            "false";
+
         }
 
+
         setMode(
-          'Live'
+          "Live"
         );
 
+
+        window.SofiaAvatar
+          ?.idle();
+
+
         /*
-          Jetzt ist das Paar
-          User -> Sofia vollständig.
+          User + Sofia sind vollständig.
+
+          Jetzt wird der Gesprächszug
+          in Redis gespeichert und ggf.
+          Long-Term-Memory aktualisiert.
         */
 
         commitCurrentTurn();
 
+
         break;
 
 
-      case 'error':
+      /* ====================================
+         REALTIME ERROR
+      ==================================== */
+
+      case
+        "error":
+
 
         console.error(
-          'OpenAI Realtime:',
+          "OpenAI Realtime:",
           event.error
         );
 
+
         setThought(
           event?.error?.message ||
-          'Live Voice hat einen Fehler gemeldet.'
+          "Live Voice hat einen Fehler gemeldet."
         );
 
+
+        window.SofiaAvatar
+          ?.idle();
+
+
         break;
+
     }
+
   }
 
 
-  /* =========================
+  /* ========================================
      STOP LIVE
-  ========================= */
+  ======================================== */
 
   function stopLive(
     userInitiated = true
   ) {
+
     /*
-      Falls beim Beenden noch ein
-      vollständiger User-Text vorliegt,
-      nicht verlieren.
+      Falls bereits ein fertiges
+      User-Transkript vorhanden ist,
+      beim manuellen Beenden nicht
+      verlieren.
     */
 
     if (
       pendingUserText.trim()
     ) {
+
       commitCurrentTurn();
+
     }
+
 
     liveActive =
       false;
+
 
     connecting =
       false;
 
 
+    /* DATA CHANNEL */
+
     if (dataChannel) {
+
       try {
+
         dataChannel.close();
+
       } catch {}
+
 
       dataChannel =
         null;
+
     }
 
 
+    /* WEBRTC */
+
     if (peerConnection) {
+
       try {
+
         peerConnection.close();
+
       } catch {}
+
 
       peerConnection =
         null;
+
     }
 
 
+    /* MICROPHONE */
+
     if (localStream) {
+
       for (
         const track
         of localStream.getTracks()
       ) {
+
         track.stop();
+
       }
+
 
       localStream =
         null;
+
     }
 
 
+    /* REMOTE AUDIO */
+
     if (remoteAudio) {
+
       try {
+
         remoteAudio.pause();
+
       } catch {}
+
 
       remoteAudio.srcObject =
         null;
 
+
       remoteAudio =
         null;
+
     }
 
+
+    /* AVATAR AUDIO */
+
+    stopAvatarAudioAnalysis();
+
+
+    /* APP STATE */
 
     if (app) {
+
       app.dataset.live =
-        'false';
+        "false";
+
 
       app.dataset.speaking =
-        'false';
+        "false";
+
     }
+
+
+    window.SofiaAvatar
+      ?.idle();
 
 
     setLiveButtonState(
-      'inactive'
+      "inactive"
     );
 
+
     setMode(
-      'bereit'
+      "bereit"
     );
 
 
     if (userInitiated) {
+
       setThought(
-        'Live-Modus beendet.'
+        "Live-Modus beendet."
       );
+
     }
+
   }
 
 
-  /* =========================
-     BUTTON
-  ========================= */
+  /* ========================================
+     LIVE BUTTON EVENT
+  ======================================== */
 
   liveButton.addEventListener(
-    'click',
+    "click",
     () => {
+
       if (
         liveActive ||
         connecting
       ) {
+
         stopLive();
+
       } else {
+
         startLive();
+
       }
+
+    }
+  );
+
+
+  /* ========================================
+     PAGE CLEANUP
+  ======================================== */
+
+  window.addEventListener(
+    "pagehide",
+    () => {
+
+      if (
+        liveActive ||
+        connecting
+      ) {
+
+        stopLive(false);
+
+      }
+
     }
   );
 
 
   console.log(
-    'Sofia V4.1 Live Memory geladen.'
+    "Sofia V4.3 Live Voice + Memory + Avatar geladen."
   );
+
 })();
