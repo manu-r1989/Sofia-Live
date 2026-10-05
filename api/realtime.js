@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 
 const MEMORY_KEY = "sofia:main:longterm";
+const HISTORY_KEY = "sofia:main:history";
 
 function makeExpectedSession(password) {
   return crypto
@@ -153,11 +154,11 @@ export default async function handler(
   }
 
   try {
-    const storedMemories =
-      await redisGetJSON(
-        MEMORY_KEY,
-        []
-      );
+    const [storedMemories, storedHistory] =
+      await Promise.all([
+        redisGetJSON(MEMORY_KEY, []),
+        redisGetJSON(HISTORY_KEY, [])
+      ]);
 
     const memories =
       Array.isArray(storedMemories)
@@ -187,6 +188,27 @@ export default async function handler(
             )
             .join("\n")
         : "Noch keine Langzeiterinnerungen vorhanden.";
+
+    const recentHistory =
+      Array.isArray(storedHistory)
+        ? storedHistory
+            .filter(item =>
+              item &&
+              ["user", "assistant"].includes(item.role) &&
+              typeof item.content === "string" &&
+              item.content.trim()
+            )
+            .slice(-10)
+        : [];
+
+    const historyText =
+      recentHistory.length
+        ? recentHistory
+            .map(item =>
+              `${item.role === "user" ? "Nutzer" : "Sofia"}: ${item.content.trim()}`
+            )
+            .join("\n")
+        : "Noch kein vorheriger Gesprächskontext vorhanden.";
 
     const instructions = `
 Du bist Sofia.
@@ -268,6 +290,13 @@ Wenn keine Erinnerung relevant ist, antworte ohne Bezug auf das Langzeitgedächt
 
 RELEVANTER LIVE-MEMORY-KONTEXT:
 ${memoryText}
+
+LETZTER GESPRÄCHSKONTEXT:
+Die folgenden Zeilen sind der jüngste gemeinsame Gesprächsverlauf aus Textchat und Live Voice.
+Nutze ihn nur, wenn er für den aktuellen Redezug relevant ist.
+Führe das Gespräch natürlich fort, ohne den Verlauf ungefragt zusammenzufassen oder zu wiederholen.
+
+${historyText}
 `.trim();
 
     const safetyIdentifier =
