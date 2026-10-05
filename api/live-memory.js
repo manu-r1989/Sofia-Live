@@ -142,7 +142,7 @@ function findSimilarMemoryIndex(memories, target, threshold = 0.78) {
   let bestScore = threshold;
 
   memories.forEach((memory, index) => {
-    const score = memorySimilarity(memoryText(memory), target);
+    const score = memorySimilarity(getMemoryText(memory), target);
     if (score >= bestScore) {
       bestScore = score;
       bestIndex = index;
