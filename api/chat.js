@@ -1286,7 +1286,7 @@ Schema:
 V4.16.3 KALENDER-ERINNERUNG:
 Wenn der Nutzer ausdrücklich eine Erinnerung oder einen Kalendereintrag mit eindeutigem Zeitpunkt anfordert, liefere zusätzlich calendar_action als Objekt:
 {"title":"kurzer Titel","start":"YYYY-MM-DDTHH:MM:SS","duration_minutes":15,"alarm_minutes":0,"notes":"optionale Notiz"}.
-Interpretiere relative Zeiten anhand des aktuellen Datums. Verwende lokale Zeit des Nutzers ohne Zeitzonen-Suffix. Wenn Datum oder Uhrzeit wesentlich unklar ist, setze calendar_action auf null und frage gezielt nach der fehlenden Angabe. Behaupte nicht, der Termin sei bereits gespeichert; die App öffnet erst danach den iPhone-Kalenderimport. Für normale Nachrichten ist calendar_action null.
+Interpretiere relative Zeiten anhand der Referenzzeit, die dem aktuellen Nutzerturn mitgegeben wird. Verwende Europe/Berlin als lokale Zeitzone und liefere start ohne Zeitzonen-Suffix. Wenn Datum oder Uhrzeit wesentlich unklar ist, setze calendar_action auf null und frage gezielt nach der fehlenden Angabe. Behaupte nicht, der Termin sei bereits gespeichert; die App öffnet erst danach den iPhone-Kalenderimport. Für normale Nachrichten ist calendar_action null.
 
 Erlaubte mood-Werte sind exakt:
 
@@ -1367,12 +1367,21 @@ Kein Markdown außerhalb des JSON-Objekts.
       imageDataUrl = image;
     }
 
+    const now = new Date();
+    const hamburgNow = new Intl.DateTimeFormat("sv-SE", {
+      timeZone: "Europe/Berlin",
+      year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit", second: "2-digit",
+      hour12: false
+    }).format(now);
+    const calendarReference = `[Systemkontext: aktuelle Referenzzeit Europe/Berlin: ${hamburgNow}. Nur zur Auflösung relativer Datums-/Zeitangaben verwenden.]\n`;
+
     const userContent = imageDataUrl
       ? [
-          { type: "input_text", text: message.trim() },
+          { type: "input_text", text: calendarReference + message.trim() },
           { type: "input_image", image_url: imageDataUrl, detail: "auto" }
         ]
-      : message.trim();
+      : calendarReference + message.trim();
 
     // V4.12.6: keep recent turns verbatim; compress older history locally.
     // This reduces context noise without adding another model call.
