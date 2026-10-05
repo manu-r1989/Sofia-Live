@@ -77,8 +77,12 @@ function safeEqual(a, b) {
    MEMORY HELPERS
 ======================================== */
 
+function memoryText(value) {
+  return typeof value === "string" ? value : (value && typeof value.text === "string" ? value.text : "");
+}
+
 function normalizeMemory(value) {
-  return String(value || "")
+  return String(memoryText(value) || "")
     .trim()
     .toLowerCase()
     .replace(/\s+/g, " ");
@@ -138,7 +142,7 @@ function selectRelevantMemories(memories, message, limit = 12) {
   const query = words(message);
   const recall = /erinner|merk|damals|mein|meine|lieblings|projekt|ziel|famil|freund|partner|arbeit|beruf|stud|hobby/i.test(String(message || ""));
   const scored = memories.map((memory, index) => {
-    const tokens = words(memory);
+    const tokens = words(memoryText(memory));
     let overlap = 0;
     query.forEach(token => { if (tokens.has(token)) overlap += 1; });
     return { memory, score: overlap * 10 + index / Math.max(1, memories.length - 1) };
@@ -202,7 +206,12 @@ function applyMemoryAction(
 
 
     if (!alreadyExists) {
-      memories.push(newMemory);
+      memories.push({
+        text: newMemory,
+        category: memoryAction.category || "Persönliches",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      });
     }
 
   }
@@ -224,8 +233,12 @@ function applyMemoryAction(
 
     if (index !== -1) {
 
-      memories[index] =
-        newMemory;
+      memories[index] = {
+        text: newMemory,
+        category: memoryAction.category || memories[index]?.category || "Persönliches",
+        createdAt: memories[index]?.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
 
     } else {
 
@@ -246,7 +259,12 @@ function applyMemoryAction(
 
 
       if (!alreadyExists) {
-        memories.push(newMemory);
+        memories.push({
+          text: newMemory,
+          category: memoryAction.category || "Persönliches",
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        });
       }
 
     }
@@ -472,16 +490,17 @@ export default async function handler(req, res) {
 
     memories =
       memories
-        .filter(item =>
-          typeof item === "string" &&
-          item.trim()
-        )
-        .map(item =>
-          item.trim()
-        )
-        .slice(
-          -MAX_LONGTERM_MEMORIES
-        );
+        .map(item => {
+          if (typeof item === "string" && item.trim()) {
+            return { text: item.trim(), category: "Persönliches", createdAt: null, updatedAt: null };
+          }
+          if (item && typeof item === "object" && typeof item.text === "string" && item.text.trim()) {
+            return { ...item, text: item.text.trim() };
+          }
+          return null;
+        })
+        .filter(Boolean)
+        .slice(-MAX_LONGTERM_MEMORIES);
 
 
     /* ========================================
@@ -491,7 +510,7 @@ export default async function handler(req, res) {
     const relevantMemories = selectRelevantMemories(memories, message, 12);
 
     const memoryText = relevantMemories.length
-      ? relevantMemories.map((memory, index) => `${index + 1}. ${memory}`).join("\n")
+      ? relevantMemories.map((memory, index) => `${index + 1}. [${memory.category || "Persönliches"}] ${memoryText(memory)}`).join("\n")
       : "Für diese Nachricht wurden keine relevanten Langzeiterinnerungen ausgewählt.";
 
 
