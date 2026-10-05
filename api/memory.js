@@ -97,6 +97,19 @@ function memoryCategory(memory) {
   return "Persönliches";
 }
 
+function normalizeMemoryItem(item) {
+  if (typeof item === "string" && item.trim()) {
+    return { text: item.trim(), category: memoryCategory(item), createdAt: null, updatedAt: null };
+  }
+  if (!item || typeof item !== "object" || typeof item.text !== "string" || !item.text.trim()) return null;
+  return {
+    text: item.text.trim().slice(0, 500),
+    category: typeof item.category === "string" && item.category.trim() ? item.category.trim() : memoryCategory(item.text),
+    createdAt: typeof item.createdAt === "string" ? item.createdAt : null,
+    updatedAt: typeof item.updatedAt === "string" ? item.updatedAt : null
+  };
+}
+
 /* ========================================
    API
 ======================================== */
@@ -140,20 +153,14 @@ export default async function handler(req, res) {
           []
         );
 
-      const cleanMemories =
-        Array.isArray(memories)
-          ? memories.filter(
-              memory =>
-                typeof memory === "string" &&
-                memory.trim()
-            )
-          : [];
-
+      const items = Array.isArray(memories)
+        ? memories.map(normalizeMemoryItem).filter(Boolean)
+        : [];
 
       return res.status(200).json({
-        memories: cleanMemories,
-        items: cleanMemories.map(memory => ({ text: memory, category: memoryCategory(memory) })),
-        count: cleanMemories.length
+        memories: items.map(item => item.text),
+        items,
+        count: items.length
       });
 
     }
@@ -174,16 +181,19 @@ export default async function handler(req, res) {
       }
 
       const stored = await redisGetJSON(MEMORY_KEY, []);
-      const memories = Array.isArray(stored) ? stored : [];
+      const memories = Array.isArray(stored) ? stored.map(normalizeMemoryItem).filter(Boolean) : [];
       const target = old_memory.trim().toLowerCase();
-      const index = memories.findIndex(item =>
-        typeof item === "string" && item.trim().toLowerCase() === target
-      );
+      const index = memories.findIndex(item => item.text.toLowerCase() === target);
       if (index === -1) {
         return res.status(404).json({ error: "Erinnerung nicht gefunden." });
       }
 
-      memories[index] = new_memory.trim();
+      memories[index] = {
+        ...memories[index],
+        text: new_memory.trim(),
+        category: memoryCategory(new_memory),
+        updatedAt: new Date().toISOString()
+      };
       await redisSetJSON(MEMORY_KEY, memories);
       return res.status(200).json({ ok: true, memories, count: memories.length });
     }
@@ -214,7 +224,7 @@ export default async function handler(req, res) {
 
       let memories =
         Array.isArray(stored)
-          ? stored
+          ? stored.map(normalizeMemoryItem).filter(Boolean)
           : [];
 
 
@@ -227,11 +237,7 @@ export default async function handler(req, res) {
       const index =
         memories.findIndex(
           item =>
-            typeof item === "string" &&
-            item
-              .trim()
-              .toLowerCase() ===
-              target
+            item.text.toLowerCase() === target
         );
 
 
