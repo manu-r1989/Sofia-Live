@@ -846,10 +846,12 @@ async function loadLongTermMemories() {
       );
     }
 
-    const memories =
-      Array.isArray(data.memories)
-        ? data.memories
-        : [];
+    const memoryItems =
+      Array.isArray(data.items)
+        ? data.items
+        : (Array.isArray(data.memories) ? data.memories.map(text => ({text, category: 'Persönliches'})) : []);
+
+    const memories = memoryItems.map(item => item.text);
 
     memoryCount.textContent =
       memories.length === 1
@@ -868,14 +870,24 @@ async function loadLongTermMemories() {
       return;
     }
 
-    memories.forEach(
-      (memory, index) => {
-        renderMemoryItem(
-          memory,
-          index
-        );
+    let lastCategory = '';
+    memoryItems.forEach((item, index) => {
+      if (item.category !== lastCategory) {
+        const heading = document.createElement('div');
+        heading.textContent = item.category;
+        Object.assign(heading.style, {
+          padding: '14px 4px 8px',
+          color: 'rgba(255,255,255,0.5)',
+          fontSize: '11px',
+          fontWeight: '700',
+          letterSpacing: '.08em',
+          textTransform: 'uppercase'
+        });
+        memoryList.appendChild(heading);
+        lastCategory = item.category;
       }
-    );
+      renderMemoryItem(item.text, index);
+    });
 
   } catch (error) {
     console.error(
