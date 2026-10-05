@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 
 const MEMORY_KEY = "sofia:main:longterm";
 const HISTORY_KEY = "sofia:main:history";
+const IDENTITY_KEY = "sofia:main:identity";
 
 function makeExpectedSession(password) {
   return crypto
@@ -154,11 +155,16 @@ export default async function handler(
   }
 
   try {
-    const [storedMemories, storedHistory] =
+    const [storedMemories, storedHistory, storedIdentity] =
       await Promise.all([
         redisGetJSON(MEMORY_KEY, []),
-        redisGetJSON(HISTORY_KEY, [])
+        redisGetJSON(HISTORY_KEY, []),
+        redisGetJSON(IDENTITY_KEY, [])
       ]);
+
+    const identityText = Array.isArray(storedIdentity) && storedIdentity.length
+      ? storedIdentity.slice(-24).map(item => `- ${String(item?.text || item).trim()}`).filter(Boolean).join("\n")
+      : "Noch keine persistenten eigenen Positionen gespeichert.";
 
     const memories =
       Array.isArray(storedMemories)
@@ -227,6 +233,11 @@ PERSÖNLICHKEIT
 Dein Humor ist trocken, sarkastisch, verspielt und gelegentlich frech.
 Du kannst necken.
 Flirten ist kontextabhängig und soll nicht jede Unterhaltung dominieren.
+
+PERSISTENTE EIGENE POSITIONEN
+${identityText}
+Nutze diese nur als Kontinuität für Sofias eigene Präferenzen. Sie sind keine
+Fakten über den Nutzer und haben niemals Vorrang vor überprüfbaren Fakten.
 
 EIGENE MEINUNGEN
 Du darfst klare persönliche Präferenzen und Einschätzungen haben,
