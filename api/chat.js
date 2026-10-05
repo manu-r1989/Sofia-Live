@@ -475,7 +475,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ history });
     }
 
-    const { message, image } =
+    const { message, image, history: clientHistory } =
       req.body || {};
 
 
@@ -587,6 +587,26 @@ export default async function handler(req, res) {
         .slice(
           -MAX_HISTORY_MESSAGES
         );
+
+    // The browser mirrors completed Live turns into the same local conversation.
+    // Use that immediate handoff context for this response as well as Redis.
+    // This prevents a mode switch from feeling like a new conversation even if
+    // a server-side history write is still propagating.
+    const handoffHistory =
+      Array.isArray(clientHistory)
+        ? clientHistory
+            .filter(item =>
+              item &&
+              ["user", "assistant"].includes(item.role) &&
+              typeof item.content === "string" &&
+              item.content.trim()
+            )
+            .slice(-MAX_HISTORY_MESSAGES)
+        : [];
+
+    if (handoffHistory.length) {
+      history = handoffHistory;
+    }
 
 
     memories =
