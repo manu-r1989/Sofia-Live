@@ -117,6 +117,28 @@ function addMessage(text, who = 'sofia') {
   scrollChatToLatest('smooth');
 }
 
+async function syncConversationFromServer() {
+  try {
+    const response = await fetch('/api/chat', {method:'GET',credentials:'same-origin',cache:'no-store'});
+    if (!response.ok) return false;
+    const data = await response.json();
+    if (!Array.isArray(data.history)) return false;
+    conversationHistory = data.history.filter(item =>
+      item && (item.role === 'user' || item.role === 'assistant') && typeof item.content === 'string'
+    ).slice(-MAX_STORED_MESSAGES);
+    saveMemory();
+    if (messages) {
+      messages.innerHTML = '';
+      conversationHistory.forEach(item => addMessage(item.content,item.role === 'user' ? 'user' : 'sofia'));
+      scrollChatToLatest('auto');
+    }
+    return true;
+  } catch (error) {
+    console.warn('History sync:',error);
+    return false;
+  }
+}
+
 function restoreConversation() {
   if (
     !messages ||
@@ -184,46 +206,20 @@ function applyMood(mood) {
    VOICE
 ========================= */
 
-function speak(text) {
-  if (
-    !voiceOn ||
-    !('speechSynthesis' in window)
-  ) {
-    return;
-  }
-
-  speechSynthesis.cancel();
-
-  const utterance =
-    new SpeechSynthesisUtterance(
-      text.replace(/[😏😂🙄]/g, '')
-    );
-
-  utterance.lang = 'de-DE';
-  utterance.rate = 0.96;
-  utterance.pitch = 1.08;
-
-  utterance.onstart = () => {
-    if (app) {
-      app.dataset.speaking = 'true';
-    }
-
-    if (mode) {
-      mode.textContent = 'spricht…';
-    }
-  };
-
-  utterance.onend = () => {
-    if (app) {
-      app.dataset.speaking = 'false';
-    }
-
-    if (mode) {
-      mode.textContent = 'bereit';
-    }
-  };
-
-  speechSynthesis.speak(utterance);
+let ttsAudio = null;
+async function speak(text) {
+  if (!voiceOn || !text || window.SofiaLive?.isActive?.()) return;
+  try {
+    if (ttsAudio) { ttsAudio.pause(); ttsAudio=null; }
+    const response=await fetch('/api/tts',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({text})});
+    if(!response.ok) throw new Error(`TTS ${response.status}`);
+    const url=URL.createObjectURL(await response.blob());
+    const audio=new Audio(url); ttsAudio=audio;
+    audio.onplay=()=>{window.SofiaAvatar?.speak?.();if(mode)mode.textContent='spricht…';};
+    audio.onended=()=>{URL.revokeObjectURL(url);if(ttsAudio===audio)ttsAudio=null;window.SofiaAvatar?.idle?.();if(mode)mode.textContent='bereit';};
+    audio.onerror=()=>{URL.revokeObjectURL(url);if(ttsAudio===audio)ttsAudio=null;};
+    await audio.play();
+  } catch(error) { console.warn('Sofia TTS:',error); }
 }
 
 /* =========================
@@ -1026,9 +1022,7 @@ async function deleteLongTermMemory(
 ========================= */
 
 const memoryViewButton =
-  document.querySelector(
-    '[data-view="memory"]'
-  );
+  document.querySelector('#memoryAction');
 
 const chatViewButton =
   document.querySelector(
@@ -1183,6 +1177,7 @@ if (mute) {
     voiceOn = !nextMuted;
     window.SofiaLive?.setMuted?.(nextMuted);
     if (nextMuted && 'speechSynthesis' in window) speechSynthesis.cancel();
+  if(nextMuted&&ttsAudio){ttsAudio.pause();ttsAudio=null;window.SofiaAvatar?.idle?.();}
     mute.classList.toggle('on', nextMuted);
     mute.setAttribute('aria-pressed', nextMuted ? 'true' : 'false');
     const label = mute.querySelector('span');
@@ -1372,7 +1367,7 @@ setInterval(
    START
 ========================= */
 
-restoreConversation();
+syncConversationFromServer().then(ok => { if (!ok) restoreConversation(); });
 
 console.log(
   `Sofia V3.9 gestartet. Lokaler Chat: ${conversationHistory.length} Nachrichten.`

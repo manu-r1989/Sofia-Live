@@ -256,3 +256,12 @@
   }
   .moods { grid-template-columns: repeat(6,minmax(0,1fr)); }
 }
+
+/* V4.6.2 */
+.rail{display:none!important}.thought,#thought{display:none!important}
+.actions{display:grid!important;grid-template-columns:repeat(5,minmax(0,1fr))!important;gap:4px!important;z-index:170!important}
+.actions button{min-width:0!important;pointer-events:auto!important;touch-action:manipulation}
+.actions button span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media(max-width:850px) and (orientation:portrait){.actions{left:10px!important;right:10px!important;width:auto!important}.actions button{font-size:12px!important}}
+@media(orientation:landscape) and (min-width:851px){.chatPanel{right:28px!important;top:72px!important;bottom:118px!important}.actions{position:absolute!important;left:auto!important;right:28px!important;bottom:28px!important;width:min(390px,32vw)!important}header{left:28px!important}}
+@media(orientation:landscape) and (max-height:500px){.chatPanel{left:auto!important;right:max(12px,env(safe-area-inset-right))!important;top:12px!important;bottom:66px!important;width:min(420px,42vw)!important;height:auto!important}.actions{position:fixed!important;left:auto!important;right:max(12px,env(safe-area-inset-right))!important;bottom:max(8px,env(safe-area-inset-bottom))!important;width:min(420px,42vw)!important;height:50px!important}.actions button{padding:3px 2px!important}.actions button span{font-size:10px!important}}
