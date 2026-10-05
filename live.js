@@ -63,6 +63,7 @@
   let pendingUserText = "";
   let pendingAssistantText = "";
   let presenceStartedAt = 0;
+  let lastPresenceState = "idle";
 
   let memoryQueue =
     Promise.resolve();
@@ -236,12 +237,14 @@
 
 
   function setPresence(state, label) {
-    presenceStartedAt = performance.now();
-    if (app) app.dataset.presence = state;
+    const changed = lastPresenceState !== state;
+    if (changed) {
+      presenceStartedAt = performance.now();
+      lastPresenceState = state;
+      if (app) app.dataset.presence = state;
+      window.dispatchEvent(new CustomEvent("sofia-presence", { detail: { state } }));
+    }
     if (label) setMode(label);
-    window.dispatchEvent(new CustomEvent("sofia-presence", {
-      detail: { state }
-    }));
   }
 
 
