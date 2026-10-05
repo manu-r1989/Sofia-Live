@@ -1279,8 +1279,14 @@ Schema:
     "old_memory": null,
     "new_memory": null,
     "category": null
-  }
+  },
+  "calendar_action": null
 }
+
+V4.16.3 KALENDER-ERINNERUNG:
+Wenn der Nutzer ausdrücklich eine Erinnerung oder einen Kalendereintrag mit eindeutigem Zeitpunkt anfordert, liefere zusätzlich calendar_action als Objekt:
+{"title":"kurzer Titel","start":"YYYY-MM-DDTHH:MM:SS","duration_minutes":15,"alarm_minutes":0,"notes":"optionale Notiz"}.
+Interpretiere relative Zeiten anhand des aktuellen Datums. Verwende lokale Zeit des Nutzers ohne Zeitzonen-Suffix. Wenn Datum oder Uhrzeit wesentlich unklar ist, setze calendar_action auf null und frage gezielt nach der fehlenden Angabe. Behaupte nicht, der Termin sei bereits gespeichert; die App öffnet erst danach den iPhone-Kalenderimport. Für normale Nachrichten ist calendar_action null.
 
 Erlaubte mood-Werte sind exakt:
 
@@ -1540,6 +1546,23 @@ Kein Markdown außerhalb des JSON-Objekts.
         : "entspannt";
 
 
+    let calendarAction = null;
+    if (parsed.calendar_action && typeof parsed.calendar_action === "object") {
+      const title = typeof parsed.calendar_action.title === "string" ? parsed.calendar_action.title.trim().slice(0, 160) : "";
+      const start = typeof parsed.calendar_action.start === "string" ? parsed.calendar_action.start.trim() : "";
+      const duration = Number(parsed.calendar_action.duration_minutes);
+      const alarm = Number(parsed.calendar_action.alarm_minutes);
+      if (title && /^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(?::\\d{2})?$/.test(start)) {
+        calendarAction = {
+          title,
+          start,
+          duration_minutes: Number.isFinite(duration) ? Math.min(1440, Math.max(5, Math.round(duration))) : 15,
+          alarm_minutes: Number.isFinite(alarm) ? Math.min(10080, Math.max(0, Math.round(alarm))) : 0,
+          notes: typeof parsed.calendar_action.notes === "string" ? parsed.calendar_action.notes.trim().slice(0, 500) : ""
+        };
+      }
+    }
+
     const validMemoryActions = [
       "none",
       "add",
@@ -1706,6 +1729,8 @@ Kein Markdown außerhalb des JSON-Objekts.
       reply,
 
       mood,
+
+      calendarAction,
 
       memoryMessages:
         history.length,
