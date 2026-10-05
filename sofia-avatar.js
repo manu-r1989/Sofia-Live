@@ -247,7 +247,8 @@
 
   function scheduleBlink() {
     clearTimeout(blinkTimer);
-    blinkTimer = setTimeout(blink, random(CONFIG.blink.min, CONFIG.blink.max));
+    const factor = state === "listening" ? 0.82 : state === "thinking" ? 1.18 : 1;
+    blinkTimer = setTimeout(blink, random(CONFIG.blink.min, CONFIG.blink.max) * factor);
   }
 
   function blink() {
@@ -294,8 +295,10 @@
 
   function setState(next) {
     if (!["idle", "listening", "thinking", "speaking"].includes(next)) next = "idle";
+    const changed = state !== next;
     state = next;
     if (root) root.dataset.state = state;
+    if (changed) scheduleBlink();
     if (state !== "speaking") {
       audioLevel = 0;
       smoothLevel = 0;
