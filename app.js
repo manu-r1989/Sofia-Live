@@ -441,6 +441,15 @@ function setChatMinimized(minimized) {
 if (chatMinimize) {
   chatMinimize.addEventListener('click', event => {
     event.preventDefault();
+
+    // Querformat: Der Bedienbereich überlagert Sofia nicht.
+    // Deshalb bleibt der Chat dort immer vollständig sichtbar.
+    if (window.matchMedia('(orientation: landscape)').matches) {
+      chatStateStep = 2;
+      applyChatState('full');
+      return;
+    }
+
     chatStateStep = (chatStateStep + 1) % CHAT_STATES.length;
     applyChatState(CHAT_STATES[chatStateStep]);
   });
@@ -454,6 +463,19 @@ if (chatRestore) {
     applyChatState('compact');
   });
 }
+
+function enforceLandscapeChat() {
+  if (window.matchMedia('(orientation: landscape)').matches) {
+    chatStateStep = 2;
+    applyChatState('full');
+  }
+}
+
+window.addEventListener('orientationchange', () => {
+  window.setTimeout(enforceLandscapeChat, 120);
+});
+window.addEventListener('resize', enforceLandscapeChat);
+enforceLandscapeChat();
 
 if (app) {
   let previousLive = app.dataset.live === 'true';
