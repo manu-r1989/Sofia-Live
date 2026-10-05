@@ -170,9 +170,16 @@ export default async function handler(
             .slice(-80)
         : [];
 
+    // Realtime-Sessions kennen die nächste Nutzerfrage beim Aufbau noch nicht.
+    // Deshalb bekommt Live Voice einen kompakten, aktuellen Memory-Kontext statt
+    // des kompletten Langzeitgedächtnisses. Die vollständige Memory-Verwaltung
+    // bleibt in /api/live-memory erhalten.
+    const liveMemories =
+      memories.slice(-16);
+
     const memoryText =
-      memories.length
-        ? memories
+      liveMemories.length
+        ? liveMemories
             .map(
               (memory, index) =>
                 `${index + 1}. ${memory}`
@@ -253,10 +260,12 @@ Wenn es natürlich passt, darfst du kurz Spanisch einstreuen.
 WICHTIG:
 Die folgenden Informationen sind Sofias gespeicherte
 Langzeiterinnerungen über den Nutzer.
-Behandle sie als vorhandenes Gedächtnis,
-aber erwähne sie nur, wenn sie relevant sind.
+Behandle sie als vorhandenes Gedächtnis.
+Nutze eine Erinnerung nur dann aktiv, wenn sie zum aktuellen Redezug passt.
+Ziehe keine unpassenden Erinnerungen nur deshalb in das Gespräch, weil sie hier stehen.
+Wenn keine Erinnerung relevant ist, antworte ohne Bezug auf das Langzeitgedächtnis.
 
-LANGZEITERINNERUNGEN:
+RELEVANTER LIVE-MEMORY-KONTEXT:
 ${memoryText}
 `.trim();
 
