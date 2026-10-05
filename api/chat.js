@@ -492,7 +492,7 @@ export default async function handler(req, res) {
       memories
         .map(item => {
           if (typeof item === "string" && item.trim()) {
-            return { text: item.trim(), category: "Persönliches", createdAt: null, updatedAt: null };
+            return { text: item.trim(), category: "Sonstiges", createdAt: null, updatedAt: null };
           }
           if (item && typeof item === "object" && typeof item.text === "string" && item.text.trim()) {
             return { ...item, text: item.text.trim() };
@@ -510,11 +510,11 @@ export default async function handler(req, res) {
     const relevantMemories = selectRelevantMemories(memories, message, 12);
 
     const responseMemoryText = relevantMemories.length
-      ? relevantMemories.map((memory, index) => `${index + 1}. [${memory.category || "Persönliches"}] ${memoryText(memory)}`).join("\n")
+      ? relevantMemories.map((memory, index) => `${index + 1}. [${memory.category || "Sonstiges"}] ${memoryText(memory)}`).join("\n")
       : "Für diese Nachricht wurden keine relevanten Langzeiterinnerungen ausgewählt.";
 
     const memoryManagementText = memories.length
-      ? memories.map((memory, index) => `${index + 1}. [${memory.category || "Persönliches"}] ${memoryText(memory)}`).join("\n")
+      ? memories.map((memory, index) => `${index + 1}. [${memory.category || "Sonstiges"}] ${memoryText(memory)}`).join("\n")
       : "Noch keine Langzeiterinnerungen vorhanden.";
 
 
