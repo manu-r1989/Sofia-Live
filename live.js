@@ -940,8 +940,9 @@
           );
 
 
-          setMode(
-            "Live"
+          setPresence(
+            "ready",
+            "bereit zum Zuhören"
           );
 
 
@@ -1383,8 +1384,9 @@
       // precede the end of buffered audio playback. The analyser above
       // returns the mouth to neutral only after actual audio silence.
 
-        setMode(
-          "Live"
+        setPresence(
+          "ready",
+          "bereit zum Zuhören"
         );
 
 
@@ -1568,7 +1570,8 @@
     );
 
 
-    setMode(
+    setPresence(
+      "idle",
       "bereit"
     );
 
