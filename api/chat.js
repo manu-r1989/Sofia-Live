@@ -808,6 +808,21 @@ Dann:
 
 Speichere in diesem Fall NICHT beide Aussagen.
 
+WIDERSPRUCHSPRÜFUNG:
+
+Prüfe vor jedem "add", ob die neue Information dieselbe
+Eigenschaft, Person, Vorliebe, Gewohnheit, dasselbe Ziel oder
+Projekt wie eine vorhandene Erinnerung betrifft.
+
+Wenn die neue Aussage einer vorhandenen Erinnerung widerspricht
+oder sie ersetzt, verwende "update" statt "add". Das gilt auch bei
+anderer Formulierung oder ohne gemeinsame Schlüsselwörter.
+
+Beispiel:
+Gespeichert: "Der Nutzer fährt einen Audi A4."
+Neu: "Ich habe jetzt einen BMW 330i."
+=> update der bestehenden Fahrzeug-Erinnerung, nicht add.
+
 --------------------------------------------------
 DELETE
 --------------------------------------------------
