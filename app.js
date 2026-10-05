@@ -297,6 +297,17 @@ async function askSofia(userMessage, imageDataUrl = null) {
     thought.textContent = '…';
   }
 
+  // Live Voice writes completed turns to the same localStorage history.
+  // Refresh BEFORE adding/saving the new text turn; otherwise the stale
+  // in-memory text history would overwrite the just-mirrored Live turn.
+  const latestLocalHistory =
+    loadMemory();
+
+  if (latestLocalHistory.length) {
+    conversationHistory =
+      latestLocalHistory;
+  }
+
   conversationHistory.push({
     role: 'user',
     content: userMessage
@@ -310,34 +321,6 @@ async function askSofia(userMessage, imageDataUrl = null) {
     try {
       await (window.SofiaLiveHistoryReady || Promise.resolve());
     } catch {}
-
-    // Live Voice mirrors completed turns into localStorage, while this
-    // module keeps its own in-memory array. Refresh that array after the Live
-    // persistence barrier so the first text follow-up sees the actual Live turn.
-    const currentUserTurn =
-      conversationHistory[conversationHistory.length - 1];
-
-    const mirroredHistory =
-      loadMemory();
-
-    if (mirroredHistory.length) {
-      conversationHistory =
-        mirroredHistory;
-
-      const last =
-        conversationHistory[conversationHistory.length - 1];
-
-      if (
-        currentUserTurn &&
-        (
-          !last ||
-          last.role !== currentUserTurn.role ||
-          last.content !== currentUserTurn.content
-        )
-      ) {
-        conversationHistory.push(currentUserTurn);
-      }
-    }
 
     const historyForAPI =
       conversationHistory
