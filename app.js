@@ -118,6 +118,34 @@ function addMessage(text, who = 'sofia') {
   scrollChatToLatest('smooth');
 }
 
+function addCalendarDownload(action) {
+  if (!messages || !action || typeof action !== 'object') return;
+
+  const start = new Date(action.start);
+  if (Number.isNaN(start.getTime())) return;
+
+  const end = new Date(start.getTime() + (Number(action.duration_minutes) || 15) * 60000);
+  const pad = n => String(n).padStart(2, '0');
+  const utc = d => d.getUTCFullYear() + pad(d.getUTCMonth()+1) + pad(d.getUTCDate()) + 'T' + pad(d.getUTCHours()) + pad(d.getUTCMinutes()) + pad(d.getUTCSeconds()) + 'Z';
+  const esc = value => String(value || '').replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/,/g, '\\,').replace(/;/g, '\\;');
+  const alarm = Math.max(0, Number(action.alarm_minutes) || 0);
+  const ics = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Sofia Live//Calendar Reminder//DE','CALSCALE:GREGORIAN','BEGIN:VEVENT','UID:sofia-' + Date.now() + '@sofia-live','DTSTAMP:' + utc(new Date()),'DTSTART:' + utc(start),'DTEND:' + utc(end),'SUMMARY:' + esc(action.title),'DESCRIPTION:' + esc(action.notes || ''),'BEGIN:VALARM','TRIGGER:-PT' + alarm + 'M','ACTION:DISPLAY','DESCRIPTION:' + esc(action.title),'END:VALARM','END:VEVENT','END:VCALENDAR'].join('\r\n');
+
+  const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const row = document.createElement('div');
+  row.className = 'msg sofia calendarDownload';
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'sofia-erinnerung.ics';
+  link.textContent = 'Zum Kalender hinzufügen';
+  link.setAttribute('aria-label', 'Kalendereintrag herunterladen und öffnen');
+  link.addEventListener('click', () => setTimeout(() => URL.revokeObjectURL(url), 30000), { once: true });
+  row.appendChild(link);
+  messages.appendChild(row);
+  scrollChatToLatest('smooth');
+}
+
 let lastServerHistorySignature = '';
 let historySyncTimer = null;
 
@@ -402,33 +430,14 @@ async function askSofia(userMessage, imageDataUrl = null) {
             start: action.start,
             durationMinutes: action.duration_minutes || 15,
             alarmMinutes: action.alarm_minutes || 0,
-            notes: action.notes || ""
+            notes: action.notes || ''
           });
           if (!result?.ok) console.warn('Nativer Kalender:', result?.status || 'save_failed');
         } catch (calendarError) {
           console.warn('Nativer Kalender:', calendarError);
         }
       } else {
-        const start = new Date(action.start);
-        if (!Number.isNaN(start.getTime())) {
-          const end = new Date(start.getTime() + (action.duration_minutes || 15) * 60000);
-          const pad = n => String(n).padStart(2, '0');
-          const utc = d => d.getUTCFullYear() + pad(d.getUTCMonth()+1) + pad(d.getUTCDate()) + 'T' + pad(d.getUTCHours()) + pad(d.getUTCMinutes()) + pad(d.getUTCSeconds()) + 'Z';
-          const esc = value => String(value || '').replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/,/g, '\\,').replace(/;/g, '\\;');
-          const uid = 'sofia-' + Date.now() + '@sofia-live';
-          const alarm = Math.max(0, Number(action.alarm_minutes) || 0);
-          const ics = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Sofia Live//Calendar Reminder//DE','CALSCALE:GREGORIAN','BEGIN:VEVENT','UID:' + uid,'DTSTAMP:' + utc(new Date()),'DTSTART:' + utc(start),'DTEND:' + utc(end),'SUMMARY:' + esc(action.title),'DESCRIPTION:' + esc(action.notes || ''),'BEGIN:VALARM','TRIGGER:-PT' + alarm + 'M','ACTION:DISPLAY','DESCRIPTION:' + esc(action.title),'END:VALARM','END:VEVENT','END:VCALENDAR'].join('\\r\\n');
-          const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
-          const url = URL.createObjectURL(blob);
-          const link = document.createElement('a');
-          link.href = url;
-          link.download = 'sofia-erinnerung.ics';
-          link.style.display = 'none';
-          document.body.appendChild(link);
-          link.click();
-          link.remove();
-          setTimeout(() => URL.revokeObjectURL(url), 10000);
-        }
+        addCalendarDownload(action);
       }
     }
 
