@@ -450,7 +450,7 @@ ${historyText}
 
               instructions,
 
-              max_output_tokens: 500,
+              max_output_tokens: 1200,
 
               audio: {
                 input: {
