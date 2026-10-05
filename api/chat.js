@@ -912,6 +912,9 @@ Erlaubte category-Werte bei add/update sind exakt:
 "Gewohnheiten"
 "Beziehung"
 "Persönliches"
+"Sonstiges"
+
+Wenn keine der fachlichen Kategorien eindeutig passt, verwende "Sonstiges".
 
 Kein Markdown außerhalb des JSON-Objekts.
 `;
@@ -1166,7 +1169,7 @@ Kein Markdown außerhalb des JSON-Objekts.
               : null,
 
           category:
-            ["Personen","Vorlieben","Projekte & Arbeit","Ziele & Pläne","Gewohnheiten","Beziehung","Persönliches"]
+            ["Personen","Vorlieben","Projekte & Arbeit","Ziele & Pläne","Gewohnheiten","Beziehung","Persönliches","Sonstiges"]
               .includes(parsed.memory_action.category)
               ? parsed.memory_action.category
               : null
