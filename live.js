@@ -16,6 +16,8 @@
 
   let liveActive = false;
   let connecting = false;
+  let desiredMuted = localStorage.getItem("sofia_audio_muted") === "true";
+  let pendingImageContext = null;
 
 
   /* ========================================
@@ -127,6 +129,10 @@
   function setLiveButtonState(
     state
   ) {
+
+    window.dispatchEvent(new CustomEvent("sofia-live-state", {
+      detail: { state }
+    }));
 
     if (
       state ===
@@ -567,6 +573,39 @@
 
 
   /* ========================================
+     VISUAL CONTEXT
+  ======================================== */
+
+  function sendImageContextToRealtime() {
+    if (!pendingImageContext || !dataChannel || dataChannel.readyState !== "open") {
+      return false;
+    }
+
+    try {
+      dataChannel.send(JSON.stringify({
+        type: "conversation.item.create",
+        item: {
+          type: "message",
+          role: "user",
+          content: [
+            {
+              type: "input_image",
+              image_url: pendingImageContext
+            }
+          ]
+        }
+      }));
+
+      setThought("Foto ist im Live-Kontext. Frag mich einfach dazu.");
+      return true;
+    } catch (error) {
+      console.warn("Live Bildkontext:", error);
+      return false;
+    }
+  }
+
+
+  /* ========================================
      START LIVE
   ======================================== */
 
@@ -734,6 +773,9 @@
       remoteAudio.playsInline =
         true;
 
+      remoteAudio.muted =
+        desiredMuted;
+
 
       peerConnection.ontrack =
         event => {
@@ -752,7 +794,7 @@
               */
 
               startAvatarAudioAnalysis(
-                remoteAudio
+                event.streams[0]
               );
 
             })
@@ -833,6 +875,12 @@
               "true";
 
           }
+
+          if (remoteAudio) {
+            remoteAudio.muted = desiredMuted;
+          }
+
+          sendImageContextToRealtime();
 
         }
       );
@@ -1483,13 +1531,24 @@
 
   window.SofiaLive = {
     setMuted(muted) {
-      const value = Boolean(muted);
-      if (remoteAudio) remoteAudio.muted = value;
-      return value;
+      desiredMuted = Boolean(muted);
+      localStorage.setItem("sofia_audio_muted", desiredMuted ? "true" : "false");
+      if (remoteAudio) remoteAudio.muted = desiredMuted;
+      return desiredMuted;
     },
-    isMuted() { return Boolean(remoteAudio?.muted); },
-    isActive() { return liveActive; }
+    isMuted() { return desiredMuted; },
+    isActive() { return liveActive; },
+    setImageContext(dataUrl) {
+      pendingImageContext = typeof dataUrl === "string" ? dataUrl : null;
+      if (liveActive) sendImageContextToRealtime();
+      return Boolean(pendingImageContext);
+    },
+    clearImageContext() {
+      pendingImageContext = null;
+    }
   };
+
+  window.dispatchEvent(new CustomEvent("sofia-live-ready"));
 
   console.log(
     "Sofia V4.3 Live Voice + Memory + Avatar geladen."

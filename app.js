@@ -11,8 +11,9 @@ const chatMinimize = document.querySelector('#chatMinimize');
 const MEMORY_KEY = 'sofia_memory';
 const MAX_STORED_MESSAGES = 100;
 const MAX_API_HISTORY = 20;
+const MUTE_KEY = 'sofia_audio_muted';
 
-let voiceOn = true;
+let voiceOn = localStorage.getItem(MUTE_KEY) !== 'true';
 let isResponding = false;
 let pendingCameraImage = null;
 
@@ -378,9 +379,12 @@ function submitChatMessage(event) {
 
   addMessage(imageForRequest ? `📷 ${messageText}` : messageText, 'user');
   input.value = '';
-  clearCameraAttachment();
+  pendingCameraImage = null;
+  document.querySelector('#cameraAttachment')?.remove();
+  camera?.classList.remove('on');
 
-  askSofia(messageText, imageForRequest);
+  Promise.resolve(askSofia(messageText, imageForRequest))
+    .finally(() => window.SofiaLive?.clearImageContext?.());
   return false;
 }
 
@@ -1090,13 +1094,24 @@ document
 const voiceToggle = document.querySelector('#voiceToggle');
 const mute = document.querySelector('#mute');
 
+function setTopLiveState(state = 'inactive') {
+  if (!voiceToggle) return;
+  const active = state === 'active';
+  const connecting = state === 'connecting';
+  voiceToggle.classList.toggle('active', active);
+  voiceToggle.classList.toggle('live-active', active);
+  voiceToggle.classList.toggle('live-connecting', connecting);
+  voiceToggle.setAttribute('aria-pressed', active ? 'true' : 'false');
+  voiceToggle.title = active
+    ? 'Live-Sprachchat beenden'
+    : connecting
+      ? 'Live-Sprachchat wird verbunden'
+      : 'Live-Sprachchat starten';
+}
+
 function syncTopLiveButton() {
-  if (!voiceToggle || !app) return;
-  const isLive = app.dataset.live === 'true';
-  voiceToggle.classList.toggle('active', isLive);
-  voiceToggle.classList.toggle('live-active', isLive);
-  voiceToggle.setAttribute('aria-pressed', isLive ? 'true' : 'false');
-  voiceToggle.title = isLive ? 'Live-Sprachchat beenden' : 'Live-Sprachchat starten';
+  if (!app) return;
+  setTopLiveState(app.dataset.live === 'true' ? 'active' : 'inactive');
 }
 
 if (voiceToggle) {
@@ -1119,20 +1134,35 @@ if (app) {
 
 syncTopLiveButton();
 
+window.addEventListener('sofia-live-state', event => {
+  const state = event.detail?.state || 'inactive';
+  setTopLiveState(state);
+  chatPanel?.classList.toggle('liveCompact', state === 'active');
+});
+
 if (mute) {
-  mute.onclick = event => {
-    const nextMuted = !event.currentTarget.classList.contains('on');
-    const applied = window.SofiaLive?.setMuted?.(nextMuted);
-
-    // Text-Sprachausgabe ebenfalls stummschalten.
+  const applyMuteState = muted => {
+    const nextMuted = Boolean(muted);
+    localStorage.setItem(MUTE_KEY, nextMuted ? 'true' : 'false');
     voiceOn = !nextMuted;
+    window.SofiaLive?.setMuted?.(nextMuted);
     if (nextMuted && 'speechSynthesis' in window) speechSynthesis.cancel();
-
-    event.currentTarget.classList.toggle('on', nextMuted);
-    event.currentTarget.setAttribute('aria-pressed', nextMuted ? 'true' : 'false');
-    const label = event.currentTarget.querySelector('span');
+    mute.classList.toggle('on', nextMuted);
+    mute.setAttribute('aria-pressed', nextMuted ? 'true' : 'false');
+    const label = mute.querySelector('span');
     if (label) label.textContent = nextMuted ? 'Ton an' : 'Stumm';
   };
+
+  applyMuteState(localStorage.getItem(MUTE_KEY) === 'true');
+
+  mute.onclick = event => {
+    event.preventDefault();
+    applyMuteState(!event.currentTarget.classList.contains('on'));
+  };
+
+  window.addEventListener('sofia-live-ready', () => {
+    applyMuteState(localStorage.getItem(MUTE_KEY) === 'true');
+  });
 }
 
 /* =========================
@@ -1170,12 +1200,14 @@ function clearCameraAttachment() {
   pendingCameraImage = null;
   document.querySelector('#cameraAttachment')?.remove();
   camera?.classList.remove('on');
+  window.SofiaLive?.clearImageContext?.();
 }
 
 function showCameraAttachment(dataUrl) {
   clearCameraAttachment();
   pendingCameraImage = dataUrl;
   camera?.classList.add('on');
+  window.SofiaLive?.setImageContext?.(dataUrl);
 
   const preview = document.createElement('div');
   preview.id = 'cameraAttachment';
@@ -1232,7 +1264,7 @@ async function openCamera() {
 }
 
 function captureCameraPhoto(video) {
-  const maxSide = 1280;
+  const maxSide = 1600;
   const sourceW = video.videoWidth || 1280;
   const sourceH = video.videoHeight || 960;
   const scale = Math.min(1, maxSide / Math.max(sourceW, sourceH));
@@ -1240,7 +1272,7 @@ function captureCameraPhoto(video) {
   canvas.width = Math.round(sourceW * scale);
   canvas.height = Math.round(sourceH * scale);
   canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
-  const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+  const dataUrl = canvas.toDataURL('image/jpeg', 0.80);
 
   const review = document.createElement('div');
   review.className = 'cameraReview';
