@@ -205,7 +205,7 @@ export default async function handler(
       recentHistory.length
         ? recentHistory
             .map(item => {
-              const content = item.content.trim().slice(0, 900);
+              const content = item.content.trim().slice(0, 600);
               return `${item.role === "user" ? "Nutzer" : "Sofia"}: ${content}`;
             })
             .join("\n")
