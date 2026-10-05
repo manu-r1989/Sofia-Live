@@ -43,7 +43,8 @@ export default async function handler(req, res) {
     const assistantText = String(req.body?.assistantText || "").trim().slice(0, 3000);
     if (!userText || !assistantText) return res.status(200).json({ saved: false });
 
-    const items = Array.isArray(await getItems()) ? await getItems() : [];
+    const storedItems = await getItems();
+    const items = Array.isArray(storedItems) ? storedItems : [];
     const catalog = items.map((x, i) => `${i}: ${x.text}`).join("\n") || "(leer)";
     const r = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
