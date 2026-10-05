@@ -2,7 +2,7 @@
    SOFIA V4.3.1 — SERVICE WORKER
    ========================================================= */
 
-const CACHE = "sofia-live-v431";
+const CACHE = "sofia-live-v4129";
 
 
 const ASSETS = [
