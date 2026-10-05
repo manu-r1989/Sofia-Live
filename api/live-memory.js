@@ -116,6 +116,43 @@ function normalizeMemory(value) {
 }
 
 
+function memorySimilarity(a, b) {
+  const tokens = value =>
+    new Set(
+      normalizeMemory(value)
+        .split(/[^a-z0-9äöüß]+/i)
+        .filter(token => token.length >= 3)
+    );
+
+  const left = tokens(a);
+  const right = tokens(b);
+  if (!left.size || !right.size) return 0;
+
+  let intersection = 0;
+  left.forEach(token => {
+    if (right.has(token)) intersection += 1;
+  });
+
+  const union = new Set([...left, ...right]).size;
+  return union ? intersection / union : 0;
+}
+
+function findSimilarMemoryIndex(memories, target, threshold = 0.78) {
+  let bestIndex = -1;
+  let bestScore = threshold;
+
+  memories.forEach((memory, index) => {
+    const score = memorySimilarity(memoryText(memory), target);
+    if (score >= bestScore) {
+      bestScore = score;
+      bestIndex = index;
+    }
+  });
+
+  return bestIndex;
+}
+
+
 function findMemoryIndex(
   memories,
   target
@@ -196,6 +233,7 @@ function applyMemoryAction(
     action === "add" &&
     newMemory
   ) {
+    const similarIndex = findSimilarMemoryIndex(result, newMemory);
     const duplicate =
       result.some(
         memory =>
@@ -203,7 +241,7 @@ function applyMemoryAction(
           normalizeMemory(newMemory)
       );
 
-    if (!duplicate) {
+    if (!duplicate && similarIndex === -1) {
       result.push({ text: newMemory, category: memoryAction.category || "Sonstiges", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
     }
   }
@@ -223,6 +261,7 @@ function applyMemoryAction(
     if (index !== -1) {
       result[index] = { text: newMemory, category: memoryAction.category || result[index]?.category || "Sonstiges", createdAt: result[index]?.createdAt || new Date().toISOString(), updatedAt: new Date().toISOString() };
     } else {
+      const similarIndex = findSimilarMemoryIndex(result, newMemory);
       const duplicate =
         result.some(
           memory =>
@@ -230,7 +269,7 @@ function applyMemoryAction(
             normalizeMemory(newMemory)
         );
 
-      if (!duplicate) {
+      if (!duplicate && similarIndex === -1) {
         result.push({ text: newMemory, category: memoryAction.category || "Sonstiges", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
       }
     }
