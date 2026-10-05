@@ -1170,6 +1170,8 @@
       case
         "response.created":
 
+        suppressMicForAssistant();
+
         responseLocked = true;
 
 
@@ -1195,6 +1197,7 @@
 
       case
         "response.output_audio.delta":
+        suppressMicForAssistant();
 
 
         setMode(
@@ -1223,6 +1226,7 @@
 
       case
         "response.output_audio_transcript.delta":
+        suppressMicForAssistant();
 
 
         if (
@@ -1278,6 +1282,9 @@
 
       case
         "response.done":
+
+        setRealtimeMicEnabled(false);
+        restoreMicAfterAssistant(1100);
 
 
         
