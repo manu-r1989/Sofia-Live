@@ -1176,81 +1176,51 @@ if (camera) {
 }
 
 /* =========================
-   MICROPHONE
+   LIVE MICROPHONE BUTTON
 ========================= */
 
-const mic =
-  document.querySelector('#mic');
+const mic = document.querySelector('#mic');
 
-const SpeechRecognition =
-  window.SpeechRecognition ||
-  window.webkitSpeechRecognition;
+function syncLiveMicButton() {
+  if (!mic || !app) return;
 
-if (
-  mic &&
-  SpeechRecognition
-) {
-  const recognition =
-    new SpeechRecognition();
-
-  recognition.lang =
-    'de-DE';
-
-  recognition.interimResults =
-    false;
-
-  recognition.onstart =
-    () => {
-      mic.classList.add(
-        'active'
-      );
-
-      if (mode) {
-        mode.textContent =
-          'hört zu…';
-      }
-    };
-
-  recognition.onend =
-    () => {
-      mic.classList.remove(
-        'active'
-      );
-
-      if (
-        !isResponding &&
-        mode
-      ) {
-        mode.textContent =
-          'bereit';
-      }
-    };
-
-  recognition.onresult =
-    event => {
-      if (!input) return;
-
-      input.value =
-        event.results[0][0]
-          .transcript;
-
-      form.requestSubmit();
-    };
-
-  mic.onclick =
-    () => {
-      recognition.start();
-    };
-
-} else if (mic) {
-  mic.onclick =
-    () => {
-      if (thought) {
-        thought.textContent =
-          'Spracheingabe wird von diesem Browser nicht unterstützt.';
-      }
-    };
+  const isLive = app.dataset.live === 'true';
+  mic.classList.toggle('active', isLive);
+  mic.classList.toggle('live-active', isLive);
+  mic.setAttribute('aria-pressed', isLive ? 'true' : 'false');
+  mic.title = isLive ? 'Live-Sprachchat beenden' : 'Live-Sprachchat starten';
 }
+
+if (mic) {
+  mic.setAttribute('aria-label', 'Live-Sprachchat starten');
+  mic.setAttribute('aria-pressed', 'false');
+
+  mic.onclick = event => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const liveButton = document.querySelector('#liveVoiceButton');
+
+    if (!liveButton) {
+      if (thought) {
+        thought.textContent = 'Live Voice ist noch nicht bereit.';
+      }
+      return;
+    }
+
+    liveButton.click();
+  };
+}
+
+if (app) {
+  const micLiveObserver = new MutationObserver(syncLiveMicButton);
+  micLiveObserver.observe(app, {
+    attributes: true,
+    attributeFilter: ['data-live']
+  });
+}
+
+syncLiveMicButton();
 
 /* =========================
    CLOCK

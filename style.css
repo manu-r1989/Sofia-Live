@@ -105,3 +105,33 @@
     min-width:48px;
   }
 }
+
+
+/* =========================
+   V4.3.6 LIVE BUTTON MERGE
+========================= */
+
+/* live.js behält seinen technischen Button als Controller,
+   sichtbar ist nur noch der Mikrofon-Button im Composer. */
+#liveVoiceButton {
+  display:none !important;
+}
+
+#mic.live-active,
+#mic.active {
+  background:rgba(255,255,255,.20) !important;
+  border:1px solid rgba(255,255,255,.28);
+  box-shadow:0 0 0 3px rgba(255,255,255,.06), 0 0 22px rgba(255,255,255,.12);
+}
+
+#mic.live-active::after {
+  content:'';
+  position:absolute;
+  right:5px;
+  top:5px;
+  width:7px;
+  height:7px;
+  border-radius:50%;
+  background:#ff5d67;
+  box-shadow:0 0 8px rgba(255,93,103,.75);
+}
