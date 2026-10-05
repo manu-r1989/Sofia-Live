@@ -55,15 +55,17 @@
     */
 
     const selectors = [
-      "#avatar img",
-      ".avatar img",
-      "#sofia img",
-      ".sofia img",
-      ".portrait img",
-      ".character img",
-      ".hero img",
-      "#app img"
-    ];
+  "#sofiaAvatar img",
+  "img.avatar",
+  "#avatar img",
+  ".avatar img",
+  "#sofia img",
+  ".sofia img",
+  ".portrait img",
+  ".character img",
+  ".hero img",
+  "#app img"
+];
 
     for (const selector of selectors) {
       const element =
