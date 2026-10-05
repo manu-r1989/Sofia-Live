@@ -64,12 +64,9 @@
   >
 </head>
 
-
 <body>
 
-  <!-- =========================================
-       LOGIN
-  ========================================== -->
+  <!-- LOGIN -->
 
   <div
     id="loginOverlay"
@@ -118,12 +115,13 @@
       </div>
 
       <div
+        id="loginStatus"
         style="
           opacity:.55;
           margin-bottom:10px;
         "
       >
-        Privatbereich
+        Sitzung wird geprüft …
       </div>
 
       <input
@@ -146,6 +144,7 @@
       >
 
       <button
+        id="loginButton"
         type="submit"
         style="
           width:100%;
@@ -176,9 +175,7 @@
   </div>
 
 
-  <!-- =========================================
-       SOFIA APP
-  ========================================== -->
+  <!-- SOFIA -->
 
   <div
     class="app"
@@ -186,8 +183,6 @@
     data-mood="flirty"
     data-speaking="false"
   >
-
-    <!-- AVATAR -->
 
     <section class="avatarStage">
 
@@ -198,7 +193,6 @@
       >
 
       <div class="cinema"></div>
-
       <div class="breathGlow"></div>
 
       <div class="presence">
@@ -229,13 +223,9 @@
     </section>
 
 
-    <!-- SIDE RAIL -->
-
     <aside class="rail">
 
-      <div class="logo">
-        S
-      </div>
+      <div class="logo">S</div>
 
       <button
         class="railBtn active"
@@ -261,8 +251,6 @@
     </aside>
 
 
-    <!-- HEADER -->
-
     <header>
 
       <div>
@@ -274,31 +262,20 @@
       </div>
 
       <div class="meta">
-
-        <span>
-          Hamburg
-        </span>
-
+        <span>Hamburg</span>
         <span id="clock"></span>
-
       </div>
 
     </header>
 
 
-    <!-- MOOD -->
-
     <section class="moodPanel">
 
-      <small>
-        STIMMUNG
-      </small>
+      <small>STIMMUNG</small>
 
       <div class="moods">
 
-        <button
-          data-mood="entspannt"
-        >
+        <button data-mood="entspannt">
           Entspannt
         </button>
 
@@ -309,27 +286,19 @@
           Flirty
         </button>
 
-        <button
-          data-mood="amüsiert"
-        >
+        <button data-mood="amüsiert">
           Amüsiert
         </button>
 
-        <button
-          data-mood="skeptisch"
-        >
+        <button data-mood="skeptisch">
           Skeptisch
         </button>
 
-        <button
-          data-mood="genervt"
-        >
+        <button data-mood="genervt">
           Genervt
         </button>
 
-        <button
-          data-mood="ernst"
-        >
+        <button data-mood="ernst">
           Ernst
         </button>
 
@@ -338,14 +307,11 @@
     </section>
 
 
-    <!-- CHAT -->
-
     <section class="chatPanel">
 
       <div class="chatHead">
 
         <div>
-
           <strong>
             Live conversation
           </strong>
@@ -353,7 +319,6 @@
           <small id="mode">
             bereit
           </small>
-
         </div>
 
         <button
@@ -410,29 +375,21 @@
     </section>
 
 
-    <!-- ACTIONS -->
-
     <div class="actions">
 
       <button id="camera">
         ◉
-        <span>
-          Kamera
-        </span>
+        <span>Kamera</span>
       </button>
 
       <button id="focus">
         ⌁
-        <span>
-          Fokus
-        </span>
+        <span>Fokus</span>
       </button>
 
       <button id="mute">
         ♬
-        <span>
-          Stumm
-        </span>
+        <span>Stumm</span>
       </button>
 
     </div>
@@ -440,16 +397,12 @@
   </div>
 
 
-  <!-- =========================================
-       SOFIA FRONTEND
-  ========================================== -->
+  <!-- APP.JS -->
 
-  <script src="./app.js?v=37"></script>
+  <script src="./app.js?v=38"></script>
 
 
-  <!-- =========================================
-       LOGIN
-  ========================================== -->
+  <!-- SESSION + LOGIN -->
 
   <script>
 
@@ -473,6 +426,67 @@
         '#loginError'
       );
 
+    const loginStatus =
+      document.querySelector(
+        '#loginStatus'
+      );
+
+    const loginButton =
+      document.querySelector(
+        '#loginButton'
+      );
+
+
+    async function checkSession() {
+
+      try {
+
+        const response =
+          await fetch(
+            '/api/session',
+            {
+              method: 'GET',
+              credentials: 'same-origin',
+              cache: 'no-store'
+            }
+          );
+
+
+        if (response.ok) {
+
+          loginOverlay.style.display =
+            'none';
+
+          return true;
+        }
+
+
+        loginStatus.textContent =
+          'Privatbereich';
+
+        loginPassword.focus();
+
+        return false;
+
+
+      } catch (error) {
+
+        console.error(
+          'Session check:',
+          error
+        );
+
+        loginStatus.textContent =
+          'Privatbereich';
+
+        loginError.textContent =
+          'Verbindung konnte nicht geprüft werden.';
+
+        return false;
+      }
+
+    }
+
 
     loginForm.addEventListener(
       'submit',
@@ -480,8 +494,15 @@
 
         event.preventDefault();
 
+        loginButton.disabled =
+          true;
+
         loginError.textContent =
-          'Prüfe…';
+          '';
+
+        loginStatus.textContent =
+          'Prüfe Passwort …';
+
 
         try {
 
@@ -508,15 +529,24 @@
             );
 
 
-          const data =
-            await response.json();
+          let data = {};
+
+          try {
+            data =
+              await response.json();
+          } catch {}
 
 
           if (!response.ok) {
 
+            loginStatus.textContent =
+              'Privatbereich';
+
             loginError.textContent =
               data.error ||
               'Login fehlgeschlagen.';
+
+            loginPassword.select();
 
             return;
           }
@@ -539,26 +569,34 @@
             error
           );
 
+          loginStatus.textContent =
+            'Privatbereich';
+
           loginError.textContent =
             'Verbindungsfehler.';
+
+
+        } finally {
+
+          loginButton.disabled =
+            false;
 
         }
 
       }
     );
 
+
+    checkSession();
+
   </script>
 
 
-  <!-- =========================================
-       ALTEN SERVICE WORKER ENTFERNEN
-  ========================================== -->
+  <!-- ALTE SERVICE WORKER ENTFERNEN -->
 
   <script>
 
-    if (
-      'serviceWorker' in navigator
-    ) {
+    if ('serviceWorker' in navigator) {
 
       window.addEventListener(
         'load',
@@ -603,7 +641,6 @@
     }
 
   </script>
-
 
 </body>
 </html>
