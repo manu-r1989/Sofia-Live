@@ -468,7 +468,8 @@ Antworte ausschließlich als gültiges JSON:
 {
   "action": "none",
   "old_memory": null,
-  "new_memory": null
+  "new_memory": null,
+  "category": null
 }
 
 Erlaubte action-Werte:
@@ -476,6 +477,10 @@ Erlaubte action-Werte:
 "add"
 "update"
 "delete"
+
+Bei add/update setze zusätzlich category auf genau einen dieser Werte:
+"Personen", "Vorlieben", "Projekte & Arbeit", "Ziele & Pläne", "Gewohnheiten", "Beziehung", "Persönliches".
+Bei none/delete ist category null.
 
 VORHANDENE ERINNERUNGEN:
 
@@ -598,7 +603,8 @@ ${cleanUser}
     let memoryAction = {
       action: "none",
       old_memory: null,
-      new_memory: null
+      new_memory: null,
+      category: null
     };
 
     try {
@@ -630,9 +636,13 @@ ${cleanUser}
               : null,
 
           new_memory:
-            typeof parsed.new_memory ===
-            "string"
+            typeof parsed.new_memory === "string"
               ? parsed.new_memory
+              : null,
+
+          category:
+            ["Personen","Vorlieben","Projekte & Arbeit","Ziele & Pläne","Gewohnheiten","Beziehung","Persönliches"].includes(parsed.category)
+              ? parsed.category
               : null
         };
       }
