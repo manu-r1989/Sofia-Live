@@ -5,36 +5,55 @@ const form = document.querySelector('#form');
 const mode = document.querySelector('#mode');
 const thought = document.querySelector('#thought');
 
-const MEMORY_KEY = 'sofia_conversation_v33';
+const MEMORY_KEY = 'sofia_memory';
 const MAX_STORED_MESSAGES = 100;
 const MAX_API_HISTORY = 20;
 
 let voiceOn = true;
 let isResponding = false;
-let conversationHistory = loadMemory();
 
-/* ---------- MEMORY ---------- */
+/* =========================
+   MEMORY
+========================= */
 
 function loadMemory() {
   try {
-    const saved = localStorage.getItem(MEMORY_KEY);
+    const raw = localStorage.getItem(MEMORY_KEY);
 
-    if (!saved) return [];
+    if (!raw) {
+      console.log('Sofia Memory: noch kein Speicher vorhanden.');
+      return [];
+    }
 
-    const parsed = JSON.parse(saved);
+    const parsed = JSON.parse(raw);
 
-    if (!Array.isArray(parsed)) return [];
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
 
-    return parsed.filter(item =>
+    const cleaned = parsed.filter(item =>
       item &&
       ['user', 'assistant'].includes(item.role) &&
       typeof item.content === 'string'
     );
+
+    console.log(
+      `Sofia Memory: ${cleaned.length} Nachrichten geladen.`
+    );
+
+    return cleaned;
+
   } catch (error) {
-    console.error('Sofia Memory konnte nicht geladen werden:', error);
+    console.error(
+      'Sofia Memory konnte nicht geladen werden:',
+      error
+    );
+
     return [];
   }
 }
+
+let conversationHistory = loadMemory();
 
 function saveMemory() {
   try {
@@ -47,44 +66,71 @@ function saveMemory() {
       MEMORY_KEY,
       JSON.stringify(conversationHistory)
     );
+
+    console.log(
+      `Sofia Memory gespeichert: ${conversationHistory.length} Nachrichten`
+    );
+
   } catch (error) {
-    console.error('Sofia Memory konnte nicht gespeichert werden:', error);
+    console.error(
+      'Sofia Memory konnte nicht gespeichert werden:',
+      error
+    );
   }
 }
 
-function clearMemory() {
-  conversationHistory = [];
-  localStorage.removeItem(MEMORY_KEY);
-  console.log('Sofia Memory gelöscht.');
-}
-
-/* ---------- CHAT ---------- */
+/* =========================
+   MESSAGES
+========================= */
 
 function addMessage(text, who = 'sofia') {
-  const div = document.createElement('div');
-  div.className = 'msg ' + who;
-  div.textContent = text;
+  if (!messages) return;
+
+  const div =
+    document.createElement('div');
+
+  div.className =
+    'msg ' + who;
+
+  div.textContent =
+    text;
 
   messages.appendChild(div);
-  messages.scrollTop = messages.scrollHeight;
+
+  messages.scrollTop =
+    messages.scrollHeight;
 }
 
 function restoreConversation() {
-  if (!messages || conversationHistory.length === 0) return;
+  if (
+    !messages ||
+    conversationHistory.length === 0
+  ) {
+    return;
+  }
+
+  /*
+    Vorhandene Begrüßung im HTML bleibt bestehen.
+    Danach wird die gespeicherte Unterhaltung geladen.
+  */
 
   conversationHistory.forEach(item => {
     addMessage(
       item.content,
-      item.role === 'user' ? 'user' : 'sofia'
+      item.role === 'user'
+        ? 'user'
+        : 'sofia'
     );
   });
 
   console.log(
-    `Sofia V3.3: ${conversationHistory.length} gespeicherte Nachrichten geladen.`
+    `Sofia: ${conversationHistory.length} alte Nachrichten wiederhergestellt.`
   );
 }
 
-/* ---------- MOOD ---------- */
+/* =========================
+   MOOD
+========================= */
 
 function applyMood(mood) {
   const validMoods = [
@@ -105,15 +151,21 @@ function applyMood(mood) {
     app.dataset.mood = next;
   }
 
-  document.querySelectorAll('[data-mood]').forEach(button => {
-    button.classList.toggle(
-      'active',
-      button.dataset.mood === next
-    );
-  });
+  document
+    .querySelectorAll('[data-mood]')
+    .forEach(button => {
+
+      button.classList.toggle(
+        'active',
+        button.dataset.mood === next
+      );
+
+    });
 }
 
-/* ---------- VOICE ---------- */
+/* =========================
+   VOICE
+========================= */
 
 function speak(text) {
   if (
@@ -157,37 +209,70 @@ function speak(text) {
   speechSynthesis.speak(utterance);
 }
 
-/* ---------- API ---------- */
+/* =========================
+   SOFIA API
+========================= */
 
 async function askSofia(userMessage) {
   if (isResponding) return;
 
   isResponding = true;
-  input.disabled = true;
+
+  if (input) {
+    input.disabled = true;
+  }
 
   if (mode) {
-    mode.textContent = 'denkt nach…';
+    mode.textContent =
+      'denkt nach…';
   }
 
   if (thought) {
     thought.textContent = '…';
   }
 
-  try {
-    const historyForAPI =
-      conversationHistory.slice(-MAX_API_HISTORY);
+  /*
+    WICHTIG:
+    Die User-Nachricht wird JETZT sofort
+    gespeichert – noch bevor die API
+    aufgerufen wird.
+  */
 
-    console.log(
-      'Sende Nachricht an Sofia:',
-      userMessage
-    );
+  conversationHistory.push({
+    role: 'user',
+    content: userMessage
+  });
+
+  saveMemory();
+
+  try {
+
+    /*
+      Die letzte Nachricht ist bereits
+      conversationHistory enthalten.
+
+      Deshalb schicken wir sie NICHT noch
+      einmal als separate History-Nachricht
+      plus message doppelt.
+
+      /api/chat erwartet allerdings message
+      separat. Deshalb entfernen wir die
+      aktuelle Nachricht aus historyForAPI.
+    */
+
+    const historyForAPI =
+      conversationHistory
+        .slice(0, -1)
+        .slice(-MAX_API_HISTORY);
 
     const response =
       await fetch('/api/chat', {
+
         method: 'POST',
 
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type':
+            'application/json'
         },
 
         body: JSON.stringify({
@@ -195,11 +280,6 @@ async function askSofia(userMessage) {
           history: historyForAPI
         })
       });
-
-    console.log(
-      'Sofia API Status:',
-      response.status
-    );
 
     const data =
       await response.json();
@@ -215,22 +295,21 @@ async function askSofia(userMessage) {
       data.reply ||
       'Hm. Da ist gerade etwas schiefgelaufen.';
 
-    /* Antwort jetzt dauerhaft speichern */
+    /*
+      Sofia-Antwort ebenfalls
+      sofort dauerhaft speichern.
+    */
 
-    conversationHistory.push(
-      {
-        role: 'user',
-        content: userMessage
-      },
-      {
-        role: 'assistant',
-        content: reply
-      }
-    );
+    conversationHistory.push({
+      role: 'assistant',
+      content: reply
+    });
 
     saveMemory();
 
-    applyMood(data.mood);
+    applyMood(
+      data.mood
+    );
 
     addMessage(
       reply,
@@ -238,20 +317,28 @@ async function askSofia(userMessage) {
     );
 
     if (thought) {
-      thought.textContent = reply;
+      thought.textContent =
+        reply;
     }
 
     if (mode) {
-      mode.textContent = 'bereit';
+      mode.textContent =
+        'bereit';
     }
 
     speak(reply);
 
   } catch (error) {
+
     console.error(
       'Sofia API Fehler:',
       error
     );
+
+    /*
+      User-Nachricht bleibt gespeichert.
+      Das ist absichtlich so.
+    */
 
     const errorMessage =
       'Okay… meine Verbindung ist gerade weg. Versuch es noch einmal. 🙄';
@@ -272,18 +359,26 @@ async function askSofia(userMessage) {
     }
 
   } finally {
+
     isResponding = false;
-    input.disabled = false;
-    input.focus();
+
+    if (input) {
+      input.disabled = false;
+      input.focus();
+    }
   }
 }
 
-/* ---------- SEND ---------- */
+/* =========================
+   SEND
+========================= */
 
 if (form && input) {
+
   form.addEventListener(
     'submit',
     event => {
+
       event.preventDefault();
 
       const value =
@@ -308,7 +403,9 @@ if (form && input) {
   );
 }
 
-/* ---------- MOOD BUTTONS ---------- */
+/* =========================
+   MOOD BUTTONS
+========================= */
 
 document
   .querySelectorAll('[data-mood]')
@@ -325,16 +422,20 @@ document
 
   });
 
-/* ---------- VOICE BUTTON ---------- */
+/* =========================
+   VOICE BUTTONS
+========================= */
 
 const voiceToggle =
   document.querySelector('#voiceToggle');
 
 if (voiceToggle) {
+
   voiceToggle.onclick =
     event => {
 
-      voiceOn = !voiceOn;
+      voiceOn =
+        !voiceOn;
 
       event.currentTarget
         .classList.toggle(
@@ -355,10 +456,12 @@ const mute =
   document.querySelector('#mute');
 
 if (mute) {
+
   mute.onclick =
     event => {
 
-      voiceOn = !voiceOn;
+      voiceOn =
+        !voiceOn;
 
       event.currentTarget
         .classList.toggle(
@@ -375,18 +478,23 @@ if (mute) {
     };
 }
 
-/* ---------- FOCUS ---------- */
+/* =========================
+   FOCUS
+========================= */
 
 const focus =
   document.querySelector('#focus');
 
 if (focus) {
+
   focus.onclick =
     event => {
 
-      app.classList.toggle(
-        'focus'
-      );
+      if (app) {
+        app.classList.toggle(
+          'focus'
+        );
+      }
 
       event.currentTarget
         .classList.toggle(
@@ -395,12 +503,15 @@ if (focus) {
     };
 }
 
-/* ---------- CAMERA ---------- */
+/* =========================
+   CAMERA
+========================= */
 
 const camera =
   document.querySelector('#camera');
 
 if (camera) {
+
   camera.onclick =
     event => {
 
@@ -408,16 +519,21 @@ if (camera) {
         .classList.toggle('on');
 
       if (thought) {
+
         thought.textContent =
           event.currentTarget
             .classList.contains('on')
+
             ? 'Kamera-Modus aktiv. 👀'
+
             : 'Kamera-Modus aus.';
       }
     };
 }
 
-/* ---------- MICROPHONE ---------- */
+/* =========================
+   MICROPHONE
+========================= */
 
 const mic =
   document.querySelector('#mic');
@@ -472,6 +588,8 @@ if (
   recognition.onresult =
     event => {
 
+      if (!input) return;
+
       input.value =
         event.results[0][0]
           .transcript;
@@ -481,7 +599,9 @@ if (
 
   mic.onclick =
     () => {
+
       recognition.start();
+
     };
 
 } else if (mic) {
@@ -490,15 +610,20 @@ if (
     () => {
 
       if (thought) {
+
         thought.textContent =
           'Spracheingabe wird von diesem Browser nicht unterstützt.';
+
       }
     };
 }
 
-/* ---------- CLOCK ---------- */
+/* =========================
+   CLOCK
+========================= */
 
 function updateClock() {
+
   const clock =
     document.querySelector('#clock');
 
@@ -522,19 +647,12 @@ setInterval(
   1000
 );
 
-/* ---------- START ---------- */
+/* =========================
+   START
+========================= */
 
 restoreConversation();
 
 console.log(
-  'Sofia V3.3 mit lokalem Gedächtnis geladen.'
+  `Sofia V3.4 gestartet. Memory: ${conversationHistory.length} Nachrichten.`
 );
-
-/*
-  Falls du Sofias lokales Gedächtnis
-  irgendwann manuell löschen möchtest:
-
-  Öffne die Browser-Konsole und führe aus:
-
-  localStorage.removeItem('sofia_conversation_v33')
-*/
