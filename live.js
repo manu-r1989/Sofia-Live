@@ -1134,6 +1134,15 @@
 
 
         if (
+          responseLocked ||
+          assistantResponding ||
+          Date.now() < ignoreInputUntil
+        ) {
+          break;
+        }
+
+
+        if (
           typeof event.transcript ===
             "string" &&
           event.transcript.trim()
@@ -1160,6 +1169,8 @@
 
       case
         "response.created":
+
+        responseLocked = true;
 
 
         pendingAssistantText =
@@ -1269,7 +1280,9 @@
         "response.done":
 
 
-        if (app) {
+        
+      responseLocked = false;
+      ignoreInputUntil = Date.now() + 650;if (app) {
 
           app.dataset.speaking =
             "false";
