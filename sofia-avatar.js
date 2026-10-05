@@ -2,20 +2,14 @@
 (() => {
   "use strict";
 
-  const VERSION = "4.5.3";
+  const VERSION = "4.5.4";
   const ASSETS = {
     neutral: "./sofia-avatar.PNG",
     blink: "./avatar/sofia-blink-closed.png",
     small: "./avatar/sofia-mouth-small.png",
     medium: "./avatar/sofia-mouth-medium.png",
     wide: "./avatar/sofia-mouth-wide.png",
-    smile: "./avatar/sofia-local-smile.png",
-    laugh: "./avatar/sofia-local-laugh.png",
-    wink: "./avatar/sofia-local-wink.png",
-    smirk: "./avatar/sofia-local-smirk.png",
-    skeptical: "./avatar/sofia-local-skeptical.png",
-    annoyed: "./avatar/sofia-local-annoyed.png",
-    tongue: "./avatar/sofia-local-tongue.png"
+    wink: "./avatar/sofia-local-wink.png"
   };
 
   const CONFIG = {
@@ -69,7 +63,7 @@
       .sofia-avatar-v435{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;overflow:hidden;transform:translateZ(0);backface-visibility:hidden;-webkit-backface-visibility:hidden}
       .sofia-avatar-v435-layer{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:50% 36%;opacity:0;pointer-events:none;user-select:none;-webkit-user-select:none;backface-visibility:hidden;-webkit-backface-visibility:hidden;will-change:opacity;transform:translateZ(0)}
       .sofia-avatar-v435-layer[data-frame="neutral"]{opacity:1!important}
-      .sofia-avatar-v435-layer.expression-layer{transition:opacity .26s cubic-bezier(.22,.7,.25,1)}
+      .sofia-avatar-v435-layer.expression-layer{transition:opacity .12s ease-out}
       .sofia-avatar-v435-layer.expression-layer.active{opacity:1}
       .sofia-avatar-v435-layer.transient-frame.active{opacity:1}
       .sofia-avatar-v435-glow,.sofia-avatar-v435-shade{position:absolute;inset:0;pointer-events:none}
@@ -86,7 +80,7 @@
 
   function makeLayer(name, src, original) {
     const img = name === "neutral" ? original : document.createElement("img");
-    const expressionNames = ["smile","laugh","wink","smirk","skeptical","annoyed","tongue"];
+    const expressionNames = ["wink"];
     const transientNames = ["blink","small","medium","wide"];
     img.className = `sofia-avatar-v435-layer${expressionNames.includes(name) ? " expression-layer" : ""}${transientNames.includes(name) ? " transient-frame" : ""}${name === "neutral" ? " active" : ""}`;
     img.dataset.frame = name;
@@ -128,7 +122,7 @@
     return true;
   }
 
-  const EXPRESSION_NAMES = ["smile","laugh","wink","smirk","skeptical","annoyed","tongue"];
+  const EXPRESSION_NAMES = ["wink"];
   const TRANSIENT_NAMES = ["blink","small","medium","wide"];
 
   function setExpressionLayer(name = "neutral") {
@@ -193,10 +187,6 @@
   }
 
   function baseExpression() {
-    if (mood === "amüsiert") return "smile";
-    if (mood === "flirty") return "smirk";
-    if (mood === "skeptisch") return "skeptical";
-    if (mood === "genervt") return "annoyed";
     return "neutral";
   }
 
@@ -224,16 +214,14 @@
     expressionTimer = setTimeout(() => {
       if (initialized && state !== "speaking") {
         const r = Math.random();
-        if ((mood === "flirty" || mood === "amüsiert") && r < .075) playExpression("tongue", 850);
-        else if (mood === "amüsiert" && r < .55) playExpression("laugh", 1050);
-        else if (mood === "flirty" && r < .34) playExpression("wink", 650);
-        else if (mood === "flirty" && r < .72) playExpression("smirk", 1250);
-        else if (mood === "skeptisch") playExpression("skeptical", 1300);
-        else if (mood === "genervt") playExpression("annoyed", 1300);
-        else if (r < .22) playExpression("smile", 950);
+        if ((mood === "flirty" && r < .42) ||
+            (mood === "amüsiert" && r < .18) ||
+            (mood === "entspannt" && r < .06)) {
+          playExpression("wink", 520);
+        }
       }
       scheduleExpression();
-    }, random(5200, 10500));
+    }, random(6500, 12500));
   }
 
   function updateLip() {
