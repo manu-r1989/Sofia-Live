@@ -891,7 +891,7 @@ async function loadLongTermMemories() {
 
     let lastCategory = '';
     groupedItems.forEach((item, index) => {
-      const category = item.category || 'Persönliches';
+      const category = item.category || 'Sonstiges';
       if (category !== lastCategory) {
         const heading = document.createElement('div');
         heading.textContent = category;
@@ -952,7 +952,7 @@ function renderEmptyMemory() {
 function renderMemoryItem(
   memory,
   index,
-  category = 'Persönliches'
+  category = 'Sonstiges'
 ) {
   if (!memoryList) return;
 
