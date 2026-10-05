@@ -306,6 +306,13 @@
           window.SofiaAvatar?.setAudioLevel(0);
           window.SofiaAvatar?.idle();
           // Legacy voice bars remain disabled.
+
+          // V4.5.7 half-duplex must follow REAL playback, not response.done.
+          // iOS may emit response.done while buffered assistant audio is still
+          // audible. Only arm microphone restoration after actual silence.
+          if (micSuppressedForAssistant && !responseLocked) {
+            restoreMicAfterAssistant(650);
+          }
         }
 
         avatarAudioFrame = requestAnimationFrame(analyse);
@@ -1459,7 +1466,10 @@
         setRealtimeMicEnabled(false);
         responseLocked = false;
         ignoreInputUntil = Date.now() + 2300;
-        restoreMicAfterAssistant(1800);
+
+        // Do not restore the microphone on a fixed timer here. On iOS,
+        // response.done can arrive before buffered assistant audio finishes.
+        // The remote-audio analyser restores it only after real silence.
 
       // Do not force the avatar to idle here. On iOS response.done can
       // precede the end of buffered audio playback. The analyser above
