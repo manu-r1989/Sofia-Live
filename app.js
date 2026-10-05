@@ -1073,6 +1073,32 @@ document.addEventListener(
 );
 
 /* =========================
+   MOOD POPOVER
+========================= */
+
+const moodToggle = document.querySelector('#moodToggle');
+const moodPanel = document.querySelector('#moodPanel');
+
+function setMoodPanelOpen(open) {
+  const next = Boolean(open);
+  app?.classList.toggle('mood-open', next);
+  moodPanel?.setAttribute('aria-hidden', String(!next));
+  moodToggle?.setAttribute('aria-expanded', String(next));
+  moodToggle?.classList.toggle('on', next);
+}
+
+moodToggle?.addEventListener('click', event => {
+  event.stopPropagation();
+  setMoodPanelOpen(!app?.classList.contains('mood-open'));
+});
+
+document.addEventListener('pointerdown', event => {
+  if (!app?.classList.contains('mood-open')) return;
+  if (moodPanel?.contains(event.target) || moodToggle?.contains(event.target)) return;
+  setMoodPanelOpen(false);
+});
+
+/* =========================
    MOOD BUTTONS
 ========================= */
 
@@ -1085,6 +1111,14 @@ document
         applyMood(
           button.dataset.mood
         );
+
+        if (moodToggle) {
+          const chosen = button.textContent.trim();
+          moodToggle.title = `Stimmung: ${chosen}`;
+          moodToggle.setAttribute('aria-label', `Stimmung: ${chosen}`);
+        }
+
+        setMoodPanelOpen(false);
       }
     );
   });

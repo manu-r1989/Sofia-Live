@@ -2,7 +2,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "4.5.4";
+  const VERSION = "4.6.1";
   const ASSETS = {
     neutral: "./sofia-avatar.PNG",
     blink: "./avatar/sofia-blink-closed.png",
@@ -61,7 +61,7 @@
     style.id = "sofia-avatar-v435-style";
     style.textContent = `
       .sofia-avatar-v435{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;overflow:hidden;transform:translateZ(0);backface-visibility:hidden;-webkit-backface-visibility:hidden}
-      .sofia-avatar-v435-layer{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:50% 36%;opacity:0;pointer-events:none;user-select:none;-webkit-user-select:none;backface-visibility:hidden;-webkit-backface-visibility:hidden;will-change:opacity;transform:translateZ(0)}
+      .sofia-avatar-v435-layer{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:50% 36%;filter:var(--sofia-mood-filter,none);transition:filter .28s ease;opacity:0;pointer-events:none;user-select:none;-webkit-user-select:none;backface-visibility:hidden;-webkit-backface-visibility:hidden;will-change:opacity;transform:translateZ(0)}
       .sofia-avatar-v435-layer[data-frame="neutral"]{opacity:1!important}
       .sofia-avatar-v435-layer.expression-layer{transition:opacity .12s ease-out}
       .sofia-avatar-v435-layer.expression-layer.active{opacity:1}
@@ -345,7 +345,26 @@
     speak: () => setState("speaking"),
     setState,
     setAudioLevel,
-    setMood(next) { mood = String(next || "entspannt").toLowerCase(); applyMood(); if (state !== "speaking") { expressionUntil = 0; syncExpression(); } },
+    setMood(next) {
+      mood = String(next || "entspannt").toLowerCase();
+      applyMood();
+
+      if (state !== "speaking") {
+        expressionUntil = 0;
+        syncExpression();
+
+        // Safe mood reaction: only use already aligned eye assets.
+        if (mood === "flirty") {
+          setTimeout(() => playExpression("wink", 620), 120);
+        } else if (mood === "amüsiert") {
+          setTimeout(() => playExpression("wink", 430), 140);
+        } else if (mood === "genervt") {
+          setTimeout(() => blink(), 120);
+        } else if (mood === "skeptisch") {
+          setTimeout(() => playExpression("wink", 360), 180);
+        }
+      }
+    },
     setExpression: playExpression,
     smile: () => playExpression("smile", 1200),
     laugh: () => playExpression("laugh", 1100),
