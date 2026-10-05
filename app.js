@@ -985,6 +985,54 @@ function renderMemoryItem(
     }
   );
 
+  const editButton =
+    document.createElement('button');
+
+  editButton.type = 'button';
+  editButton.textContent = 'Bearbeiten';
+
+  Object.assign(editButton.style, {
+    flexShrink: '0',
+    border: '1px solid rgba(255,255,255,0.1)',
+    borderRadius: '10px',
+    padding: '7px 9px',
+    background: 'rgba(255,255,255,0.05)',
+    color: 'rgba(255,255,255,0.65)',
+    fontSize: '11px',
+    cursor: 'pointer'
+  });
+
+  editButton.addEventListener('click', async () => {
+    const next = window.prompt('Erinnerung bearbeiten:', memory);
+    if (next == null || !next.trim() || next.trim() === memory) return;
+
+    editButton.disabled = true;
+    editButton.textContent = '…';
+
+    try {
+      const response = await fetch('/api/memory', {
+        method: 'PUT',
+        credentials: 'same-origin',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({old_memory: memory, new_memory: next.trim()})
+      });
+
+      if (response.status === 401) {
+        window.location.reload();
+        return;
+      }
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Erinnerung konnte nicht geändert werden.');
+      await loadLongTermMemories();
+    } catch (error) {
+      console.error('Memory bearbeiten fehlgeschlagen:', error);
+      setMemoryStatus('Die Erinnerung konnte nicht geändert werden.');
+      editButton.disabled = false;
+      editButton.textContent = 'Bearbeiten';
+    }
+  });
+
   const deleteButton =
     document.createElement('button');
 
@@ -1023,6 +1071,7 @@ function renderMemoryItem(
 
   item.appendChild(number);
   item.appendChild(text);
+  item.appendChild(editButton);
   item.appendChild(deleteButton);
 
   memoryList.appendChild(
