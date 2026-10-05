@@ -656,3 +656,40 @@
     bottom:calc(28px + min(56vh,470px) + 78px)!important;
   }
 }
+
+
+/* =========================================================
+   V4.6.6 — portrait bottom anchoring + mic-matched tools button
+   ========================================================= */
+#toolsToggle{
+  box-sizing:border-box!important;
+  width:76px!important;height:76px!important;min-width:76px!important;min-height:76px!important;
+  padding:0!important;margin:0!important;border:0!important;border-radius:18px!important;
+  background:rgba(255,255,255,.075)!important;color:#fff!important;font-family:inherit!important;
+  font-size:22px!important;font-weight:400!important;line-height:1!important;box-shadow:none!important;
+  display:inline-flex!important;align-items:center!important;justify-content:center!important;
+  appearance:none!important;-webkit-appearance:none!important;
+}
+#toolsToggle.on,#toolsToggle[aria-expanded="true"],#toolsToggle:active,#toolsToggle:focus{
+  background:rgba(255,255,255,.075)!important;color:#fff!important;box-shadow:none!important;outline:none!important;
+}
+@media (orientation:portrait) and (max-width:850px){
+  .chatPanel{
+    position:fixed!important;left:18px!important;right:18px!important;top:auto!important;
+    bottom:max(12px,env(safe-area-inset-bottom))!important;width:auto!important;max-width:none!important;
+    height:min(54vh,560px)!important;
+    max-height:calc(100dvh - 150px - env(safe-area-inset-top) - env(safe-area-inset-bottom))!important;
+    margin:0!important;transform:none!important;z-index:120!important;
+  }
+  .actions{
+    position:fixed!important;left:18px!important;right:18px!important;top:auto!important;
+    bottom:calc(max(12px,env(safe-area-inset-bottom)) + min(54vh,560px) + 8px)!important;
+    width:auto!important;max-width:none!important;height:62px!important;margin:0!important;
+    transform:none!important;z-index:170!important;
+  }
+  .app.tools-closed .actions{transform:translateY(8px)!important}
+  #toolsToggle{
+    width:64px!important;height:64px!important;min-width:64px!important;min-height:64px!important;
+    border-radius:18px!important;font-size:20px!important;
+  }
+}
