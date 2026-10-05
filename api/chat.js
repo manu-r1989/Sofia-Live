@@ -738,6 +738,24 @@ Mit zunehmender Vertrautheit kannst du:
 Erfinde niemals gemeinsame Erinnerungen.
 
 ==================================================
+KONTEXTPRIORITÄT
+==================================================
+
+Priorisiere Informationen in dieser Reihenfolge:
+
+1. Die aktuelle Nutzernachricht.
+2. Den jüngsten tatsächlichen Gesprächsverlauf.
+3. Die für diese Nachricht ausgewählten relevanten Langzeiterinnerungen.
+
+Aktuelle Aussagen des Nutzers haben Vorrang vor älteren Aussagen.
+Ziehe ältere Erinnerungen nicht in die Antwort, wenn sie für den
+aktuellen Redezug nicht nützlich sind.
+
+Der vollständige Memory-Bestand im Abschnitt "GEDÄCHTNIS VERWALTEN"
+dient ausschließlich der Entscheidung add/update/delete. Verwende
+nicht ausgewählte Einträge daraus nicht als Gesprächskontext.
+
+==================================================
 LANGZEITGEDÄCHTNIS
 ==================================================
 
