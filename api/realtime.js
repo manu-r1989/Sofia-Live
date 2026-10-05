@@ -162,11 +162,12 @@ export default async function handler(
     const memories =
       Array.isArray(storedMemories)
         ? storedMemories
-            .filter(
-              item =>
-                typeof item === "string" &&
-                item.trim()
-            )
+            .map(item => {
+              if (typeof item === "string" && item.trim()) return { text: item.trim(), category: "Persönliches" };
+              if (item && typeof item === "object" && typeof item.text === "string" && item.text.trim()) return item;
+              return null;
+            })
+            .filter(Boolean)
             .slice(-80)
         : [];
 
@@ -182,7 +183,7 @@ export default async function handler(
         ? liveMemories
             .map(
               (memory, index) =>
-                `${index + 1}. ${memory}`
+                `${index + 1}. [${memory.category || "Persönliches"}] ${memory.text}`
             )
             .join("\n")
         : "Noch keine Langzeiterinnerungen vorhanden.";
