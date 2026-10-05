@@ -152,6 +152,54 @@ function selectRelevantMemories(memories, message, limit = 12) {
   return recall ? memories.slice(-Math.min(6, limit)) : [];
 }
 
+async function selectSemanticRelevantMemories(memories, message, limit = 12) {
+  const lexicalFallback = selectRelevantMemories(memories, message, limit);
+  if (!Array.isArray(memories) || !memories.length || !String(message || "").trim()) return lexicalFallback;
+
+  const catalog = memories
+    .map((memory, index) => `${index}: [${memory.category || "Sonstiges"}] ${memoryText(memory)}`)
+    .join("\n");
+
+  try {
+    const response = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: "gpt-5.6",
+        instructions: `Wähle ausschließlich Langzeiterinnerungen aus, die semantisch zur aktuellen Nutzernachricht passen und für eine gute Antwort tatsächlich nützlich sind.
+Berücksichtige Bedeutung, Synonyme, Personen, Projekte, Ziele, Vorlieben und Beziehungsbezüge, nicht nur gleiche Wörter.
+Bei keinem sinnvollen Bezug gib eine leere Liste zurück.
+Antworte ausschließlich als JSON: {"indexes":[0,1]}. Maximal ${limit} Indizes.`,
+        input: `Nutzernachricht:\n${String(message).trim()}\n\nErinnerungen:\n${catalog}`,
+        max_output_tokens: 160
+      })
+    });
+
+    if (!response.ok) return lexicalFallback;
+    const data = await response.json();
+    const raw = data.output
+      ?.flatMap(item => item.content || [])
+      ?.find(item => item.type === "output_text")
+      ?.text || "";
+
+    const parsed = JSON.parse(raw);
+    const indexes = Array.isArray(parsed.indexes)
+      ? [...new Set(parsed.indexes)]
+          .filter(index => Number.isInteger(index) && index >= 0 && index < memories.length)
+          .slice(0, limit)
+      : [];
+
+    return indexes.map(index => memories[index]);
+  } catch (error) {
+    console.warn("Semantische Memory-Auswahl fehlgeschlagen, nutze lokalen Fallback:", error?.message || error);
+    return lexicalFallback;
+  }
+}
+
+
 function applyMemoryAction(
   memories,
   memoryAction
@@ -507,7 +555,7 @@ export default async function handler(req, res) {
        SOFIA PROMPT
     ======================================== */
 
-    const relevantMemories = selectRelevantMemories(memories, message, 12);
+    const relevantMemories = await selectSemanticRelevantMemories(memories, message, 12);
 
     const responseMemoryText = relevantMemories.length
       ? relevantMemories.map((memory, index) => `${index + 1}. [${memory.category || "Sonstiges"}] ${memoryText(memory)}`).join("\n")
