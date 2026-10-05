@@ -62,6 +62,7 @@
 
   let pendingUserText = "";
   let pendingAssistantText = "";
+  let presenceStartedAt = 0;
 
   let memoryQueue =
     Promise.resolve();
@@ -235,6 +236,7 @@
 
 
   function setPresence(state, label) {
+    presenceStartedAt = performance.now();
     if (app) app.dataset.presence = state;
     if (label) setMode(label);
     window.dispatchEvent(new CustomEvent("sofia-presence", {
@@ -1267,9 +1269,10 @@
           "";
 
 
+        const thinkingMs = performance.now() - presenceStartedAt;
         setPresence(
           "responding",
-          "antwortet…"
+          thinkingMs >= 900 ? "hat eine Antwort…" : "antwortet…"
         );
 
 
