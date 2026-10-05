@@ -45,9 +45,39 @@ export default async function handler(req, res) {
   try {
     const raw = await redisGet(MEMORY_KEY, []);
     const memories = Array.isArray(raw) ? raw.filter(x => textOf(x)).slice(-80) : [];
-    if (!memories.length) return res.status(200).json({ context: "" });
-
     const catalog = memories.map((m, i) => `${i}: [${m?.category || "Sonstiges"}] ${textOf(m)}`).join("\n");
+
+    // V4.16.2 Live: retrieve current web information for the exact spoken turn.
+    // This endpoint already runs before response.create, so the Realtime model
+    // can receive grounded current context without changing the audio pipeline.
+    let webContext = "";
+    try {
+      const webResponse = await fetch("https://api.openai.com/v1/responses", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "gpt-5.6",
+          instructions: "Beantworte nur mit Informationen, die für den aktuellen gesprochenen Redezug relevant sind. Nutze Websuche nur wenn Aktualität oder veränderliche externe Fakten wichtig sind. Bei keiner nötigen Websuche antworte exakt mit NO_WEB. Fasse gefundene aktuelle Fakten knapp und sachlich auf Deutsch zusammen.",
+          input: message,
+          tools: [{ type: "web_search" }],
+          tool_choice: "auto",
+          max_output_tokens: 500
+        })
+      });
+      if (webResponse.ok) {
+        const webData = await webResponse.json();
+        const webText = webData.output?.flatMap(x => x.content || []).find(x => x.type === "output_text")?.text?.trim() || "";
+        if (webText && webText !== "NO_WEB") webContext = webText.slice(0, 4000);
+      }
+    } catch (error) {
+      console.warn("Live web context:", error?.message || error);
+    }
+
+    if (!memories.length) {
+      return res.status(200).json({
+        context: webContext ? `Aktuelle externe Informationen:\n${webContext}` : ""
+      });
+    }
     const r = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
       headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, "Content-Type": "application/json" },
@@ -64,7 +94,11 @@ export default async function handler(req, res) {
     const parsed = JSON.parse(out);
     const indexes = Array.isArray(parsed.indexes) ? [...new Set(parsed.indexes)].filter(i => Number.isInteger(i) && memories[i]).slice(0, 10) : [];
     const selected = indexes.map(i => memories[i]);
-    const context = selected.map(m => `[${m?.category || "Sonstiges"}] ${textOf(m)}`).join("\n");
+    const memoryContext = selected.map(m => `[${m?.category || "Sonstiges"}] ${textOf(m)}`).join("\n");
+    const context = [
+      memoryContext ? `Relevante Erinnerungen:\n${memoryContext}` : "",
+      webContext ? `Aktuelle externe Informationen:\n${webContext}` : ""
+    ].filter(Boolean).join("\n\n");
     return res.status(200).json({ context });
   } catch (error) {
     console.error("Live context:", error);
