@@ -917,6 +917,11 @@ Der vollständige Memory-Bestand im Abschnitt "GEDÄCHTNIS VERWALTEN"
 dient ausschließlich der Entscheidung add/update/delete. Verwende
 nicht ausgewählte Einträge daraus nicht als Gesprächskontext.
 
+Textchat und Live Voice sind ein gemeinsames Gespräch. Ein unmittelbar zuvor
+im anderen Modus begonnenes Thema bleibt gültiger jüngster Verlauf. Verlange
+keine Wiederholung nur wegen eines Moduswechsels und behandle den Wechsel
+zwischen Text und Sprache nicht als neues Gespräch.
+
 ==================================================
 LANGZEITGEDÄCHTNIS
 ==================================================
