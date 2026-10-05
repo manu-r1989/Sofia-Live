@@ -6,4 +6,27 @@
   <section class="moodPanel"><small>STIMMUNG</small><div class="moods"><button data-mood="entspannt">Entspannt</button><button class="active" data-mood="flirty">Flirty</button><button data-mood="amüsiert">Amüsiert</button><button data-mood="skeptisch">Skeptisch</button><button data-mood="genervt">Genervt</button><button data-mood="ernst">Ernst</button></div></section>
   <section class="chatPanel"><div class="chatHead"><div><strong>Live conversation</strong><small id="mode">bereit</small></div><button id="voiceToggle" class="icon active" title="Sprachausgabe">🔊</button></div><div class="messages" id="messages"><div class="msg sofia">Na? Endlich da. 😏<br>Was hast du heute vor?</div></div><form id="form"><button type="button" id="mic" class="icon" title="Spracheingabe">🎙</button><input id="input" autocomplete="off" placeholder="Schreib Sofia etwas …"><button class="send">➤</button></form></section>
   <div class="actions"><button id="camera">◉<span>Kamera</span></button><button id="focus">⌁<span>Fokus</span></button><button id="mute">♬<span>Stumm</span></button></div>
-</div><script src="./app.js"></script><script>if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));}</script></body></html>
+</div>
+
+<script src="./app.js?v=35"></script>
+
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', async () => {
+    try {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+
+      for (const registration of registrations) {
+        await registration.unregister();
+      }
+
+      console.log('Alte Sofia Service Worker entfernt.');
+    } catch (error) {
+      console.error('Service Worker cleanup:', error);
+    }
+  });
+}
+</script>
+
+</body>
+</html>
