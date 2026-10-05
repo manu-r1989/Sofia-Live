@@ -1,32 +1,609 @@
-<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="Sofia Live"><meta name="mobile-web-app-capable" content="yes"><meta name="theme-color" content="#080a0d"><meta name="description" content="Sofia Live – interaktiver fotorealistischer Avatar-Prototyp"><title>Sofia Live</title><link rel="manifest" href="./manifest.webmanifest"><link rel="apple-touch-icon" href="./icons/apple-touch-icon.png"><link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png"><link rel="stylesheet" href="./style.css"></head><body>
-<div class="app" id="app" data-mood="flirty" data-speaking="false">
-  <section class="avatarStage"><img class="avatar" src="./sofia-avatar.png" alt="Fotorealistischer Avatar von Sofia"><div class="cinema"></div><div class="breathGlow"></div><div class="presence"><i></i><span id="presenceText">SOFIA · LIVE</span></div><div class="thought" id="thought">Na? Ich bin da. 😏</div><div class="voiceBars" aria-hidden="true"><b></b><b></b><b></b><b></b><b></b></div></section>
-  <aside class="rail"><div class="logo">S</div><button class="railBtn active" data-view="chat">✦</button><button class="railBtn" data-view="memory">◷</button><button class="railBtn" data-view="settings">⚙</button></aside>
-  <header><div><strong>Sofia</strong><span class="online">● online</span></div><div class="meta"><span>Hamburg</span><span id="clock"></span></div></header>
-  <section class="moodPanel"><small>STIMMUNG</small><div class="moods"><button data-mood="entspannt">Entspannt</button><button class="active" data-mood="flirty">Flirty</button><button data-mood="amüsiert">Amüsiert</button><button data-mood="skeptisch">Skeptisch</button><button data-mood="genervt">Genervt</button><button data-mood="ernst">Ernst</button></div></section>
-  <section class="chatPanel"><div class="chatHead"><div><strong>Live conversation</strong><small id="mode">bereit</small></div><button id="voiceToggle" class="icon active" title="Sprachausgabe">🔊</button></div><div class="messages" id="messages"><div class="msg sofia">Na? Endlich da. 😏<br>Was hast du heute vor?</div></div><form id="form"><button type="button" id="mic" class="icon" title="Spracheingabe">🎙</button><input id="input" autocomplete="off" placeholder="Schreib Sofia etwas …"><button class="send">➤</button></form></section>
-  <div class="actions"><button id="camera">◉<span>Kamera</span></button><button id="focus">⌁<span>Fokus</span></button><button id="mute">♬<span>Stumm</span></button></div>
-</div>
+<!doctype html>
+<html lang="de">
 
-<script src="./app.js?v=35"></script>
+<head>
+  <meta charset="utf-8">
 
-<script>
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', async () => {
-    try {
-      const registrations = await navigator.serviceWorker.getRegistrations();
+  <meta
+    name="viewport"
+    content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no"
+  >
 
-      for (const registration of registrations) {
-        await registration.unregister();
+  <meta
+    name="apple-mobile-web-app-capable"
+    content="yes"
+  >
+
+  <meta
+    name="apple-mobile-web-app-status-bar-style"
+    content="black-translucent"
+  >
+
+  <meta
+    name="apple-mobile-web-app-title"
+    content="Sofia Live"
+  >
+
+  <meta
+    name="mobile-web-app-capable"
+    content="yes"
+  >
+
+  <meta
+    name="theme-color"
+    content="#080a0d"
+  >
+
+  <meta
+    name="description"
+    content="Sofia Live"
+  >
+
+  <title>Sofia Live</title>
+
+  <link
+    rel="manifest"
+    href="./manifest.webmanifest"
+  >
+
+  <link
+    rel="apple-touch-icon"
+    href="./icons/apple-touch-icon.png"
+  >
+
+  <link
+    rel="icon"
+    type="image/png"
+    sizes="192x192"
+    href="./icons/icon-192.png"
+  >
+
+  <link
+    rel="stylesheet"
+    href="./style.css"
+  >
+</head>
+
+
+<body>
+
+  <!-- =========================================
+       LOGIN
+  ========================================== -->
+
+  <div
+    id="loginOverlay"
+    style="
+      position:fixed;
+      inset:0;
+      z-index:99999;
+      background:
+        radial-gradient(
+          circle at 50% 30%,
+          #191d24 0%,
+          #080a0d 55%
+        );
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:24px;
+      box-sizing:border-box;
+      color:white;
+      font-family:
+        -apple-system,
+        BlinkMacSystemFont,
+        'Segoe UI',
+        sans-serif;
+    "
+  >
+
+    <form
+      id="loginForm"
+      style="
+        width:min(360px,100%);
+        display:flex;
+        flex-direction:column;
+        gap:14px;
+      "
+    >
+
+      <div
+        style="
+          font-size:34px;
+          font-weight:700;
+          letter-spacing:-1px;
+        "
+      >
+        Sofia
+      </div>
+
+      <div
+        style="
+          opacity:.55;
+          margin-bottom:10px;
+        "
+      >
+        Privatbereich
+      </div>
+
+      <input
+        id="loginPassword"
+        type="password"
+        autocomplete="current-password"
+        placeholder="Passwort"
+        required
+        style="
+          width:100%;
+          box-sizing:border-box;
+          font-size:16px;
+          padding:15px;
+          border-radius:14px;
+          border:1px solid #30343b;
+          outline:none;
+          background:#12151a;
+          color:white;
+        "
+      >
+
+      <button
+        type="submit"
+        style="
+          width:100%;
+          box-sizing:border-box;
+          font-size:16px;
+          font-weight:600;
+          padding:15px;
+          border:0;
+          border-radius:14px;
+          cursor:pointer;
+        "
+      >
+        Entsperren
+      </button>
+
+      <div
+        id="loginError"
+        style="
+          min-height:22px;
+          font-size:14px;
+          opacity:.7;
+          text-align:center;
+        "
+      ></div>
+
+    </form>
+
+  </div>
+
+
+  <!-- =========================================
+       SOFIA APP
+  ========================================== -->
+
+  <div
+    class="app"
+    id="app"
+    data-mood="flirty"
+    data-speaking="false"
+  >
+
+    <!-- AVATAR -->
+
+    <section class="avatarStage">
+
+      <img
+        class="avatar"
+        src="./sofia-avatar.png"
+        alt="Sofia"
+      >
+
+      <div class="cinema"></div>
+
+      <div class="breathGlow"></div>
+
+      <div class="presence">
+        <i></i>
+        <span id="presenceText">
+          SOFIA · LIVE
+        </span>
+      </div>
+
+      <div
+        class="thought"
+        id="thought"
+      >
+        Na? Ich bin da. 😏
+      </div>
+
+      <div
+        class="voiceBars"
+        aria-hidden="true"
+      >
+        <b></b>
+        <b></b>
+        <b></b>
+        <b></b>
+        <b></b>
+      </div>
+
+    </section>
+
+
+    <!-- SIDE RAIL -->
+
+    <aside class="rail">
+
+      <div class="logo">
+        S
+      </div>
+
+      <button
+        class="railBtn active"
+        data-view="chat"
+      >
+        ✦
+      </button>
+
+      <button
+        class="railBtn"
+        data-view="memory"
+      >
+        ◷
+      </button>
+
+      <button
+        class="railBtn"
+        data-view="settings"
+      >
+        ⚙
+      </button>
+
+    </aside>
+
+
+    <!-- HEADER -->
+
+    <header>
+
+      <div>
+        <strong>Sofia</strong>
+
+        <span class="online">
+          ● online
+        </span>
+      </div>
+
+      <div class="meta">
+
+        <span>
+          Hamburg
+        </span>
+
+        <span id="clock"></span>
+
+      </div>
+
+    </header>
+
+
+    <!-- MOOD -->
+
+    <section class="moodPanel">
+
+      <small>
+        STIMMUNG
+      </small>
+
+      <div class="moods">
+
+        <button
+          data-mood="entspannt"
+        >
+          Entspannt
+        </button>
+
+        <button
+          class="active"
+          data-mood="flirty"
+        >
+          Flirty
+        </button>
+
+        <button
+          data-mood="amüsiert"
+        >
+          Amüsiert
+        </button>
+
+        <button
+          data-mood="skeptisch"
+        >
+          Skeptisch
+        </button>
+
+        <button
+          data-mood="genervt"
+        >
+          Genervt
+        </button>
+
+        <button
+          data-mood="ernst"
+        >
+          Ernst
+        </button>
+
+      </div>
+
+    </section>
+
+
+    <!-- CHAT -->
+
+    <section class="chatPanel">
+
+      <div class="chatHead">
+
+        <div>
+
+          <strong>
+            Live conversation
+          </strong>
+
+          <small id="mode">
+            bereit
+          </small>
+
+        </div>
+
+        <button
+          id="voiceToggle"
+          class="icon active"
+          title="Sprachausgabe"
+        >
+          🔊
+        </button>
+
+      </div>
+
+
+      <div
+        class="messages"
+        id="messages"
+      >
+
+        <div class="msg sofia">
+          Na? Endlich da. 😏
+          <br>
+          Was hast du heute vor?
+        </div>
+
+      </div>
+
+
+      <form id="form">
+
+        <button
+          type="button"
+          id="mic"
+          class="icon"
+          title="Spracheingabe"
+        >
+          🎙
+        </button>
+
+        <input
+          id="input"
+          autocomplete="off"
+          placeholder="Schreib Sofia etwas …"
+        >
+
+        <button
+          class="send"
+          type="submit"
+        >
+          ➤
+        </button>
+
+      </form>
+
+    </section>
+
+
+    <!-- ACTIONS -->
+
+    <div class="actions">
+
+      <button id="camera">
+        ◉
+        <span>
+          Kamera
+        </span>
+      </button>
+
+      <button id="focus">
+        ⌁
+        <span>
+          Fokus
+        </span>
+      </button>
+
+      <button id="mute">
+        ♬
+        <span>
+          Stumm
+        </span>
+      </button>
+
+    </div>
+
+  </div>
+
+
+  <!-- =========================================
+       SOFIA FRONTEND
+  ========================================== -->
+
+  <script src="./app.js?v=37"></script>
+
+
+  <!-- =========================================
+       LOGIN
+  ========================================== -->
+
+  <script>
+
+    const loginOverlay =
+      document.querySelector(
+        '#loginOverlay'
+      );
+
+    const loginForm =
+      document.querySelector(
+        '#loginForm'
+      );
+
+    const loginPassword =
+      document.querySelector(
+        '#loginPassword'
+      );
+
+    const loginError =
+      document.querySelector(
+        '#loginError'
+      );
+
+
+    loginForm.addEventListener(
+      'submit',
+      async event => {
+
+        event.preventDefault();
+
+        loginError.textContent =
+          'Prüfe…';
+
+        try {
+
+          const response =
+            await fetch(
+              '/api/login',
+              {
+                method: 'POST',
+
+                headers: {
+                  'Content-Type':
+                    'application/json'
+                },
+
+                credentials:
+                  'same-origin',
+
+                body:
+                  JSON.stringify({
+                    password:
+                      loginPassword.value
+                  })
+              }
+            );
+
+
+          const data =
+            await response.json();
+
+
+          if (!response.ok) {
+
+            loginError.textContent =
+              data.error ||
+              'Login fehlgeschlagen.';
+
+            return;
+          }
+
+
+          loginPassword.value =
+            '';
+
+          loginError.textContent =
+            '';
+
+          loginOverlay.style.display =
+            'none';
+
+
+        } catch (error) {
+
+          console.error(
+            'Sofia Login:',
+            error
+          );
+
+          loginError.textContent =
+            'Verbindungsfehler.';
+
+        }
+
       }
+    );
 
-      console.log('Alte Sofia Service Worker entfernt.');
-    } catch (error) {
-      console.error('Service Worker cleanup:', error);
+  </script>
+
+
+  <!-- =========================================
+       ALTEN SERVICE WORKER ENTFERNEN
+  ========================================== -->
+
+  <script>
+
+    if (
+      'serviceWorker' in navigator
+    ) {
+
+      window.addEventListener(
+        'load',
+        async () => {
+
+          try {
+
+            const registrations =
+              await navigator
+                .serviceWorker
+                .getRegistrations();
+
+
+            for (
+              const registration
+              of registrations
+            ) {
+
+              await registration
+                .unregister();
+
+            }
+
+
+            console.log(
+              'Alte Sofia Service Worker entfernt.'
+            );
+
+
+          } catch (error) {
+
+            console.error(
+              'Service Worker cleanup:',
+              error
+            );
+
+          }
+
+        }
+      );
+
     }
-  });
-}
-</script>
+
+  </script>
+
 
 </body>
 </html>
