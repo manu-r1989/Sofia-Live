@@ -511,7 +511,7 @@ Erlaubte action-Werte:
 "delete"
 
 Bei add/update setze zusätzlich category auf genau einen dieser Werte:
-"Personen", "Vorlieben", "Projekte & Arbeit", "Ziele & Pläne", "Gewohnheiten", "Beziehung", "Persönliches".
+"Personen", "Vorlieben", "Projekte & Arbeit", "Ziele & Pläne", "Gewohnheiten", "Beziehung", "Persönliches", "Sonstiges".
 Bei none/delete ist category null.
 
 VORHANDENE ERINNERUNGEN:
