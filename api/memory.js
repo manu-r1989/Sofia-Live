@@ -171,7 +171,7 @@ export default async function handler(req, res) {
     ======================================== */
 
     if (req.method === "PUT") {
-      const { old_memory, new_memory } = req.body || {};
+      const { old_memory, new_memory, category } = req.body || {};
       if (typeof old_memory !== "string" || !old_memory.trim() ||
           typeof new_memory !== "string" || !new_memory.trim()) {
         return res.status(400).json({ error: "Alte und neue Erinnerung werden benötigt." });
@@ -188,10 +188,25 @@ export default async function handler(req, res) {
         return res.status(404).json({ error: "Erinnerung nicht gefunden." });
       }
 
+      const allowedCategories = [
+        "Personen",
+        "Vorlieben",
+        "Projekte & Arbeit",
+        "Ziele & Pläne",
+        "Gewohnheiten",
+        "Beziehung",
+        "Persönliches"
+      ];
+
+      const nextCategory =
+        typeof category === "string" && allowedCategories.includes(category)
+          ? category
+          : memoryCategory(new_memory);
+
       memories[index] = {
         ...memories[index],
         text: new_memory.trim(),
-        category: memoryCategory(new_memory),
+        category: nextCategory,
         updatedAt: new Date().toISOString()
       };
       await redisSetJSON(MEMORY_KEY, memories);
