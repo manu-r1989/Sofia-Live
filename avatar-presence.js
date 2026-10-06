@@ -31,7 +31,7 @@
         50% { transform: scale(1.012) translateY(-1px); }
       }
       @media (prefers-reduced-motion: reduce) {
-        #sofiaAvatar[data-presence-motion] { animation: none !important; transform: none; rotate: none !important; translate: none !important; scale: none !important; transition: none !important; }
+        #sofiaAvatar[data-presence-motion] { animation: none !important; transform: none; }
       }
     `;
     document.head.appendChild(style);

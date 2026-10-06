@@ -63,7 +63,7 @@ test('missing avatar is harmless', () => {
   assert.equal(harness({ missing: true }).styles.length, 0);
 });
 
-test('posture profiles are limited to active state and reset under reduced motion', () => {
+test('posture profiles remain active under reduced motion while breathing stops', () => {
   const h = harness(), css = h.styles[0].textContent;
   for (const state of ['listening', 'thinking', 'speaking']) {
     assert.ok(css.includes('[data-presence-state="' + state + '"][data-presence-motion="active"]'));
@@ -71,7 +71,9 @@ test('posture profiles are limited to active state and reset under reduced motio
   assert.match(css, /rotate: -.55deg; translate: 0 -1px; scale: 1.002/);
   assert.match(css, /rotate: .35deg; translate: 0 .5px; scale: 1/);
   assert.match(css, /rotate: 0deg; translate: 0 0; scale: 1/);
-  assert.match(css, /translate: none !important; scale: none !important/);
+  const reducedMotion = css.slice(css.indexOf('@media (prefers-reduced-motion: reduce)'));
+  assert.match(reducedMotion, /animation: none !important; transform: none/);
+  assert.doesNotMatch(reducedMotion, /(?:rotate|translate|scale|transition):/);
 });
 
 test('presence observes listening and speaking without changing engine state or layers', () => {
@@ -88,5 +90,5 @@ test('presence observes listening and speaking without changing engine state or 
   assert.equal(h.container.dataset.presenceState, 'idle');
   assert.equal(h.engine.dataset.state, 'unexpected');
   assert.match(h.styles[0].textContent, /transition: rotate 1.2s/);
-  assert.match(h.styles[0].textContent, /rotate: none !important/);
+  assert.doesNotMatch(h.styles[0].textContent, /rotate: none !important/);
 });
