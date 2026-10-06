@@ -1,4 +1,4 @@
-/* V4.19.1 preparation — visual presence outside the stable avatar engine. */
+/* V4.19.2 — visual presence observing the stable avatar engine. */
 (() => {
   "use strict";
   function init() {
@@ -11,17 +11,29 @@
         transform-origin: 50% 42%;
         animation: sofiaPresenceBreath 9.6s ease-in-out infinite;
         animation-play-state: paused;
+        rotate: 0deg;
+        transition: rotate 1.2s ease-in-out;
       }
       #sofiaAvatar[data-presence-motion="active"] { animation-play-state: running; }
+      #sofiaAvatar[data-presence-state="listening"][data-presence-motion="active"] { rotate: -.18deg; }
       @keyframes sofiaPresenceBreath {
         0%, 100% { transform: scale(1.008) translateY(0); }
         50% { transform: scale(1.012) translateY(-1px); }
       }
       @media (prefers-reduced-motion: reduce) {
-        #sofiaAvatar[data-presence-motion] { animation: none !important; transform: none; }
+        #sofiaAvatar[data-presence-motion] { animation: none !important; transform: none; rotate: none !important; transition: none !important; }
       }
     `;
     document.head.appendChild(style);
+    const syncState = () => {
+      const state = container.querySelector(".sofia-avatar-v435")?.dataset.state;
+      container.dataset.presenceState = ["idle", "listening", "thinking", "speaking"].includes(state) ? state : "idle";
+    };
+    if (typeof MutationObserver === "function") {
+      const observer = new MutationObserver(syncState);
+      observer.observe(container, { attributes: true, attributeFilter: ["data-state"], childList: true, subtree: true });
+    }
+    syncState();
     const sync = () => { container.dataset.presenceMotion = document.hidden ? "paused" : "active"; };
     document.addEventListener("visibilitychange", sync);
     window.addEventListener("pagehide", () => { container.dataset.presenceMotion = "paused"; });

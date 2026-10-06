@@ -6,7 +6,13 @@ import { readFile } from 'node:fs/promises';
 const source = await readFile(new URL('../avatar-presence.js', import.meta.url), 'utf8');
 function harness({ hidden = false, ready = 'complete', missing = false } = {}) {
   const handlers = {}, page = {}, styles = [];
-  const container = { dataset: {} };
+  const engine = { dataset: { state: 'idle' } };
+  const container = { dataset: {}, querySelector: () => engine };
+  const observers = [];
+  class MutationObserver {
+    constructor(callback) { this.callback = callback; observers.push(this); }
+    observe(target, options) { this.target = target; this.options = options; }
+  }
   const document = {
     hidden, readyState: ready,
     getElementById: id => id === 'sofiaAvatar' ? (missing ? null : container) : styles.find(style => style.id === id),
@@ -15,9 +21,9 @@ function harness({ hidden = false, ready = 'complete', missing = false } = {}) {
     addEventListener: (name, fn) => { handlers[name] = fn; }
   };
   const window = { addEventListener: (name, fn) => { page[name] = fn; } };
-  const context = { document, window }; // No SofiaAvatar, audio API, timer or animation-frame API.
+  const context = { document, window, MutationObserver }; // No SofiaAvatar, audio API, timer or animation-frame API.
   vm.runInNewContext(source, context);
-  return { document, container, handlers, page, styles, context };
+  return { document, container, engine, observers, handlers, page, styles, context };
 }
 
 test('presence starts on outer container without touching avatar or audio APIs', () => {
@@ -55,4 +61,21 @@ test('initialization waits for DOM and does not duplicate style or handlers', ()
 
 test('missing avatar is harmless', () => {
   assert.equal(harness({ missing: true }).styles.length, 0);
+});
+
+test('presence observes listening and speaking without changing engine state or layers', () => {
+  const h = harness();
+  assert.equal(h.observers.length, 1);
+  assert.equal(h.observers[0].target, h.container);
+  assert.deepEqual(Array.from(h.observers[0].options.attributeFilter), ['data-state']);
+  for (const state of ['listening', 'speaking', 'thinking', 'idle']) {
+    h.engine.dataset.state = state; h.observers[0].callback();
+    assert.equal(h.container.dataset.presenceState, state);
+    assert.equal(h.engine.dataset.state, state);
+  }
+  h.engine.dataset.state = 'unexpected'; h.observers[0].callback();
+  assert.equal(h.container.dataset.presenceState, 'idle');
+  assert.equal(h.engine.dataset.state, 'unexpected');
+  assert.match(h.styles[0].textContent, /transition: rotate 1.2s/);
+  assert.match(h.styles[0].textContent, /rotate: none !important/);
 });
