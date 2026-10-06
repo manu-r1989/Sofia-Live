@@ -51,11 +51,11 @@ async function interpret(message, tasks, referenceTime) {
       model: "gpt-5.6",
       instructions: `Du bist ein strikter Task-Action-Parser. Erkenne nur Aufgabenverwaltung, nicht bloße Gesprächsinhalte.
 Erlaubte Aktionen: none, create, update, complete, delete, list, calendar_export.
-create nur bei klarer Absicht, etwas als Aufgabe oder To-do festzuhalten, oder bei einer klar formulierten eigenen Verpflichtung wie "Ich muss Freitag X erledigen".
+create bei klarer Aufgabenabsicht, einer klaren eigenen Verpflichtung oder einer ausdrücklichen Erinnerung. Bei Erinnerungen setze remindAt und, falls keine andere Fälligkeit genannt ist, dueAt auf den Erinnerungszeitpunkt.
 complete, delete und update nur wenn eine bestehende Aufgabe eindeutig gemeint ist; verwende deren exakte id.
 list bei Fragen nach Aufgaben oder danach, was ansteht.\ncalendar_export wenn eine bestehende Aufgabe ausdrücklich in den Kalender übernommen werden soll; verwende deren exakte id.
-Reine neue Kalender- oder Erinnerungswünsche ohne Bezug auf eine bestehende Aufgabe sind none, weil sie separat verarbeitet werden.
-Relative Zeiten anhand der Referenzzeit Europe/Berlin auflösen.
+Explizite neue Kalendereinträge ohne Aufgabenabsicht sind none, weil sie separat verarbeitet werden.
+Relative Zeiten anhand der Referenzzeit Europe/Berlin auflösen. recurrence nur als null, "daily", "weekly" oder "monthly" ausgeben.
 Antworte ausschließlich als JSON:
 {"action":"none|create|update|complete|delete|list|calendar_export","id":null,"task":{"title":"","dueAt":null,"remindAt":null,"priority":"normal","notes":"","recurrence":null},"status":"open"}`,
       input: `Referenzzeit: ${referenceTime}\nNutzer: ${message}\n\nAufgaben:\n${catalog}`,
