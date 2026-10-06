@@ -69,11 +69,21 @@ Antworte ausschließlich als JSON:
 }
 
 export async function executeTaskAction(message, referenceTime, options = {}) {
-  let tasks = await loadTasks();
   const text = String(message || "").trim();
-  const likelyTaskIntent = /\b(aufgabe|aufgaben|to[ -]?do|erledigt|erledigen|abhaken|lösch|löschen|verschieb|verschieben|fällig|priorität|prioritaet|erinner(?:e|ung)|muss\s+ich|ich\s+muss|steht\s+an|offen|überfällig|ueberfaellig|kalender.*aufgabe|aufgabe.*kalender)\b/i.test(text);
-  const likelyFollowUp = Boolean(options.recentTaskId) && /^(mach|verschieb|lösch|streiche|die|das|doch|lieber|erst|schon|erledigt|morgen|heute|übermorgen|uebermorgen)\b/i.test(text);
+  if (!text) return { ok: true, action: "none" };
+  // Only gate the classifier; it still decides whether an action is intended.
+  // Normalize umlauts so word boundaries also work for "überfällig".
+  const intentText = text.toLocaleLowerCase("de-DE")
+    .replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss");
+  const likelyTaskIntent = /\b(?:aufgaben?|tasks?|to[ -]?dos?|erledig\w*|abgehakt|abhak\w*|loesch\w*|verschieb\w*|streiche\w*|faellig\w*|priorit\w*|erinner\w*|offen\w*|ueberfaellig\w*|wiederhol\w*)\b/.test(intentText)
+    || /\b(?:ich\s+(?:muss|soll|werde)|(?:muss|soll)\s+ich|steht\b.*\ban|steht\b.*\baus|ansteht|anstehen)\b/.test(intentText)
+    || /\b(?:setz\w*|leg\w*|trag\w*|notier\w*)\b.*\b(?:liste|ein|an|drauf)\b/.test(intentText);
+  const likelyFollowUp = Boolean(options.recentTaskId) && (
+    /^(?:(?:sofia|bitte)\b[\s,!:]*)*(?:mach\w*|verschieb\w*|loesch\w*|streich\w*|die|das|doch|lieber|erst|schon|erledigt|morgen|heute|uebermorgen|naechste\w*|am|um)\b/.test(intentText)
+    || /\b(?:kalender|termin|export\w*|priorit\w*|taeglich|woechentlich|monatlich)\b/.test(intentText)
+  );
   if (!likelyTaskIntent && !likelyFollowUp) return { ok: true, action: "none" };
+  const tasks = await loadTasks();
   const parsed = await interpret(text, tasks, referenceTime, options.recentTaskId || null);
   const action = String(parsed?.action || "none");
   if (action === "none") return { ok: true, action: "none" };
