@@ -1654,10 +1654,20 @@ Kein Markdown außerhalb des JSON-Objekts.
       console.warn("Task action:", taskError?.message || taskError);
     }
 
+    if (taskAction?.calendarAction) {
+      calendarAction = taskAction.calendarAction;
+    }
+
     if (taskAction?.ok && taskAction.action === "create" && taskAction.task?.title) {
       reply = `Hab ich als Aufgabe gespeichert: „${taskAction.task.title}“.`;
     } else if (taskAction?.ok && taskAction.action === "complete" && taskAction.task?.title) {
       reply = `Erledigt: „${taskAction.task.title}“.`;
+    } else if (taskAction?.ok && taskAction.action === "complete_recurring" && taskAction.task?.title) {
+      reply = `Erledigt. „${taskAction.task.title}“ ist wiederkehrend und wurde auf den nächsten Termin gesetzt.`;
+    } else if (taskAction?.ok && taskAction.action === "calendar_export" && taskAction.task?.title) {
+      reply = `Kalenderimport für „${taskAction.task.title}“ ist vorbereitet.`;
+    } else if (taskAction?.ok === false && taskAction.status === "missing_due_at") {
+      reply = "Die Aufgabe hat noch keinen Termin. Wann soll sie stattfinden?";
     } else if (taskAction?.ok && taskAction.action === "delete" && taskAction.task?.title) {
       reply = `„${taskAction.task.title}“ habe ich aus den Aufgaben gelöscht.`;
     } else if (taskAction?.ok && taskAction.action === "update" && taskAction.task?.title) {
