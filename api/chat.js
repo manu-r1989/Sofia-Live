@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { executeUnifiedAction } from "./action-engine.js";
+import { executeUnifiedAction, getActionState, getResearchState } from "./action-engine.js";
 
 const HISTORY_KEY = "sofia:main:history";
 const MEMORY_KEY = "sofia:main:longterm";
