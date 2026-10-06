@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { nextRecurringDates } from "./task-dates.js";
+import { nextRecurringDates, normalizeTaskDate, validateTaskPatch } from "./task-dates.js";
 import { withTaskMutationLock } from "./action-engine.js";
 
 const TASKS_KEY = "sofia:main:tasks";
@@ -31,14 +31,15 @@ async function loadTasks() {
 }
 async function saveTasks(tasks) { await redis(["SET", TASKS_KEY, JSON.stringify(tasks.slice(-MAX_TASKS))]); }
 function normalizeTask(input, existing=null) {
+  validateTaskPatch(input);
   const now=new Date().toISOString();
   const title=String(input?.title ?? existing?.title ?? "").trim().slice(0,200); if(!title)return null;
   const status=["open","completed"].includes(input?.status)?input.status:(existing?.status||"open");
   return {
     id:existing?.id||`task_${crypto.randomUUID()}`, title, status,
-    dueAt:input?.dueAt===null?null:(String(input?.dueAt ?? existing?.dueAt ?? "").trim()||null),
-    remindAt:input?.remindAt===null?null:(String(input?.remindAt ?? existing?.remindAt ?? "").trim()||null),
-    recurrence:input?.recurrence ?? existing?.recurrence ?? null,
+    dueAt:input?.dueAt===undefined?(existing?.dueAt??null):normalizeTaskDate(input.dueAt),
+    remindAt:input?.remindAt===undefined?(existing?.remindAt??null):normalizeTaskDate(input.remindAt),
+    recurrence:input?.recurrence===undefined?(existing?.recurrence??null):input.recurrence,
     priority:["low","normal","high"].includes(input?.priority)?input.priority:(existing?.priority||"normal"),
     notes:String(input?.notes ?? existing?.notes ?? "").trim().slice(0,1000),
     createdAt:existing?.createdAt||now, updatedAt:now,
@@ -81,6 +82,7 @@ export default async function handler(req,res) {
       return res.status(400).json({error:"Unbekannte Aktion."});
     });
   } catch(error){
+    if(error?.code==="INVALID_TASK")return res.status(400).json({ok:false,status:"invalid_task",error:error.message});
     if(error?.code==="ACTION_BUSY")return res.status(409).json({ok:false,status:"in_progress",error:"Eine Aufgabenaktion wird gerade verarbeitet. Bitte warte kurz und prüfe den Aufgabenstand."});
     console.error("Tasks API:",error);return res.status(500).json({ok:false,status:"execution_failed",error:"Die Aufgabenaktion konnte nicht sicher bestätigt werden. Bitte prüfe den Aufgabenstand vor einem erneuten Versuch."});
   }

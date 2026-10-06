@@ -1,4 +1,4 @@
-import { addCalendarDays, nextRecurringDates } from "./task-dates.js";
+import { addCalendarDays, nextRecurringDates, normalizeTaskDate, validateTaskPatch } from "./task-dates.js";
 
 const TASKS_KEY = "sofia:main:tasks";
 
@@ -33,11 +33,6 @@ async function saveTasks(tasks) {
   await redis(["SET", TASKS_KEY, JSON.stringify(tasks.slice(-250))]);
 }
 
-function normalizeDate(value) {
-  if (!value) return null;
-  const text = String(value).trim();
-  return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?$/.test(text) ? text : null;
-}
 
 async function interpret(message, tasks, referenceTime, recentTaskId = null) {
   const catalog = tasks.slice(-80).map(t =>
@@ -98,6 +93,7 @@ export async function executeTaskAction(message, referenceTime, options = {}) {
   const parsed = await interpret(text, tasks, referenceTime, options.recentTaskId || null);
   const action = String(parsed?.action || "none");
   if (action === "none") return { ok: true, action: "none" };
+  if (action === "create" || action === "update") validateTaskPatch(parsed.task);
 
   if (action === "list") {
     let result = (parsed?.status === "all" ? tasks : tasks.filter(t => t.status === "open")).slice();
@@ -126,8 +122,8 @@ export async function executeTaskAction(message, referenceTime, options = {}) {
   if (action === "create") {
     const title = String(parsed?.task?.title || "").trim().slice(0, 200);
     if (!title) throw new Error("Missing task title");
-    const dueAt = normalizeDate(parsed.task.dueAt);
-    const remindAt = normalizeDate(parsed.task.remindAt);
+    const dueAt = normalizeTaskDate(parsed.task.dueAt);
+    const remindAt = normalizeTaskDate(parsed.task.remindAt);
     const duplicate = tasks.find(t =>
       t.status === "open" &&
       String(t.title || "").toLocaleLowerCase("de-DE") === title.toLocaleLowerCase("de-DE") &&
@@ -192,8 +188,8 @@ export async function executeTaskAction(message, referenceTime, options = {}) {
     tasks[index] = {
       ...tasks[index],
       title: String(patch.title || tasks[index].title).trim().slice(0, 200),
-      dueAt: patch.dueAt === null ? null : (normalizeDate(patch.dueAt) || tasks[index].dueAt),
-      remindAt: patch.remindAt === null ? null : (normalizeDate(patch.remindAt) || tasks[index].remindAt),
+      dueAt: patch.dueAt === null ? null : (normalizeTaskDate(patch.dueAt) || tasks[index].dueAt),
+      remindAt: patch.remindAt === null ? null : (normalizeTaskDate(patch.remindAt) || tasks[index].remindAt),
       priority: ["low","normal","high"].includes(patch.priority) ? patch.priority : tasks[index].priority,
       notes: patch.notes == null ? tasks[index].notes : String(patch.notes).trim().slice(0, 1000),
       recurrence: patch.recurrence === undefined ? tasks[index].recurrence : patch.recurrence,

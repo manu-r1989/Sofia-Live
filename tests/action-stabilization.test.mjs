@@ -397,6 +397,52 @@ test('calendar arithmetic rejects rollover dates and unsupported recurrence', ()
   assert.equal(nextRecurringDates({ dueAt: '2026-10-06T09:00:00', recurrence: 'unknown' }), null);
 });
 
+test('explicit null removes recurrence and dates through both task paths', async () => {
+  const patch = { dueAt: null, remindAt: null, recurrence: null };
+  reset([fixture('a')], 'a'); parsed = { action: 'update', id: 'a', task: patch };
+  const action = await run('Entferne Termin und Wiederholung dieser Aufgabe');
+  reset([fixture('a')], 'a');
+  const ui = await endpoint('tasks', '', { body: { action: 'update', id: 'a', task: patch } });
+  for (const result of [action.taskAction, ui]) {
+    assert.equal(result.task.dueAt, null); assert.equal(result.task.remindAt, null);
+    assert.equal(result.task.recurrence, null); assert.equal(result.task.notes, 'keep me');
+  }
+  const completed = await endpoint('tasks', '', { body: { action: 'complete', id: 'a' } });
+  assert.equal(completed.task.status, 'completed');
+});
+
+test('Tasks API sparse update preserves dates and recurrence', async () => {
+  reset([fixture('a')], 'a');
+  const result = await endpoint('tasks', '', { body: { action: 'update', id: 'a', task: { priority: 'low' } } });
+  assert.equal(result.task.priority, 'low'); assert.equal(result.task.dueAt, fixture('a').dueAt);
+  assert.equal(result.task.remindAt, fixture('a').remindAt); assert.equal(result.task.recurrence, 'daily');
+});
+
+const invalidPatches = [
+  { dueAt: '2026-02-30T09:00:00' },
+  { remindAt: '2026-10-07T24:00:00' },
+  { dueAt: 123 },
+  { recurrence: 'yearly' }
+];
+for (const action of ['create', 'update']) {
+  test(`invalid ${action} classifier fields never persist a task or confirm success`, async () => {
+    for (const patch of invalidPatches) {
+      reset([fixture('a')], 'a'); parsed = { action, id: 'a', task: { title: 'TEST invalid', ...patch } };
+      const before = db.get(TASKS);
+      const result = await run(action === 'create' ? 'Lege eine Aufgabe an' : 'Ändere diese Aufgabe');
+      assert.equal(result.taskAction.ok, false); assert.equal(writes, 0); assert.equal(db.get(TASKS), before);
+    }
+  });
+  test(`Tasks API rejects invalid ${action} fields with HTTP 400 before writing`, async () => {
+    for (const patch of invalidPatches) {
+      reset([fixture('a')], 'a'); const before = db.get(TASKS);
+      const result = await endpoint('tasks', '', { body: { action, id: 'a', task: { title: 'TEST invalid', ...patch } }, expectedStatus: 400 });
+      assert.equal(result.status, 'invalid_task'); assert.equal(writes, 0); assert.equal(db.get(TASKS), before);
+      assert.equal(db.has('sofia:main:action-lock:v2'), false);
+    }
+  });
+}
+
 test.after(() => {
   globalThis.fetch = savedFetch;
   for (const key of envNames) if (savedEnv[key] === undefined) delete process.env[key]; else process.env[key] = savedEnv[key];

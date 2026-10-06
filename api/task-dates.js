@@ -10,6 +10,29 @@ function wallDate(value) {
 
 const stampOf = date => date.toISOString().slice(0, 19);
 
+export function normalizeTaskDate(value) {
+  if (value == null || value === "") return null;
+  return wallDate(value) ? String(value).trim().replace(" ", "T") : null;
+}
+
+// Validate only supplied fields, preserving existing data on sparse updates.
+export function validateTaskPatch(input) {
+  for (const field of ["dueAt", "remindAt"]) {
+    const value = input?.[field];
+    if (value === undefined || value === null || value === "") continue;
+    if (typeof value !== "string" || !normalizeTaskDate(value)) {
+      const error = new Error("Ungültiger Termin: " + field + ".");
+      error.code = "INVALID_TASK";
+      throw error;
+    }
+  }
+  if (input?.recurrence !== undefined && ![null, "daily", "weekly", "monthly"].includes(input.recurrence)) {
+    const error = new Error("Ungültige Wiederholung.");
+    error.code = "INVALID_TASK";
+    throw error;
+  }
+}
+
 export function addCalendarDays(value, days) {
   const date = wallDate(value);
   if (!date || !Number.isInteger(days)) return null;
