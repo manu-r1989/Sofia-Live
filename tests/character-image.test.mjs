@@ -1,12 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
+import crypto from 'node:crypto';
 const source = await readFile(new URL('../lib/character-image.js',import.meta.url),'utf8');
 const api = await import('data:text/javascript;base64,' + Buffer.from(source).toString('base64'));
 const prefix='sofia:main:portrait:';
 let db, plan, calls, imageCalls, failImage, failRedis;
 const savedFetch=globalThis.fetch;
-const envKeys=['KV_REST_API_URL','KV_REST_API_TOKEN','OPENAI_API_KEY'];
+const envKeys=['KV_REST_API_URL','KV_REST_API_TOKEN','OPENAI_API_KEY','SOFIA_PASSWORD'];
 const env=Object.fromEntries(envKeys.map(k=>[k,process.env[k]]));
 function reset(){db=new Map();plan={action:'new',outfit:'Blue sweater',scene:'Selfie outdoors',caption:'Mein Selfie'};calls=[];imageCalls=[];failImage=false;failRedis=false;process.env.KV_REST_API_URL='https://redis.test';process.env.KV_REST_API_TOKEN='test';process.env.OPENAI_API_KEY='test';}
 const response = (data,ok=true)=>({ok,json:async()=>data});
@@ -86,4 +87,58 @@ test('UI integration loads shared renderer before app and does not alter avatar 
  assert.ok(chat.indexOf('!safeEqual(')<chat.indexOf('await servePortrait'));
  const ui=await readFile(new URL('sofia-images.js',root),'utf8');assert.match(ui,/dialog.showModal/);assert.match(ui,/download=1/);assert.doesNotMatch(ui,/spinner|generating-status/);
  const live=await readFile(new URL('live.js',root),'utf8');assert.match(live,/contextData.imageRequest.*SofiaImages/);
+});
+
+test('explicit selfie commands survive a classifier no-op instead of reaching a camera refusal',async()=>{
+ reset();plan={action:'none'};
+ for(const text of ['Sofia, mach bitte ein Selfie von dir.','Kannst du mir ein echtes Selfie schicken?','Schick mir ein Foto von dir','Ein Spiegelselfie bitte','Selfie']) {
+  assert.equal(api.explicitPortraitRequest(text),true,text);
+  const request=await api.preparePortrait(text);
+  assert.ok(request?.id,text);
+  const job=JSON.parse(db.get(prefix+'request:'+request.id));
+  assert.equal(job.scene,text);assert.equal(job.status,'ready');
+ }
+ assert.equal(imageCalls.length,0,'routing alone never bills for image generation');
+});
+test('discussion, quotes, negation and scheduled requests do not become immediate paid jobs',async()=>{
+ reset();plan={action:'none'};
+ for(const text of ['Warum kannst du keine echten Selfies machen?','Wie machst du ein Selfie?','Mach bitte kein Selfie','Kannst du mir später ein Selfie schicken?','Erinnere mich daran, ein Selfie zu machen','Sag „Mach mir ein Selfie“','Wie gefällt dir das Outfit?']) {
+  assert.equal(api.explicitPortraitRequest(text),false,text);
+  assert.equal(await api.preparePortrait(text),null,text);
+ }
+});
+test('Text and Realtime explicitly advertise character photographs and require real execution',async()=>{
+ for(const path of ['../api/chat.js','../api/realtime.js']) {
+  const source=await readFile(new URL(path,import.meta.url),'utf8');
+  assert.match(source,/SOFIAS CHARAKTERROLLE UND BILDFUNKTION/);
+  assert.match(source,/Biete dafür nicht nur einen Prompt an/);
+  assert.match(source,/bevor das Bild tatsächlich geliefert wurde/);
+  assert.match(source,/auf eine ausdrückliche Frage nach deiner realen Natur\nantwortest du ehrlich/);
+ }
+});
+
+test('authenticated Text and Live return image jobs even if the planner says none',async()=>{
+ reset();plan={action:'none',scene:'Cannot take real photographs',caption:'No camera'};
+ process.env.SOFIA_PASSWORD='test-only';
+ const moduleUrl=s=>'data:text/javascript;base64,'+Buffer.from(s).toString('base64');
+ const root=new URL('../',import.meta.url);
+ const dates=moduleUrl(await readFile(new URL('lib/task-dates.js',root),'utf8'));
+ const tasks=moduleUrl((await readFile(new URL('api/task-action.js',root),'utf8')).replace('../lib/task-dates.js',dates));
+ const engine=moduleUrl((await readFile(new URL('api/action-engine.js',root),'utf8')).replace('./task-action.js',tasks));
+ for(const endpoint of ['chat','live-context']) {
+  const code=(await readFile(new URL('api/'+endpoint+'.js',root),'utf8')).replace('../lib/character-image.js',moduleUrl(source)).replace('./action-engine.js',engine);
+  const handler=(await import(moduleUrl(code))).default;
+  const session=crypto.createHmac('sha256','test-only').update('sofia-authorized-session-v1').digest('hex');
+  let status,data;
+  const res={setHeader(){},status(n){status=n;return this;},json(d){data=d;return d;}};
+  await handler({method:'POST',headers:{cookie:'sofia_session='+session},body:{message:'Sofia, mach bitte ein echtes Selfie von dir.'}},res);
+  assert.equal(status,200);assert.ok(data.imageRequest?.id);
+  assert.equal(data.taskAction.action,'none');
+  assert.match(data.reply || data.context,/Gib mir einen kleinen Moment/);
+  assert.doesNotMatch(data.reply || data.context,/keinen Körper|keine Kamera|Prompt entwerfen/);
+  const job=JSON.parse(db.get(prefix+'request:'+data.imageRequest.id));
+  assert.equal(job.scene,'Sofia, mach bitte ein echtes Selfie von dir.');
+  assert.equal(job.caption,'Ein Bild von mir.');
+ }
+ assert.equal(imageCalls.length,0,'provider runs only from the separate generation request');
 });
