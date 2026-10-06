@@ -1,4 +1,4 @@
-import { preparePortrait, generatePortrait, servePortrait, portraitGallery, appendPortraitAcknowledgment, PORTRAIT_FAILURE_REPLY, getSofiaLife, learnSofiaLife, lifeContext, prepareProactivePortrait, PROACTIVE_PHOTO_ANNOUNCEMENT } from '../lib/character-image.js';
+import { portraitPreparationReply, preparePortrait, generatePortrait, servePortrait, portraitGallery, appendPortraitAcknowledgment, PORTRAIT_FAILURE_REPLY, getSofiaLife, learnSofiaLife, lifeContext, prepareProactivePortrait, PROACTIVE_PHOTO_ANNOUNCEMENT } from '../lib/character-image.js';
 import crypto from "node:crypto";
 import { executeUnifiedAction, getActionState, getResearchState } from "./action-engine.js";
 
@@ -589,14 +589,15 @@ export default async function handler(req, res) {
 
 
     try {
-      const imageRequest = await preparePortrait(message, req.body?.referenceImageId);
+      const imageRequest = await preparePortrait(message, req.body?.referenceImageId, new Date(), req.body?.mood);
       if (imageRequest) {
         const reply = "Gib mir einen kleinen Moment.";
         await appendPortraitAcknowledgment(message, reply, imageRequest.id);
-        return res.status(200).json({ reply, life: await getSofiaLife(), mood: "neutral", imageRequest, taskAction: { ok:true, action:"none" } });
+        const life = await getSofiaLife();
+        return res.status(200).json({ reply, life, mood: life.mood || "entspannt", imageRequest, taskAction: { ok:true, action:"none" } });
       }
     } catch (error) {
-      return res.status(200).json({ reply:error.message, taskAction:{ok:true,action:"none"} });
+      return res.status(200).json({ reply:portraitPreparationReply(error), taskAction:{ok:true,action:"none"} });
     }
 
     /* ========================================
@@ -734,7 +735,7 @@ export default async function handler(req, res) {
       : "Noch keine Langzeiterinnerungen vorhanden.";
 
 
-    let sofiaLife = await getSofiaLife();
+    let sofiaLife = await getSofiaLife(new Date(), req.body?.mood);
     const SOFIA_PROMPT = `
 Du bist Sofia.
 
@@ -949,6 +950,14 @@ Faden auf, wenn er gerade passt, und vertiefe lieber das aktuelle Thema,
 statt unvermittelt ein neues zu eröffnen. Vermeide Fragenketten, Interviews
 und das mechanische Spiegeln jeder Nutzerfrage. Auch eine Antwort ohne
 Frage kann das Gespräch mit einer persönlichen Aussage weiterführen.
+
+Prüfe die letzten eigenen Antworten: Wiederhole nicht dieselbe Rückfrage,
+dieselbe Begrüßung oder dieselben Tagesdetails in jedem Turn. Wurde eine
+Nachfrage bereits gestellt und nicht beantwortet, dränge nicht nach.
+Nutze konkrete Bezüge statt allgemeiner Floskeln; halte bekannte Vorlieben
+und Meinungen bei, darfst sie aber durch neue Gesprächserfahrungen begründet
+weiterentwickeln. Greife keine bereits geklärten oder abgelehnten Themen
+unaufgefordert wieder auf.
 
 Bei konkreten Aufgaben, abgeschlossenen Faktenfragen, ernsten Momenten,
 kurzen Abbrüchen oder Distanzsignalen reduziere die Initiative passend.
@@ -1882,7 +1891,7 @@ Kein Markdown außerhalb des JSON-Objekts.
     }
 
 
-    sofiaLife = await learnSofiaLife(message, reply);
+    sofiaLife = await learnSofiaLife(message, reply, new Date(), mood);
     let spontaneousImageRequest = null;
     if (taskAction?.ok && taskAction.action === "none" && !calendarAction && !image) {
       spontaneousImageRequest = await prepareProactivePortrait(message, sofiaLife, reply);

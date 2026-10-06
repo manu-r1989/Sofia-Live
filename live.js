@@ -103,7 +103,7 @@
           const response = await fetch("/api/live-context", {
             method: "POST", credentials: "same-origin", cache: "no-store",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ message, referenceImageId:window.SofiaImages?.referenceId }), signal: controller.signal
+            body: JSON.stringify({ message, referenceImageId:window.SofiaImages?.referenceId, mood:window.SofiaLifeStatus?.mood }), signal: controller.signal
           });
           if (!response.ok) throw new Error("Live Kontext HTTP " + response.status);
           return await response.json();

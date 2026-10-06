@@ -1,4 +1,4 @@
-import { preparePortrait, getSofiaLife, lifeContext, prepareProactivePortrait, PROACTIVE_PHOTO_ANNOUNCEMENT } from '../lib/character-image.js';
+import { portraitPreparationReply, preparePortrait, getSofiaLife, lifeContext, prepareProactivePortrait, PROACTIVE_PHOTO_ANNOUNCEMENT } from '../lib/character-image.js';
 import crypto from "node:crypto";
 import { executeUnifiedAction, getActionState, getResearchState } from "./action-engine.js";
 
@@ -101,10 +101,10 @@ export default async function handler(req, res) {
   if (!message) return res.status(200).json({ context: "", calendarAction: null });
 
   try {
-    const imageRequest = await preparePortrait(message, req.body?.referenceImageId);
+    const imageRequest = await preparePortrait(message, req.body?.referenceImageId, new Date(), req.body?.mood);
     if (imageRequest) return res.status(200).json({ context:'BILDANFRAGE ANGENOMMEN: Sage auf Deutsch nur „Gib mir einen kleinen Moment.“ Das Bild wird separat erstellt. Noch keinen Erfolg behaupten.', imageRequest, life:await getSofiaLife(), taskAction:{ok:true,action:'none'}, calendarAction:null });
   } catch (error) {
-    return res.status(200).json({ context:'BILDANFRAGE: ' + error.message, taskAction:{ok:true,action:'none'}, calendarAction:null });
+    return res.status(200).json({ context:'BILDANFRAGE: ' + portraitPreparationReply(error), taskAction:{ok:true,action:'none'}, calendarAction:null });
   }
   const now = new Date();
   const hamburgNow = new Intl.DateTimeFormat("sv-SE", {
@@ -114,7 +114,7 @@ export default async function handler(req, res) {
     hour12: false
   }).format(now);
 
-  const sofiaLife = await getSofiaLife(now);
+  const sofiaLife = await getSofiaLife(now, req.body?.mood);
   let taskAction = { ok: true, action: "none" };
   try {
     try {

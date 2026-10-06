@@ -13,10 +13,10 @@ function updateSofiaLocation(life) {
   const node = document.getElementById('sofiaLocation');
   if (!node || typeof life?.location !== 'string' || !life.location.trim()) return;
   // The server supplies the same character state used by Text, Live and photos.
-  node.textContent = life.location.trim().slice(0, 180);
+  node.textContent = (life.statusLabel || life.location).trim().slice(0, 180);
   node.title = typeof life.activity === 'string' ? life.activity.slice(0, 240) : '';
 }
-window.SofiaLifeStatus = { update: updateSofiaLocation };
+window.SofiaLifeStatus = { update: updateSofiaLocation, get mood() { return app?.dataset.mood; } };
 
 const MEMORY_KEY = 'sofia_memory';
 const MAX_STORED_MESSAGES = 100;
@@ -100,6 +100,7 @@ function saveMemory() {
 
 let chatScrollFrame = null;
 let chatPinnedToLatest = true;
+let restoringChat = false;
 
 messages?.addEventListener('scroll', () => {
   chatPinnedToLatest = messages.scrollHeight - messages.clientHeight - messages.scrollTop <= 64;
@@ -110,7 +111,7 @@ messages?.addEventListener('load', event => {
 }, true);
 
 function scrollChatToLatest(behavior = 'auto') {
-  if (!messages) return;
+  if (!messages || restoringChat) return;
   if (chatScrollFrame !== null) cancelAnimationFrame(chatScrollFrame);
   const run = () => messages.scrollTo({ top: messages.scrollHeight, behavior });
   chatScrollFrame = requestAnimationFrame(() => {
@@ -121,6 +122,31 @@ function scrollChatToLatest(behavior = 'auto') {
     });
   });
 }
+
+function captureChatViewport() {
+  if (!messages) return null;
+  const top = messages.getBoundingClientRect().top;
+  const nodes = [...messages.querySelectorAll('.msg')];
+  const anchor = nodes.find(node => node.getBoundingClientRect().bottom > top);
+  return { pinned:chatPinnedToLatest, top:messages.scrollTop, height:messages.scrollHeight,
+    anchor:anchor ? {id:anchor.id, text:anchor.textContent, className:anchor.className,
+      occurrence:nodes.filter(n=>n.className===anchor.className && n.textContent===anchor.textContent).indexOf(anchor),
+      offset:anchor.getBoundingClientRect().top-top} : null };
+}
+
+function restoreChatViewport(snapshot) {
+  if (!messages || !snapshot) return;
+  if (snapshot.pinned) { scrollChatToLatest('auto'); return; }
+  if (chatScrollFrame !== null) cancelAnimationFrame(chatScrollFrame);
+  const anchor = snapshot.anchor;
+  const node = anchor && (anchor.id ? document.getElementById(anchor.id) :
+    [...messages.querySelectorAll('.msg')].filter(n=>n.className===anchor.className && n.textContent===anchor.text)[anchor.occurrence]);
+  messages.scrollTop = node ? messages.scrollTop + node.getBoundingClientRect().top - messages.getBoundingClientRect().top - anchor.offset :
+    Math.max(0, snapshot.top + messages.scrollHeight - snapshot.height);
+  chatPinnedToLatest = false;
+  chatScrollFrame = null;
+}
+window.SofiaChatViewport = { capture:captureChatViewport, restore:restoreChatViewport };
 
 function addMessage(text, who = 'sofia', imageRequestId = null) {
   if (!messages) return;
@@ -329,6 +355,7 @@ window.SofiaTasks = { checkReminders: checkTaskReminders, offerNotifications: ad
 
 let lastServerHistorySignature = '';
 let historySyncTimer = null;
+let historySyncInFlight = false;
 let pendingCalendarAction = null;
 
 function historySignature(history) {
@@ -336,13 +363,15 @@ function historySignature(history) {
 }
 
 async function syncConversationFromServer({ silent = false } = {}) {
-  if (isResponding) return false;
+  if (isResponding || historySyncInFlight) return false;
+  historySyncInFlight = true;
 
   try {
     const response = await fetch('/api/chat', {
       method: 'GET',
       credentials: 'same-origin',
-      cache: 'no-store'
+      cache: 'no-store',
+      signal: typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function' ? AbortSignal.timeout(15000) : undefined
     });
 
     if (response.status === 401) {
@@ -353,6 +382,7 @@ async function syncConversationFromServer({ silent = false } = {}) {
     if (!response.ok) return false;
 
     const data = await response.json();
+    if (isResponding) return false;
     updateSofiaLocation(data.life);
     if (!Array.isArray(data.history)) return false;
 
@@ -370,19 +400,25 @@ async function syncConversationFromServer({ silent = false } = {}) {
     saveMemory();
 
     if (messages) {
+      const viewport = captureChatViewport();
+      restoringChat = true;
+      try {
       messages.innerHTML = '';
       conversationHistory.forEach(item =>
         addMessage(item.content, item.role === 'user' ? 'user' : 'sofia', item.imageRequestId)
       );
       if (pendingCalendarAction) addCalendarDownload(pendingCalendarAction);
       window.SofiaImages?.restore(data.images);
-      scrollChatToLatest('auto');
+      } finally { restoringChat = false; }
+      restoreChatViewport(viewport);
     }
 
     return true;
   } catch (error) {
     if (!silent) console.warn('History sync:', error);
     return false;
+  } finally {
+    historySyncInFlight = false;
   }
 }
 
@@ -558,7 +594,8 @@ async function askSofia(userMessage, imageDataUrl = null) {
           message: userMessage,
           history: historyForAPI,
           image: imageDataUrl,
-          referenceImageId: window.SofiaImages?.referenceId
+          referenceImageId: window.SofiaImages?.referenceId,
+          mood: app?.dataset.mood
         })
       });
 

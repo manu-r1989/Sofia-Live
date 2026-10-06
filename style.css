@@ -800,6 +800,8 @@
 
 
 /* V4.22.3 — full-height desktop chat with persistent tools. */
+.chatHead > div:first-child { min-width:0; flex:1; padding-right:8px; }
+#sofiaLocation { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 @media (orientation:landscape) and (min-width:851px) {
   .chatPanel,
   .chatPanel.minimized,

@@ -63,6 +63,18 @@ test('overlapping generation and completed retry issue only one paid provider re
  assert.equal(results.filter(x=>x.status==='fulfilled').length,1);
  const again=await api.generatePortrait(r.id);assert.equal(again.id,r.id);assert.equal(imageCalls.length,1);
 });
+test('mood affects expressions and photo variants retain earlier life, hair and clothing across dates',async()=>{
+ reset();const now=new Date('2026-10-06T12:00Z');
+ const first=await api.preparePortrait('Selfie',null,now,'ernst');await api.generatePortrait(first.id);
+ assert.match(imageCalls[0].prompt,/Facial expression: calm serious expression, no forced smile/);
+ const original=JSON.parse(db.get(prefix+'image:'+first.id));
+ plan.action='variant';plan.scene='same photograph in warmer light';
+ const second=await api.preparePortrait('Dasselbe Outfit in anderem Licht',first.id,new Date('2026-10-07T12:00Z'),'amüsiert');
+ const job=JSON.parse(db.get(prefix+'request:'+second.id));
+ assert.deepEqual(job.life,original.life);assert.equal(job.mood,'ernst');assert.equal(job.hairstyle,original.hairstyle);
+ assert.equal(job.outfit,original.outfit);await api.generatePortrait(second.id);
+ assert.match(imageCalls[1].prompt,/preserve the earlier expression unless/);
+});
 test('failed or uncertain generation is not replayed and does not publish or change outfit',async()=>{
  reset();const r=await api.preparePortrait('Selfie');failImage=true;
  await assert.rejects(api.generatePortrait(r.id));
@@ -84,7 +96,7 @@ test('image delivery is private JPEG with download attachment and validated IDs'
 });
 test('UI integration loads shared renderer before app and does not alter avatar assets',async()=>{
  const root=new URL('../',import.meta.url);const index=await readFile(new URL('index.html',root),'utf8');
- assert.ok(index.indexOf('sofia-images.js?v=4224s1')<index.indexOf('app.js?v=4224s1'));
+ assert.ok(index.indexOf('sofia-images.js?v=42212s1')<index.indexOf('app.js?v=42212s1'));
  const chat=await readFile(new URL('api/chat.js',root),'utf8');
  assert.ok(chat.indexOf('!safeEqual(')<chat.indexOf('await servePortrait'));
  const ui=await readFile(new URL('sofia-images.js',root),'utf8');assert.match(ui,/dialog.showModal/);assert.match(ui,/download=1/);assert.doesNotMatch(ui,/spinner|generating-status/);
@@ -133,12 +145,14 @@ test('authenticated Text and Live return image jobs even if the planner says non
   const session=crypto.createHmac('sha256','test-only').update('sofia-authorized-session-v1').digest('hex');
   let status,data;
   const res={setHeader(){},status(n){status=n;return this;},json(d){data=d;return d;}};
-  await handler({method:'POST',headers:{cookie:'sofia_session='+session},body:{message:'Sofia, mach bitte ein echtes Selfie von dir.'}},res);
+  await handler({method:'POST',headers:{cookie:'sofia_session='+session},body:{message:'Sofia, mach bitte ein echtes Selfie von dir.',mood:'ernst'}},res);
   assert.equal(status,200);assert.ok(data.imageRequest?.id);
   assert.equal(data.taskAction.action,'none');
   assert.match(data.reply || data.context,/Gib mir einen kleinen Moment/);
   assert.doesNotMatch(data.reply || data.context,/keinen Körper|keine Kamera|Prompt entwerfen/);
   const job=JSON.parse(db.get(prefix+'request:'+data.imageRequest.id));
+  assert.equal(job.mood,'ernst');assert.equal(data.life.mood,'ernst');
+  assert.equal(data.life.statusLabel,api.lifeStatusLabel(data.life.location));
   assert.equal(job.scene,'Sofia, mach bitte ein echtes Selfie von dir.');
   assert.equal(job.caption,'Ein Bild von mir.');
  }

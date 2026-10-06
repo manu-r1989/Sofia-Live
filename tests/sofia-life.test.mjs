@@ -121,3 +121,50 @@ test('image prompts preserve face and master hair color and request ordinary sna
  assert.match(source,/hair COLOR/);assert.match(source,/Small natural variations in facial expression/);
  assert.match(source,/Typical casual PHONE SNAPSHOT/);assert.match(source,/No studio lighting/);
 });
+test('a recent cafe scene survives the time boundary briefly, then yields to the new slot',async()=>{
+ reset();const before=new Date('2026-10-06T11:55Z');const first=await api.getSofiaLife(before);
+ db.set(prefix+'life',JSON.stringify({...first,location:'in einem Café in Hamburg',activity:'Kaffee trinken'}));
+ const transition=await api.getSofiaLife(new Date('2026-10-06T12:05Z'));
+ assert.equal(transition.location,'in einem Café in Hamburg');assert.equal(transition.statusLabel,'in einem Café');
+ assert.equal(transition.transitionUntil,'2026-10-06T12:30:00.000Z');
+ const after=await api.getSofiaLife(new Date('2026-10-06T12:31Z'));
+ assert.notEqual(after.location,transition.location);assert.equal(after.transitionUntil,undefined);
+});
+test('nighttime and date changes always override carried daytime scenes',async()=>{
+ reset();const old=await api.getSofiaLife(new Date('2026-10-06T20:55Z'));
+ db.set(prefix+'life',JSON.stringify({...old,location:'an der Alster'}));
+ assert.match((await api.getSofiaLife(new Date('2026-10-06T21:05Z'))).location,/Bett/);
+ const next=await api.getSofiaLife(new Date('2026-10-07T08:05Z'));
+ assert.match(next.location,/Universität/);assert.equal(next.transitionUntil,undefined);
+});
+test('Text mood and Live-selected mood feed the same photograph context without changing identity',async()=>{
+ reset();const now=new Date('2026-10-06T12:15Z');
+ await api.learnSofiaLife('Danke','Gerne.',now,'amüsiert');
+ const text=await api.preparePortrait('Selfie',null,now);
+ assert.equal(JSON.parse(db.get(prefix+'request:'+text.id)).mood,'amüsiert');
+ const live=await api.preparePortrait('Selfie',null,now,'ernst');
+ assert.equal(JSON.parse(db.get(prefix+'request:'+live.id)).mood,'ernst');
+ assert.match(api.photoExpression('amüsiert'),/smile/);assert.match(api.photoExpression('ernst'),/no forced smile/);
+ assert.equal((await api.getSofiaLife(now,'invalid')).mood,'ernst');
+});
+test('named Hamburg places and labels describe the same authoritative location',()=>{
+ const places=new Set();
+ for(let day=1;day<15;day++){
+  const life=api.defaultSofiaLife(new Date(`2026-10-${String(day).padStart(2,'0')}T13:00Z`));
+  places.add(life.location);assert.equal(life.statusLabel,api.lifeStatusLabel(life.location));
+ }
+ assert.ok(places.has('an der Alster'));assert.ok(places.has('an den Landungsbrücken'));
+ assert.equal(api.portraitPreparationReply(new SyntaxError('raw provider JSON details')),api.PORTRAIT_FAILURE_REPLY);
+ assert.match(api.portraitPreparationReply(new Error('Für diese Variante brauche ich zuerst ein Bild von mir.')),/zuerst/);
+});
+test('a delayed life extraction crossing bedtime cannot restore a stale outdoor scene',async()=>{
+ reset();const now=new Date('2026-10-06T20:59:59Z');
+ const originalClock=Date.now,normal=globalThis.fetch;let elapsed=0;
+ Date.now=()=>100000+elapsed;
+ narrative={location:'an der Alster',activity:'spazieren'};
+ globalThis.fetch=async(e,o)=>{if(String(e).endsWith('/chat/completions'))elapsed=2000;return normal(e,o);};
+ try {
+  const life=await api.learnSofiaLife('Wo bist du gerade?','Ich spaziere an der Alster.',now);
+  assert.match(life.location,/Bett/);assert.ok(life.key.endsWith(':sleep'));
+ } finally {Date.now=originalClock;globalThis.fetch=normal;}
+});

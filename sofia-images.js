@@ -44,11 +44,12 @@
     if (!slot) return;
     const existing=document.getElementById('portrait-' + image.id);
     if (existing && (existing.dataset.portraitStatus !== 'failed' || image.status === 'failed')) return;
+    const viewport=window.SofiaChatViewport?.capture();
     existing?.remove();
     if (image.status === 'failed') {
       const notice=document.createElement('div'); notice.id='portrait-' + image.id;
       notice.className='msg sofia'; notice.dataset.portraitStatus='failed'; notice.textContent=failureReply;
-      slot.append(notice); slot.hidden=false; return;
+      slot.append(notice); slot.hidden=false; window.SofiaChatViewport?.restore(viewport); return;
     }
     const figure = document.createElement('figure');
     figure.className = 'msg sofia'; figure.dataset.portraitStatus='done'; figure.id = 'portrait-' + image.id;
@@ -59,7 +60,8 @@
     const img = document.createElement('img');
     const url = '/api/chat?image=' + image.id;
     img.src = url; img.alt = image.caption || 'Sofia'; img.loading = 'lazy';
-    img.style.cssText = 'display:block;width:180px;max-width:100%;border-radius:12px';
+    img.width=1024; img.height=1536;
+    img.style.cssText = 'display:block;width:180px;height:auto;aspect-ratio:2/3;max-width:100%;border-radius:12px;object-fit:cover';
     button.append(img);
     button.onclick = () => {
       referenceId = image.id;
@@ -74,6 +76,7 @@
       dialog.showModal(); close.focus();
     };
     figure.append(button); slot.append(figure); slot.hidden=false;
+    window.SofiaChatViewport?.restore(viewport);
   }
   window.SofiaImages = {
     anchor,
@@ -96,7 +99,7 @@
       slotFor(request.id); // Reserve the original turn without showing progress UI.
       const job = (async () => {
         try {
-          const response = await fetch('/api/chat',{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json'},body:JSON.stringify({operation:'generate_image',requestId:request.id})});
+          const response = await fetch('/api/chat',{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json'},body:JSON.stringify({operation:'generate_image',requestId:request.id}),signal:typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function' ? AbortSignal.timeout(250000) : undefined});
           const data = await response.json();
           if (!response.ok) throw new Error('portrait_failed');
           show(data.image); referenceId=data.image.id;
