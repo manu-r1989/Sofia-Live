@@ -70,7 +70,11 @@ Antworte ausschließlich als JSON:
 
 export async function executeTaskAction(message, referenceTime, options = {}) {
   let tasks = await loadTasks();
-  const parsed = await interpret(message, tasks, referenceTime, options.recentTaskId || null);
+  const text = String(message || "").trim();
+  const likelyTaskIntent = /\b(aufgabe|aufgaben|to[ -]?do|erledigt|erledigen|abhaken|lösch|löschen|verschieb|verschieben|fällig|priorität|prioritaet|erinner(?:e|ung)|muss\s+ich|ich\s+muss|steht\s+an|offen|überfällig|ueberfaellig|kalender.*aufgabe|aufgabe.*kalender)\b/i.test(text);
+  const likelyFollowUp = Boolean(options.recentTaskId) && /^(mach|verschieb|lösch|streiche|die|das|doch|lieber|erst|schon|erledigt|morgen|heute|übermorgen|uebermorgen)\b/i.test(text);
+  if (!likelyTaskIntent && !likelyFollowUp) return { ok: true, action: "none" };
+  const parsed = await interpret(text, tasks, referenceTime, options.recentTaskId || null);
   const action = String(parsed?.action || "none");
   if (action === "none") return { ok: true, action: "none" };
 
