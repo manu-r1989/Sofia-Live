@@ -2,6 +2,7 @@ import { executeTaskAction } from "./task-action.js";
 
 const STATE_KEY = "sofia:main:action-state";
 const STATE_TTL = 60 * 60 * 24;
+const RESEARCH_KEY = "sofia:main:research-state";
 
 async function redis(command) {
   const response = await fetch(process.env.KV_REST_API_URL, {
@@ -51,6 +52,16 @@ export async function executeUnifiedAction(message, referenceTime, options = {})
   } else if (Array.isArray(state.lastTaskIds)) next.lastTaskIds = state.lastTaskIds;
   await saveState(next);
   return { taskAction: taskResult, state: next };
+}
+
+export async function saveResearchState(items = [], query = "") {
+  const payload = { query: String(query).slice(0,300), items: Array.isArray(items) ? items.slice(0,8) : [], updatedAt: new Date().toISOString() };
+  await redis(["SET", RESEARCH_KEY, JSON.stringify(payload), "EX", String(STATE_TTL)]);
+  return payload;
+}
+
+export async function getResearchState() {
+  try { const raw = await redis(["GET", RESEARCH_KEY]); return raw ? JSON.parse(raw) : null; } catch { return null; }
 }
 
 export async function getActionState() {
