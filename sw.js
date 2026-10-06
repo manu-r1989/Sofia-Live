@@ -2,7 +2,7 @@
    SOFIA V4.3.1 — SERVICE WORKER
    ========================================================= */
 
-const CACHE = "sofia-live-v4192c1";
+const CACHE = "sofia-live-v4192g1";
 
 
 const ASSETS = [
@@ -20,6 +20,10 @@ const ASSETS = [
   "./sofia-avatar.js?v=4192c1",
 
   "./avatar-presence.js?v=4192p1",
+
+  "./avatar-gaze.js?v=4192g1",
+
+  "./avatar/sofia-gaze-left.png?v=4192g1",
 
   /*
     WICHTIG:
