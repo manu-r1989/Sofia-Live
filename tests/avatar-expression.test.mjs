@@ -8,12 +8,12 @@ function harness() {
   const root={dataset:{state:'idle'},appendChild:img=>{root.img=img;},querySelector:()=>blocked?{}:null};
   const host={querySelector:()=>root};
   function createImage(){const ownEvents={};const image={style:{},setAttribute(){},events:ownEvents,addEventListener:(name,fn)=>{ownEvents[name]=fn;if(images[0]===image)events[name]=fn;}};images.push(image);return image;}
-  let observer;
+  let observer, observing=false;
   const document={hidden:false,readyState:'complete',getElementById:id=>id==='sofiaAvatar'?host:null,
     createElement:createImage,addEventListener:(name,fn)=>{handlers[name]=fn;}};
-  class MutationObserver {constructor(fn){observer=fn;}observe(){}}
+  class MutationObserver {constructor(fn){observer=fn;}observe(){observing=true;}disconnect(){observing=false;}}
   vm.runInNewContext(source,{document,clearTimeout:id=>timers.delete(id),window:{setTimeout:fn=>{timers.set(++timerId,fn);return timerId;},addEventListener:(name,fn)=>{page[name]=fn;}},MutationObserver});
-  return {timers,run:()=>{const pending=[...timers.values()];timers.clear();pending.forEach(fn=>fn());},root,img:images[0],thoughtful:images[1],document,handlers,page,events,sync:()=>observer(),block:value=>{blocked=value;observer();}};
+  return {observing:()=>observing,timers,run:()=>{const pending=[...timers.values()];timers.clear();pending.forEach(fn=>fn());},root,img:images[0],thoughtful:images[1],document,handlers,page,events,sync:()=>observer(),block:value=>{blocked=value;observer();}};
 }
 test('friendly overlay waits for asset then appears only while listening',()=>{
   const h=harness();h.root.dataset.state='listening';h.sync();assert.equal(h.img.hidden,true);
@@ -62,4 +62,17 @@ test('repeated DOM changes do not restart settling; background cancels pending e
   const first=[...h.timers.keys()][0];h.sync();h.sync();assert.equal([...h.timers.keys()][0],first);
   h.document.hidden=true;h.handlers.visibilitychange();assert.equal(h.timers.size,0);h.run();assert.equal(h.thoughtful.hidden,true);
   h.document.hidden=false;h.handlers.visibilitychange();assert.equal(h.thoughtful.hidden,true);h.run();assert.equal(h.thoughtful.hidden,false);
+});
+
+test('optional expression observer disconnects in background and reconnects on return',()=>{
+  const h=harness();assert.equal(h.observing(),true);
+  h.document.hidden=true;h.handlers.visibilitychange();assert.equal(h.observing(),false);
+  h.document.hidden=false;h.handlers.visibilitychange();assert.equal(h.observing(),true);
+  h.page.pagehide();assert.equal(h.observing(),false);h.page.pageshow();assert.equal(h.observing(),true);
+});
+
+test('unchanged state does not rewrite mouth visibility',()=>{
+  const h=harness();let writes=0,hidden=h.img.hidden;
+  Object.defineProperty(h.img,'hidden',{get:()=>hidden,set:value=>{hidden=value;writes++;}});
+  h.events.load();h.root.dataset.state='listening';h.sync();const before=writes;h.sync();h.sync();assert.equal(writes,before);
 });

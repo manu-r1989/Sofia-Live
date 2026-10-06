@@ -32,7 +32,8 @@
       if (next && next !== root) { resetThinking(); root = next; root.appendChild(img); root.appendChild(thoughtful); }
       const allowed = next && !document.hidden && !suspended &&
         !next.querySelector('.active[data-frame="wink"], .active[data-frame="small"], .active[data-frame="medium"], .active[data-frame="wide"]');
-      img.hidden = !(allowed && ready && next.dataset.state === "listening");
+      const friendlyHidden = !(allowed && ready && next.dataset.state === "listening");
+      if (img.hidden !== friendlyHidden) img.hidden = friendlyHidden;
       const canThink = allowed && thoughtfulReady && next.dataset.state === "thinking";
       if (!canThink) resetThinking();
       else if (!thinkingSettled && thinkingTimer === null) {
@@ -44,19 +45,24 @@
       }
       // Avoid a brief expression flash on short processing states. Speech and
       // existing mouth/wink frames still remove both overlays immediately.
-      thoughtful.hidden = !(canThink && thinkingSettled);
+      const thoughtfulHidden = !(canThink && thinkingSettled);
+      if (thoughtful.hidden !== thoughtfulHidden) thoughtful.hidden = thoughtfulHidden;
     }
     img.addEventListener("load", () => { ready = true; sync(); });
     img.addEventListener("error", () => { ready = false; sync(); });
     thoughtful.addEventListener("load", () => { thoughtfulReady = true; sync(); });
     thoughtful.addEventListener("error", () => { thoughtfulReady = false; sync(); });
     const observer = new MutationObserver(sync);
-    observer.observe(host, { subtree: true, childList: true, attributes: true, attributeFilter: ["data-state", "class"] });
-    document.addEventListener("visibilitychange", sync);
-    window.addEventListener("pagehide", () => { suspended = true; sync(); });
-    window.addEventListener("pageshow", () => { suspended = false; sync(); });
+    function lifecycle() {
+      observer.disconnect();
+      if (!document.hidden && !suspended) observer.observe(host, { subtree: true, childList: true, attributes: true, attributeFilter: ["data-state", "class"] });
+      sync();
+    }
+    document.addEventListener("visibilitychange", lifecycle);
+    window.addEventListener("pagehide", () => { suspended = true; lifecycle(); });
+    window.addEventListener("pageshow", () => { suspended = false; lifecycle(); });
     // Static expression stays available with reduced motion; no audio access.
-    sync();
+    lifecycle();
     img.src = "./avatar/sofia-friendly-mouth.png?v=4194e1";
     thoughtful.src = "./avatar/sofia-thoughtful-mouth.png?v=4194e2";
   }

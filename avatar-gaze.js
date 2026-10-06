@@ -53,17 +53,21 @@
       if (active && !allowed()) { hide(); schedule(); }
     }
     const observer = new MutationObserver(sync);
-    observer.observe(host, { subtree: true, childList: true, attributes: true, attributeFilter: ["data-state", "class"] });
+
     img.addEventListener("load", () => { ready = true; });
     img.addEventListener("error", () => { ready = false; hide(); });
     right.addEventListener("load", () => { rightReady = true; });
     right.addEventListener("error", () => { rightReady = false; hide(); schedule(); });
-    const lifecycle = () => { hide(); schedule(); };
+    const lifecycle = () => {
+      observer.disconnect();
+      if (!destroyed && !document.hidden) observer.observe(host, { subtree: true, childList: true, attributes: true, attributeFilter: ["data-state", "class"] });
+      hide(); sync(); schedule();
+    };
     document.addEventListener("visibilitychange", lifecycle);
     reduced.addEventListener("change", lifecycle);
-    window.addEventListener("pagehide", () => { destroyed = true; clearTimeout(timer); hide(); });
-    window.addEventListener("pageshow", () => { destroyed = false; sync(); schedule(); });
-    attach(); schedule();
+    window.addEventListener("pagehide", () => { destroyed = true; lifecycle(); });
+    window.addEventListener("pageshow", () => { destroyed = false; lifecycle(); });
+    lifecycle();
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init, { once: true });
   else init();

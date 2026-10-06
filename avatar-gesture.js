@@ -42,12 +42,16 @@
       }
     }
     const observer = new MutationObserver(sync);
-    observer.observe(host, { subtree: true, childList: true, attributes: true, attributeFilter: ["data-state", "class"] });
-    document.addEventListener("visibilitychange", sync);
+    function lifecycle() {
+      observer.disconnect();
+      if (!document.hidden && !suspended) observer.observe(host, { subtree: true, childList: true, attributes: true, attributeFilter: ["data-state", "class"] });
+      sync();
+    }
+    document.addEventListener("visibilitychange", lifecycle);
     reduced.addEventListener("change", sync);
-    window.addEventListener("pagehide", () => { suspended = true; cancel(); });
-    window.addEventListener("pageshow", () => { suspended = false; sync(); });
-    sync();
+    window.addEventListener("pagehide", () => { suspended = true; lifecycle(); });
+    window.addEventListener("pageshow", () => { suspended = false; lifecycle(); });
+    lifecycle();
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init, { once: true });
   else init();

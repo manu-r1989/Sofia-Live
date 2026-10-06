@@ -171,8 +171,8 @@ test('service worker retains offline versioned assets and precaches the actual s
   harness.listeners.install({ waitUntil(value) { installed = value; } }); await installed;
   const paths = harness.cacheCalls.find(call => call.op === 'addAll').paths;
   assert.ok(paths.includes('./app.js?v=41810c1')); assert.ok(paths.includes('./live.js?v=4193fix3'));
-  assert.ok(paths.includes('./avatar-gesture.js?v=4195n1'));
-  assert.ok(paths.includes('./avatar-expression.js?v=4196e1')); assert.ok(paths.includes('./avatar/sofia-friendly-mouth.png?v=4194e1')); assert.ok(paths.includes('./avatar/sofia-thoughtful-mouth.png?v=4194e2'));
+  assert.ok(paths.includes('./avatar-gesture.js?v=4197m1'));
+  assert.ok(paths.includes('./avatar-expression.js?v=4197m1')); assert.ok(paths.includes('./avatar/sofia-friendly-mouth.png?v=4194e1')); assert.ok(paths.includes('./avatar/sofia-thoughtful-mouth.png?v=4194e2'));
   assert.ok(paths.includes('./sofia-avatar.js?v=4192c1')); assert.ok(paths.includes('./avatar-presence.js?v=4193p3'));
 });
 
