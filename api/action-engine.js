@@ -48,6 +48,8 @@ export async function executeUnifiedAction(message, referenceTime, options = {})
     }
   } catch {}
   const taskResult = await executeTaskAction(text, referenceTime, { recentTaskId: state.lastTaskId || null });
+  let suggestion = null;
+  if (taskResult?.action === "create" && taskResult.task?.dueAt) suggestion = { type: "calendar_export", taskId: taskResult.task.id, text: "Soll ich daraus auch einen Kalendereintrag vorbereiten?" };
   const next = {
     updatedAt: new Date().toISOString(),
     lastMode: options.mode || "text",
@@ -60,7 +62,7 @@ export async function executeUnifiedAction(message, referenceTime, options = {})
     next.lastTaskIds = taskResult.tasks.slice(0, 8).map(t => t.id);
   } else if (Array.isArray(state.lastTaskIds)) next.lastTaskIds = state.lastTaskIds;
   await saveState(next);
-  const value = { taskAction: taskResult, state: next };
+  const value = { taskAction: taskResult, state: next, suggestion };
   try {
     await redis(["HSET", IDEMPOTENCY_KEY, fingerprint, JSON.stringify({ createdAt: new Date().toISOString(), value })]);
     await redis(["EXPIRE", IDEMPOTENCY_KEY, "300"]);
