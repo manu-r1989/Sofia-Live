@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { withTaskMutationLock } from "./action-engine.js";
 
 const TASKS_KEY = "sofia:main:tasks";
 const MAX_TASKS = 250;
@@ -19,7 +20,7 @@ function authorized(req) {
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 async function redis(command) {
-  const r = await fetch(process.env.KV_REST_API_URL, { method:"POST", headers:{ Authorization:`Bearer ${process.env.KV_REST_API_TOKEN}`,"Content-Type":"application/json" }, body:JSON.stringify(command) });
+  const r = await fetch(process.env.KV_REST_API_URL, { method:"POST", headers:{ Authorization:`Bearer ${process.env.KV_REST_API_TOKEN}`,"Content-Type":"application/json" }, signal:AbortSignal.timeout(10000), body:JSON.stringify(command) });
   if (!r.ok) throw new Error(`Redis HTTP ${r.status}`);
   const d = await r.json(); if (d.error) throw new Error(d.error); return d.result;
 }
@@ -48,8 +49,8 @@ export default async function handler(req,res) {
   if(!authorized(req))return res.status(401).json({error:"Nicht autorisiert."});
   if(!process.env.KV_REST_API_URL||!process.env.KV_REST_API_TOKEN)return res.status(500).json({error:"Redis-Konfiguration fehlt."});
   try {
-    let tasks=await loadTasks();
     if(req.method==="GET"){
+      const tasks=await loadTasks();
       const status=String(req.query?.status||"open");
       const filtered=(status==="all"?tasks:tasks.filter(t=>t.status===status)).slice().sort((a,b)=>{
         const rank={high:0,normal:1,low:2},pa=rank[a.priority]??1,pb=rank[b.priority]??1;
@@ -60,30 +61,36 @@ export default async function handler(req,res) {
       return res.status(200).json({tasks:filtered});
     }
     if(req.method!=="POST")return res.status(405).json({error:"Method not allowed"});
-    const action=String(req.body?.action||"").trim();
-    if(action==="create"){const task=normalizeTask(req.body?.task);if(!task)return res.status(400).json({error:"Titel fehlt."});tasks.push(task);await saveTasks(tasks);return res.status(200).json({ok:true,task});}
-    const id=String(req.body?.id||"").trim(), index=tasks.findIndex(t=>t.id===id);
-    if(index<0)return res.status(404).json({error:"Aufgabe nicht gefunden."});
-    if(action==="update"){const task=normalizeTask(req.body?.task,tasks[index]);if(!task)return res.status(400).json({error:"Ungültige Aufgabe."});tasks[index]=task;await saveTasks(tasks);return res.status(200).json({ok:true,task});}
-    if(action==="complete"){
-      const recurrence=tasks[index].recurrence;
-      if(recurrence&&tasks[index].dueAt){
-        const next=new Date(tasks[index].dueAt),previousDue=new Date(tasks[index].dueAt),previousReminder=tasks[index].remindAt?new Date(tasks[index].remindAt):null;
-        if(recurrence==="daily")next.setDate(next.getDate()+1);
-        else if(recurrence==="weekly")next.setDate(next.getDate()+7);
-        else if(recurrence==="monthly")next.setMonth(next.getMonth()+1);
-        else next.setTime(NaN);
-        if(!Number.isNaN(next.getTime())){
-          const localStamp=date=>`${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}-${String(date.getDate()).padStart(2,"0")}T${String(date.getHours()).padStart(2,"0")}:${String(date.getMinutes()).padStart(2,"0")}:${String(date.getSeconds()).padStart(2,"0")}`;
-          const nextDue=localStamp(next);
-          const nextReminder=previousReminder&&!Number.isNaN(previousReminder.getTime())?localStamp(new Date(next.getTime()+(previousReminder.getTime()-previousDue.getTime()))):null;
-          tasks[index]=normalizeTask({status:"open",dueAt:nextDue,remindAt:nextReminder},tasks[index]);
-          await saveTasks(tasks);return res.status(200).json({ok:true,recurring:true,task:tasks[index]});
+    return await withTaskMutationLock(async () => {
+      const tasks=await loadTasks();
+      const action=String(req.body?.action||"").trim();
+      if(action==="create"){const task=normalizeTask(req.body?.task);if(!task)return res.status(400).json({error:"Titel fehlt."});tasks.push(task);await saveTasks(tasks);return res.status(200).json({ok:true,task});}
+      const id=String(req.body?.id||"").trim(), index=tasks.findIndex(t=>t.id===id);
+      if(index<0)return res.status(404).json({error:"Aufgabe nicht gefunden."});
+      if(action==="update"){const task=normalizeTask(req.body?.task,tasks[index]);if(!task)return res.status(400).json({error:"Ungültige Aufgabe."});tasks[index]=task;await saveTasks(tasks);return res.status(200).json({ok:true,task});}
+      if(action==="complete"){
+        const recurrence=tasks[index].recurrence;
+        if(recurrence&&tasks[index].dueAt){
+          const next=new Date(tasks[index].dueAt),previousDue=new Date(tasks[index].dueAt),previousReminder=tasks[index].remindAt?new Date(tasks[index].remindAt):null;
+          if(recurrence==="daily")next.setDate(next.getDate()+1);
+          else if(recurrence==="weekly")next.setDate(next.getDate()+7);
+          else if(recurrence==="monthly")next.setMonth(next.getMonth()+1);
+          else next.setTime(NaN);
+          if(!Number.isNaN(next.getTime())){
+            const localStamp=date=>`${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}-${String(date.getDate()).padStart(2,"0")}T${String(date.getHours()).padStart(2,"0")}:${String(date.getMinutes()).padStart(2,"0")}:${String(date.getSeconds()).padStart(2,"0")}`;
+            const nextDue=localStamp(next);
+            const nextReminder=previousReminder&&!Number.isNaN(previousReminder.getTime())?localStamp(new Date(next.getTime()+(previousReminder.getTime()-previousDue.getTime()))):null;
+            tasks[index]=normalizeTask({status:"open",dueAt:nextDue,remindAt:nextReminder},tasks[index]);
+            await saveTasks(tasks);return res.status(200).json({ok:true,recurring:true,task:tasks[index]});
+          }
         }
+        tasks[index]=normalizeTask({status:"completed"},tasks[index]);await saveTasks(tasks);return res.status(200).json({ok:true,task:tasks[index]});
       }
-      tasks[index]=normalizeTask({status:"completed"},tasks[index]);await saveTasks(tasks);return res.status(200).json({ok:true,task:tasks[index]});
-    }
-    if(action==="delete"){const [task]=tasks.splice(index,1);await saveTasks(tasks);return res.status(200).json({ok:true,task});}
-    return res.status(400).json({error:"Unbekannte Aktion."});
-  } catch(error){console.error("Tasks API:",error);return res.status(500).json({error:"Task-Fehler."});}
+      if(action==="delete"){const [task]=tasks.splice(index,1);await saveTasks(tasks);return res.status(200).json({ok:true,task});}
+      return res.status(400).json({error:"Unbekannte Aktion."});
+    });
+  } catch(error){
+    if(error?.code==="ACTION_BUSY")return res.status(409).json({ok:false,status:"in_progress",error:"Eine Aufgabenaktion wird gerade verarbeitet. Bitte warte kurz und prüfe den Aufgabenstand."});
+    console.error("Tasks API:",error);return res.status(500).json({ok:false,status:"execution_failed",error:"Die Aufgabenaktion konnte nicht sicher bestätigt werden. Bitte prüfe den Aufgabenstand vor einem erneuten Versuch."});
+  }
 }

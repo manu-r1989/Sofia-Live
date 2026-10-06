@@ -69,6 +69,28 @@ redis.call("DEL", KEYS[2])
 return 1
 `;
 
+// Direct Tasks API writes must share the same lock as text/live actions.
+const RELEASE_TASK_LOCK = `
+if redis.call("GET", KEYS[1]) ~= ARGV[1] then return 0 end
+return redis.call("DEL", KEYS[1])
+`;
+
+export async function withTaskMutationLock(callback) {
+  const token = crypto.randomUUID();
+  const acquired = await redis(["SET", ACTION_LOCK_KEY, token, "NX", "EX", "180"]);
+  if (acquired !== "OK") {
+    const error = new Error("Eine Aufgabenaktion wird bereits verarbeitet.");
+    error.code = "ACTION_BUSY";
+    throw error;
+  }
+  try {
+    return await callback();
+  } finally {
+    try { await redis(["EVAL", RELEASE_TASK_LOCK, "1", ACTION_LOCK_KEY, token]); }
+    catch { console.warn("Task lock release failed; waiting for lease expiry."); }
+  }
+}
+
 export async function executeUnifiedAction(message, referenceTime, options = {}) {
   const text = String(message || "").trim();
   if (!text) return { taskAction: { ok: true, action: "none" } };

@@ -8,9 +8,9 @@ const root = new URL('../', import.meta.url);
 const moduleUrl = source => `data:text/javascript;base64,${Buffer.from(source).toString('base64')}`;
 const taskUrl = moduleUrl(await readFile(new URL('api/task-action.js', root), 'utf8'));
 const engineUrl = moduleUrl((await readFile(new URL('api/action-engine.js', root), 'utf8')).replace('./task-action.js', taskUrl));
-const { executeUnifiedAction } = await import(engineUrl);
+const { executeUnifiedAction, withTaskMutationLock } = await import(engineUrl);
 const endpoints = {};
-for (const name of ['chat', 'live-context']) {
+for (const name of ['chat', 'live-context', 'tasks']) {
   endpoints[name] = (await import(moduleUrl((await readFile(new URL(`api/${name}.js`, root), 'utf8')).replace('./action-engine.js', engineUrl)))).default;
 }
 const TASKS = 'sofia:main:tasks';
@@ -42,6 +42,7 @@ function redis(command) {
     return db.get(key) ?? null;
   }
   if (op === 'SET') {
+    if (args.includes('NX') && db.has(key)) return null;
     if (key === STATE && stateFailure) throw new Error('state save failed');
     db.set(key, args[0]);
     if (key === TASKS) {
@@ -55,6 +56,11 @@ function redis(command) {
     const keys = args.slice(1, count + 1);
     const argv = args.slice(count + 1);
     const [resultKey, lockKey] = keys;
+    if (count === 1) {
+      if (finishFailure) throw new Error('lock release failed');
+      if (db.get(resultKey) !== argv[0]) return 0;
+      db.delete(resultKey); return 1;
+    }
     if (key.includes('local cached')) {
       const cached = db.get(resultKey);
       if (cached) {
@@ -99,12 +105,12 @@ globalThis.fetch = async (url, options) => {
 };
 
 const run = (message, mode = 'text', referenceTime = '2026-10-06 14:59:59') => executeUnifiedAction(message, referenceTime, { mode });
-async function endpoint(name, message) {
+async function endpoint(name, message, extra = {}) {
   const session = crypto.createHmac('sha256', process.env.SOFIA_PASSWORD).update('sofia-authorized-session-v1').digest('hex');
-  const req = { method: 'POST', body: { message }, headers: { cookie: `sofia_session=${session}`, host: 'sofia.test' } };
+  const req = { method: extra.method || 'POST', body: { message, ...extra.body }, query: extra.query, headers: { cookie: `sofia_session=${session}`, host: 'sofia.test' } };
   const res = { code: 200, setHeader() {}, status(code) { this.code = code; return this; }, json(value) { this.value = value; return this; } };
   await endpoints[name](req, res);
-  assert.equal(res.code, 200);
+  assert.equal(res.code, extra.expectedStatus || 200);
   return res.value;
 }
 
@@ -250,6 +256,54 @@ test('text model receives result after task has actually been persisted', async 
   };
   const result = await endpoint('chat', 'Lege eine Aufgabe TEST text an');
   assert.equal(result.taskAction.ok, true); assert.match(result.reply, /als Aufgabe gespeichert/);
+});
+
+test('Tasks API rejects a concurrent UI write while live action is running', async () => {
+  reset(); parsed = { action: 'create', task: { title: 'TEST live pending' } };
+  let entered, release;
+  const ready = new Promise(resolve => entered = resolve);
+  const gate = new Promise(resolve => release = resolve);
+  classifierHook = async () => { entered(); await gate; };
+  const live = run('Lege eine Aufgabe TEST live pending an', 'live'); await ready;
+  const busy = await endpoint('tasks', '', { body: { action: 'create', task: { title: 'TEST UI' } }, expectedStatus: 409 });
+  assert.equal(busy.ok, false); assert.equal(busy.status, 'in_progress'); assert.equal(writes, 0);
+  release(); await live;
+  await endpoint('tasks', '', { body: { action: 'create', task: { title: 'TEST UI' } } });
+  assert.equal(writes, 2); assert.equal(JSON.parse(db.get(TASKS)).length, 2);
+});
+
+test('text action cannot run while UI owns the shared mutation lock', async () => {
+  reset();
+  let entered, release;
+  const ready = new Promise(resolve => entered = resolve);
+  const gate = new Promise(resolve => release = resolve);
+  const ui = withTaskMutationLock(async () => { entered(); await gate; }); await ready;
+  assert.equal((await run('Lege eine Aufgabe an')).taskAction.status, 'in_progress');
+  assert.equal(classifierCalls, 0); assert.equal(writes, 0);
+  release(); await ui;
+  parsed = { action: 'create', task: { title: 'TEST after UI' } };
+  assert.equal((await run('Lege eine Aufgabe an')).taskAction.ok, true);
+});
+
+test('Tasks API GET remains available during mutation and does not acquire a lock', async () => {
+  reset([fixture('a')], 'a');
+  db.set('sofia:main:action-lock:v2', 'other-owner');
+  const result = await endpoint('tasks', '', { method: 'GET' });
+  assert.equal(result.tasks.length, 1); assert.equal(db.get('sofia:main:action-lock:v2'), 'other-owner');
+});
+
+test('Tasks API validation error releases its lock for a subsequent valid request', async () => {
+  reset();
+  await endpoint('tasks', '', { body: { action: 'create', task: {} }, expectedStatus: 400 });
+  assert.equal(db.has('sofia:main:action-lock:v2'), false);
+  const result = await endpoint('tasks', '', { body: { action: 'create', task: { title: 'TEST valid' } } });
+  assert.equal(result.ok, true); assert.equal(writes, 1);
+});
+
+test('UI lock release cannot delete a newer owner after lease expiry', async () => {
+  reset();
+  await withTaskMutationLock(async () => { db.set('sofia:main:action-lock:v2', 'new-owner'); });
+  assert.equal(db.get('sofia:main:action-lock:v2'), 'new-owner');
 });
 
 test.after(() => {
