@@ -544,24 +544,13 @@
         if (!result?.ok) console.warn("Nativer Live-Kalender:", result?.status || "save_failed");
         return;
       }
-      const start = new Date(action.start);
-      if (Number.isNaN(start.getTime())) return;
-      const end = new Date(start.getTime() + (Number(action.duration_minutes) || 15) * 60000);
-      const pad = n => String(n).padStart(2, "0");
-      const utc = d => d.getUTCFullYear() + pad(d.getUTCMonth()+1) + pad(d.getUTCDate()) + "T" + pad(d.getUTCHours()) + pad(d.getUTCMinutes()) + pad(d.getUTCSeconds()) + "Z";
-      const esc = value => String(value || "").replace(/\\/g, "\\\\").replace(/\n/g, "\\n").replace(/,/g, "\\,").replace(/;/g, "\\;");
-      const alarm = Math.max(0, Number(action.alarm_minutes) || 0);
-      const lines = ["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//Sofia Live//Calendar Reminder//DE","CALSCALE:GREGORIAN","BEGIN:VEVENT","UID:sofia-live-" + Date.now() + "@sofia-live","DTSTAMP:" + utc(new Date()),"DTSTART:" + utc(start),"DTEND:" + utc(end),"SUMMARY:" + esc(action.title),"DESCRIPTION:" + esc(action.notes || ""),"BEGIN:VALARM","TRIGGER:-PT" + alarm + "M","ACTION:DISPLAY","DESCRIPTION:" + esc(action.title),"END:VALARM","END:VEVENT","END:VCALENDAR"];
-      const blob = new Blob([lines.join("\\r\\n")], { type: "text/calendar;charset=utf-8" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = "sofia-erinnerung.ics";
-      link.style.display = "none";
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 10000);
+
+      if (typeof window.SofiaCalendarDownload === "function") {
+        window.SofiaCalendarDownload(action);
+        return;
+      }
+
+      console.warn("Live Kalender-Erinnerung: Web-Kalenderlink nicht verfügbar.");
     } catch (error) {
       console.warn("Live Kalender-Erinnerung:", error);
     }
