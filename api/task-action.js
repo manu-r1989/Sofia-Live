@@ -50,14 +50,14 @@ async function interpret(message, tasks, referenceTime) {
     body: JSON.stringify({
       model: "gpt-5.6",
       instructions: `Du bist ein strikter Task-Action-Parser. Erkenne nur Aufgabenverwaltung, nicht bloße Gesprächsinhalte.
-Erlaubte Aktionen: none, create, update, complete, delete, list.
+Erlaubte Aktionen: none, create, update, complete, delete, list, calendar_export.
 create nur bei klarer Absicht, etwas als Aufgabe oder To-do festzuhalten, oder bei einer klar formulierten eigenen Verpflichtung wie "Ich muss Freitag X erledigen".
 complete, delete und update nur wenn eine bestehende Aufgabe eindeutig gemeint ist; verwende deren exakte id.
-list bei Fragen nach Aufgaben oder danach, was ansteht.
-Reine Kalender- oder Erinnerungswünsche sind none, weil sie separat verarbeitet werden.
+list bei Fragen nach Aufgaben oder danach, was ansteht.\ncalendar_export wenn eine bestehende Aufgabe ausdrücklich in den Kalender übernommen werden soll; verwende deren exakte id.
+Reine neue Kalender- oder Erinnerungswünsche ohne Bezug auf eine bestehende Aufgabe sind none, weil sie separat verarbeitet werden.
 Relative Zeiten anhand der Referenzzeit Europe/Berlin auflösen.
 Antworte ausschließlich als JSON:
-{"action":"none|create|update|complete|delete|list","id":null,"task":{"title":"","dueAt":null,"remindAt":null,"priority":"normal","notes":"","recurrence":null},"status":"open"}`,
+{"action":"none|create|update|complete|delete|list|calendar_export","id":null,"task":{"title":"","dueAt":null,"remindAt":null,"priority":"normal","notes":"","recurrence":null},"status":"open"}`,
       input: `Referenzzeit: ${referenceTime}\nNutzer: ${message}\n\nAufgaben:\n${catalog}`,
       max_output_tokens: 260
     })
@@ -75,7 +75,17 @@ export async function executeTaskAction(message, referenceTime) {
   if (action === "none") return { ok: true, action: "none" };
 
   if (action === "list") {
-    const result = parsed?.status === "all" ? tasks : tasks.filter(t => t.status === "open");
+    const result = (parsed?.status === "all" ? tasks : tasks.filter(t => t.status === "open"))
+      .slice()
+      .sort((a, b) => {
+        const priority = { high: 0, normal: 1, low: 2 };
+        const pa = priority[a.priority] ?? 1, pb = priority[b.priority] ?? 1;
+        if (pa !== pb) return pa - pb;
+        if (a.dueAt && b.dueAt) return String(a.dueAt).localeCompare(String(b.dueAt));
+        if (a.dueAt) return -1;
+        if (b.dueAt) return 1;
+        return String(a.createdAt || "").localeCompare(String(b.createdAt || ""));
+      });
     return { ok: true, action, tasks: result };
   }
 
@@ -105,7 +115,38 @@ export async function executeTaskAction(message, referenceTime) {
   const index = tasks.findIndex(t => t.id === id);
   if (index < 0) return { ok: false, action, status: "ambiguous" };
 
+  if (action === "calendar_export") {
+    const task = tasks[index];
+    if (!task.dueAt) return { ok: false, action, status: "missing_due_at", task };
+    return {
+      ok: true,
+      action,
+      task,
+      calendarAction: {
+        title: task.title,
+        start: task.dueAt,
+        duration_minutes: 15,
+        alarm_minutes: 0,
+        notes: task.notes || ""
+      }
+    };
+  }
+
   if (action === "complete") {
+    const recurrence = tasks[index].recurrence;
+    if (recurrence && tasks[index].dueAt) {
+      const next = new Date(tasks[index].dueAt);
+      if (recurrence === "daily") next.setDate(next.getDate() + 1);
+      else if (recurrence === "weekly") next.setDate(next.getDate() + 7);
+      else if (recurrence === "monthly") next.setMonth(next.getMonth() + 1);
+      else next.setTime(NaN);
+      if (!Number.isNaN(next.getTime())) {
+        const nextDue = next.toISOString().slice(0, 19);
+        tasks[index] = { ...tasks[index], dueAt: nextDue, remindAt: tasks[index].remindAt ? nextDue : null, updatedAt: now, completedAt: null, status: "open" };
+        await saveTasks(tasks);
+        return { ok: true, action: "complete_recurring", task: tasks[index], nextDueAt: nextDue };
+      }
+    }
     tasks[index] = { ...tasks[index], status: "completed", completedAt: now, updatedAt: now };
   } else if (action === "delete") {
     const [task] = tasks.splice(index, 1);
