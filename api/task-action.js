@@ -53,11 +53,11 @@ async function interpret(message, tasks, referenceTime) {
 Erlaubte Aktionen: none, create, update, complete, delete, list, calendar_export.
 create bei klarer Aufgabenabsicht, einer klaren eigenen Verpflichtung oder einer ausdrücklichen Erinnerung. Bei Erinnerungen setze remindAt und, falls keine andere Fälligkeit genannt ist, dueAt auf den Erinnerungszeitpunkt.
 complete, delete und update nur wenn eine bestehende Aufgabe eindeutig gemeint ist; verwende deren exakte id.
-list bei Fragen nach Aufgaben oder danach, was ansteht.\ncalendar_export wenn eine bestehende Aufgabe ausdrücklich in den Kalender übernommen werden soll; verwende deren exakte id.
+list bei Fragen nach Aufgaben oder danach, was ansteht. Setze scope passend: today für heute, week für diese/nächsten 7 Tage, overdue für überfällige Aufgaben, sonst all.\ncalendar_export wenn eine bestehende Aufgabe ausdrücklich in den Kalender übernommen werden soll; verwende deren exakte id.
 Explizite neue Kalendereinträge ohne Aufgabenabsicht sind none, weil sie separat verarbeitet werden.
 Relative Zeiten anhand der Referenzzeit Europe/Berlin auflösen. recurrence nur als null, "daily", "weekly" oder "monthly" ausgeben.
 Antworte ausschließlich als JSON:
-{"action":"none|create|update|complete|delete|list|calendar_export","id":null,"task":{"title":"","dueAt":null,"remindAt":null,"priority":"normal","notes":"","recurrence":null},"status":"open"}`,
+{"action":"none|create|update|complete|delete|list|calendar_export","id":null,"task":{"title":"","dueAt":null,"remindAt":null,"priority":"normal","notes":"","recurrence":null},"status":"open","scope":"all|today|week|overdue"}`,
       input: `Referenzzeit: ${referenceTime}\nNutzer: ${message}\n\nAufgaben:\n${catalog}`,
       max_output_tokens: 260
     })
@@ -75,9 +75,19 @@ export async function executeTaskAction(message, referenceTime) {
   if (action === "none") return { ok: true, action: "none" };
 
   if (action === "list") {
-    const result = (parsed?.status === "all" ? tasks : tasks.filter(t => t.status === "open"))
-      .slice()
-      .sort((a, b) => {
+    let result = (parsed?.status === "all" ? tasks : tasks.filter(t => t.status === "open")).slice();
+    const scope = ["today","week","overdue"].includes(parsed?.scope) ? parsed.scope : "all";
+    const ref = String(referenceTime || "").replace(" ", "T").slice(0, 19);
+    const today = ref.slice(0, 10);
+    if (scope === "today") result = result.filter(t => String(t.dueAt || "").slice(0, 10) === today);
+    if (scope === "overdue") result = result.filter(t => t.dueAt && String(t.dueAt) < ref);
+    if (scope === "week") {
+      const end = new Date(ref);
+      end.setDate(end.getDate() + 7);
+      const endText = end.toISOString().slice(0, 19);
+      result = result.filter(t => t.dueAt && String(t.dueAt) >= ref && String(t.dueAt) <= endText);
+    }
+    result = result.sort((a, b) => {
         const priority = { high: 0, normal: 1, low: 2 };
         const pa = priority[a.priority] ?? 1, pb = priority[b.priority] ?? 1;
         if (pa !== pb) return pa - pb;
@@ -86,7 +96,7 @@ export async function executeTaskAction(message, referenceTime) {
         if (b.dueAt) return 1;
         return String(a.createdAt || "").localeCompare(String(b.createdAt || ""));
       });
-    return { ok: true, action, tasks: result };
+    return { ok: true, action, scope, tasks: result };
   }
 
   const now = new Date().toISOString();
