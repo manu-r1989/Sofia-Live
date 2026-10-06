@@ -120,6 +120,7 @@ function addMessage(text, who = 'sofia') {
 
 function addCalendarDownload(action) {
   if (!messages || !action || typeof action !== 'object') return;
+  pendingCalendarAction = action;
 
   const start = new Date(action.start);
   if (Number.isNaN(start.getTime())) return;
@@ -148,6 +149,7 @@ function addCalendarDownload(action) {
 
 let lastServerHistorySignature = '';
 let historySyncTimer = null;
+let pendingCalendarAction = null;
 
 function historySignature(history) {
   return JSON.stringify(history);
@@ -191,6 +193,7 @@ async function syncConversationFromServer({ silent = false } = {}) {
       conversationHistory.forEach(item =>
         addMessage(item.content, item.role === 'user' ? 'user' : 'sofia')
       );
+      if (pendingCalendarAction) addCalendarDownload(pendingCalendarAction);
       scrollChatToLatest('auto');
     }
 
