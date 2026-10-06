@@ -3,6 +3,7 @@ import { executeTaskAction } from "./task-action.js";
 const STATE_KEY = "sofia:main:action-state";
 const STATE_TTL = 60 * 60 * 24;
 const RESEARCH_KEY = "sofia:main:research-state";
+const IDEMPOTENCY_KEY = "sofia:main:action-idempotency";
 
 async function redis(command) {
   const response = await fetch(process.env.KV_REST_API_URL, {
@@ -38,6 +39,14 @@ function summarize(result) {
 export async function executeUnifiedAction(message, referenceTime, options = {}) {
   const state = await loadState();
   const text = String(message || "").trim();
+  const fingerprint = `${options.mode || "text"}|${text.toLocaleLowerCase("de-DE")}|${String(referenceTime || "").slice(0, 16)}`;
+  try {
+    const cachedRaw = await redis(["HGET", IDEMPOTENCY_KEY, fingerprint]);
+    if (cachedRaw) {
+      const cached = JSON.parse(cachedRaw);
+      if (cached?.createdAt && Date.now() - Date.parse(cached.createdAt) < 90000) return cached.value;
+    }
+  } catch {}
   const taskResult = await executeTaskAction(text, referenceTime, { recentTaskId: state.lastTaskId || null });
   const next = {
     updatedAt: new Date().toISOString(),
@@ -51,7 +60,12 @@ export async function executeUnifiedAction(message, referenceTime, options = {})
     next.lastTaskIds = taskResult.tasks.slice(0, 8).map(t => t.id);
   } else if (Array.isArray(state.lastTaskIds)) next.lastTaskIds = state.lastTaskIds;
   await saveState(next);
-  return { taskAction: taskResult, state: next };
+  const value = { taskAction: taskResult, state: next };
+  try {
+    await redis(["HSET", IDEMPOTENCY_KEY, fingerprint, JSON.stringify({ createdAt: new Date().toISOString(), value })]);
+    await redis(["EXPIRE", IDEMPOTENCY_KEY, "300"]);
+  } catch {}
+  return value;
 }
 
 export async function saveResearchState(items = [], query = "") {
