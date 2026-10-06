@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { executeUnifiedAction } from "./action-engine.js";
+import { executeUnifiedAction, getActionState, getResearchState } from "./action-engine.js";
 
 const MEMORY_KEY = "sofia:main:longterm";
 const TASKS_KEY = "sofia:main:tasks";
@@ -94,9 +94,11 @@ export default async function handler(req, res) {
       console.warn("Live task action:", taskError?.message || taskError);
     }
 
-    const [raw, rawTasks] = await Promise.all([
+    const [raw, rawTasks, actionState, researchState] = await Promise.all([
       redisGet(MEMORY_KEY, []),
-      redisGet(TASKS_KEY, [])
+      redisGet(TASKS_KEY, []),
+      getActionState(),
+      getResearchState()
     ]);
     const memories = Array.isArray(raw) ? raw.filter(x => textOf(x)).slice(-80) : [];
     const catalog = memories.map((m, i) => `${i}: [${m?.category || "Sonstiges"}] ${textOf(m)}`).join("\n");
@@ -217,8 +219,13 @@ export default async function handler(req, res) {
       return "";
     })();
 
+    const continuityContext = actionState?.lastActionSummary ? `LETZTE AKTION: ${actionState.lastActionSummary}` : "";
+    const researchContext = researchState?.items?.length ? `KURZFRISTIGER RECHERCHEKONTEXT: ${JSON.stringify(researchState).slice(0, 3500)}` : "";
+
     const context = [
       taskActionContext,
+      continuityContext,
+      researchContext,
       memoryContext ? `Relevante Erinnerungen:\n${memoryContext}` : "",
       taskContext ? `Offene Aufgaben aus der Task Engine:\n${taskContext}` : "",
       webContext ? `Aktuelle externe Informationen:\n${webContext}` : ""
