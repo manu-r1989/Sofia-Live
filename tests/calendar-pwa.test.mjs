@@ -7,6 +7,7 @@ const root = new URL('../', import.meta.url);
 const app = await readFile(new URL('app.js', root), 'utf8');
 const calendarSource = app.slice(app.indexOf('function calendarStartDate('), app.indexOf('window.SofiaCalendarDownload ='));
 const workerSource = await readFile(new URL('sw.js', root), 'utf8');
+const currentCache = workerSource.match(/const CACHE = "([^"]+)"/)[1];
 const reminderSource = app.slice(app.indexOf("const TASK_NOTICE_KEY ="), app.indexOf('function startTaskReminderChecks('));
 const deviceZones = ['UTC', 'Europe/Berlin', 'America/New_York', 'Asia/Tokyo'];
 
@@ -122,7 +123,7 @@ function workerHarness({ offline = false } = {}) {
   const caches = {
     async open(name) { cacheCalls.push({ op: 'open', name }); return cache; },
     async match(key) { cacheCalls.push({ op: 'match', key: typeof key === 'string' ? key : key.url }); return stored.get(typeof key === 'string' ? key : key.url); },
-    async keys() { return ['sofia-live-v4129', 'sofia-live-v41810c1']; },
+    async keys() { return ['sofia-live-v4129', 'sofia-live-v41810c1', currentCache]; },
     async delete(key) { cacheCalls.push({ op: 'delete', key }); return true; }
   };
   const context = vm.createContext({
@@ -170,11 +171,13 @@ test('service worker retains offline versioned assets and precaches the actual s
   harness.listeners.install({ waitUntil(value) { installed = value; } }); await installed;
   const paths = harness.cacheCalls.find(call => call.op === 'addAll').paths;
   assert.ok(paths.includes('./app.js?v=41810c1')); assert.ok(paths.includes('./live.js?v=41810'));
+  assert.ok(paths.includes('./sofia-avatar.js?v=470')); assert.ok(paths.includes('./avatar-presence.js?v=4191p1'));
 });
 
 test('service worker removes its old cache during activation', async () => {
   const harness = workerHarness(); let activated;
   harness.listeners.activate({ waitUntil(value) { activated = value; } }); await activated;
   assert.ok(harness.cacheCalls.some(call => call.op === 'delete' && call.key === 'sofia-live-v4129'));
-  assert.ok(!harness.cacheCalls.some(call => call.op === 'delete' && call.key === 'sofia-live-v41810c1'));
+  assert.ok(harness.cacheCalls.some(call => call.op === 'delete' && call.key === 'sofia-live-v41810c1'));
+  assert.ok(!harness.cacheCalls.some(call => call.op === 'delete' && call.key === currentCache));
 });
