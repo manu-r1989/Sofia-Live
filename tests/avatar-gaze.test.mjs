@@ -8,11 +8,13 @@ function setup() {
   const root={dataset:{state:'idle'}, blocked:false, appendChild(img){this.img=img;},querySelector(){return this.blocked?{}:null;}};
   const host={querySelector(){return root;}};
   const img={style:{},setAttribute(){},addEventListener(name,fn){imageEvents[name]=fn;}};
+  const rightEvents={}, right={style:{},setAttribute(){},addEventListener(name,fn){rightEvents[name]=fn;}};
+  let created=0;
   const media={matches:false,addEventListener(name,fn){mediaEvents[name]=fn;}};
-  const document={readyState:'complete',hidden:false,getElementById(name){return name==='sofiaAvatar'?host:null;},createElement(){return img;},addEventListener(name,fn){events[name]=fn;}};
+  const document={readyState:'complete',hidden:false,getElementById(name){return name==='sofiaAvatar'?host:null;},createElement(){return created++===0?img:right;},addEventListener(name,fn){events[name]=fn;}};
   vm.runInNewContext(source,{document,window:{matchMedia(){return media;},addEventListener(name,fn){page[name]=fn;}},MutationObserver:class{constructor(fn){callback=fn;}observe(){}},setTimeout(fn,ms){timers.set(++id,{fn,ms});return id;},clearTimeout(key){timers.delete(key);},Math});
   const next=()=>{const [key,value]=timers.entries().next().value;timers.delete(key);value.fn();return value.ms;};
-  return {root,img,media,document,events,mediaEvents,page,imageEvents,timers,next,sync:()=>callback()};
+  return {root,img,right,rightEvents,media,document,events,mediaEvents,page,imageEvents,timers,next,sync:()=>callback()};
 }
 test('glance waits for loaded asset and briefly shows only at rest',()=>{
  const h=setup();h.next();assert.equal(h.img.hidden,true);h.imageEvents.load();
@@ -30,4 +32,14 @@ test('background, reduced motion and page lifecycle cancel the optional glance',
 });
 test('image failure leaves existing portrait visible without an overlay',()=>{
  const h=setup();h.imageEvents.load();h.next();h.imageEvents.error();assert.equal(h.img.hidden,true);h.next();assert.equal(h.img.hidden,true);
+});
+test('loaded left and right glances alternate without simultaneous eye overlays',()=>{
+ const h=setup();h.imageEvents.load();h.rightEvents.load();
+ h.next();assert.equal(h.img.hidden,false);assert.equal(h.right.hidden,true);
+ h.next();h.next();assert.equal(h.img.hidden,true);assert.equal(h.right.hidden,false);
+ h.root.dataset.state='speaking';h.sync();assert.equal(h.img.hidden,true);assert.equal(h.right.hidden,true);
+});
+test('failed right asset preserves left glance fallback',()=>{
+ const h=setup();h.imageEvents.load();h.rightEvents.load();h.next();h.next();h.next();
+ h.rightEvents.error();assert.equal(h.right.hidden,true);h.next();assert.equal(h.img.hidden,false);
 });

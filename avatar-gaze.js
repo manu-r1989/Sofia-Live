@@ -14,24 +14,36 @@
     img.style.opacity = "1";
     img.style.pointerEvents = "none";
     img.hidden = true;
+    const right = document.createElement("img");
+    right.id = "sofia-gaze-right-overlay";
+    right.className = img.className;
+    right.alt = "";
+    right.setAttribute("aria-hidden", "true");
+    right.src = "./avatar/sofia-gaze-right.png?v=4192g2";
+    right.style.opacity = "1";
+    right.style.pointerEvents = "none";
+    right.hidden = true;
+    let rightReady = false, useRight = false;
     // The same root and object-fit rules keep the source coordinates aligned.
     let root, ready = false, active = false, timer = null, destroyed = false;
     function attach() {
       const next = host.querySelector(".sofia-avatar-v435");
-      if (next && next !== root) { root = next; root.appendChild(img); }
+      if (next && next !== root) { root = next; root.appendChild(img); root.appendChild(right); }
     }
     function allowed() {
       return ready && root && !document.hidden && !reduced.matches &&
         ["idle", "listening"].includes(root.dataset.state) &&
         !root.querySelector('.active[data-frame="blink"], .active[data-frame="wink"], .active[data-frame="small"], .active[data-frame="medium"], .active[data-frame="wide"]');
     }
-    function hide() { active = false; img.hidden = true; }
+    function hide() { active = false; img.hidden = true; right.hidden = true; }
     function schedule() {
       clearTimeout(timer);
       if (destroyed || document.hidden || reduced.matches) return;
       timer = setTimeout(() => {
         if (allowed()) {
-          active = true; img.hidden = false;
+          active = true;
+          (useRight && rightReady ? right : img).hidden = false;
+          useRight = !useRight;
           timer = setTimeout(() => { hide(); schedule(); }, 850);
         } else schedule();
       }, 18000 + Math.random() * 12000);
@@ -44,6 +56,8 @@
     observer.observe(host, { subtree: true, childList: true, attributes: true, attributeFilter: ["data-state", "class"] });
     img.addEventListener("load", () => { ready = true; });
     img.addEventListener("error", () => { ready = false; hide(); });
+    right.addEventListener("load", () => { rightReady = true; });
+    right.addEventListener("error", () => { rightReady = false; hide(); schedule(); });
     const lifecycle = () => { hide(); schedule(); };
     document.addEventListener("visibilitychange", lifecycle);
     reduced.addEventListener("change", lifecycle);
