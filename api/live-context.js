@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { executeTaskAction } from "./task-action.js";
 
 const MEMORY_KEY = "sofia:main:longterm";
 const TASKS_KEY = "sofia:main:tasks";
@@ -86,6 +87,13 @@ export default async function handler(req, res) {
   }).format(now);
 
   try {
+    let taskAction = { ok: true, action: "none" };
+    try {
+      taskAction = await executeTaskAction(message, hamburgNow);
+    } catch (taskError) {
+      console.warn("Live task action:", taskError?.message || taskError);
+    }
+
     const [raw, rawTasks] = await Promise.all([
       redisGet(MEMORY_KEY, []),
       redisGet(TASKS_KEY, [])
@@ -196,7 +204,7 @@ export default async function handler(req, res) {
       taskContext ? `Offene Aufgaben aus der Task Engine:\n${taskContext}` : "",
       webContext ? `Aktuelle externe Informationen:\n${webContext}` : ""
     ].filter(Boolean).join("\n\n");
-    return res.status(200).json({ context, calendarAction });
+    return res.status(200).json({ context, calendarAction, taskAction });
   } catch (error) {
     console.error("Live context:", error);
     return res.status(200).json({ context: "", calendarAction: null });
