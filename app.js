@@ -118,12 +118,56 @@ function addMessage(text, who = 'sofia') {
   scrollChatToLatest('smooth');
 }
 
+// API calendar timestamps without an offset are Europe/Berlin wall time.
+// Resolve them explicitly; never inherit the device's local time zone.
+function calendarStartDate(value) {
+  const text = String(value || '').trim();
+  const match = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})(?::(\d{2}))?(Z|[+-]\d{2}:\d{2})?$/.exec(text);
+  if (!match) throw new Error('Der Kalendertermin enthält kein gültiges Datum mit Uhrzeit.');
+  const wallTime = match[1] + 'T' + match[2] + ':' + (match[3] || '00');
+  const wallUtc = Date.parse(wallTime + 'Z');
+  if (!Number.isFinite(wallUtc) || new Date(wallUtc).toISOString().slice(0, 19) !== wallTime) {
+    throw new Error('Der Kalendertermin enthält ein ungültiges Datum oder eine ungültige Uhrzeit.');
+  }
+  if (match[4]) {
+    const explicit = new Date(wallTime + match[4]);
+    if (Number.isNaN(explicit.getTime())) throw new Error('Die Zeitzone des Kalendertermins ist ungültig.');
+    return explicit;
+  }
+  const formatter = new Intl.DateTimeFormat('sv-SE', {
+    timeZone: 'Europe/Berlin', year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23'
+  });
+  const berlinWallUtc = timestamp => {
+    const parts = Object.fromEntries(formatter.formatToParts(new Date(timestamp)).map(part => [part.type, part.value]));
+    return Date.parse(parts.year + '-' + parts.month + '-' + parts.day + 'T' + parts.hour + ':' + parts.minute + ':' + parts.second + 'Z');
+  };
+  // Sample both sides of a possible DST transition, then verify candidates.
+  const offsets = new Set([-86400000, 0, 86400000].map(delta => {
+    const sample = wallUtc + delta;
+    return berlinWallUtc(sample) - sample;
+  }));
+  const candidates = [...offsets].map(offset => wallUtc - offset)
+    .filter(timestamp => berlinWallUtc(timestamp) === wallUtc);
+  if (!candidates.length) {
+    throw new Error('Diese Uhrzeit existiert in Europe/Berlin wegen der Zeitumstellung nicht. Bitte wähle eine andere Uhrzeit.');
+  }
+  if (candidates.length > 1) {
+    throw new Error('Diese Uhrzeit kommt in Europe/Berlin wegen der Zeitumstellung zweimal vor. Bitte wähle eine eindeutige Uhrzeit.');
+  }
+  return new Date(candidates[0]);
+}
+
 function addCalendarDownload(action) {
   if (!messages || !action || typeof action !== 'object') return;
+  let start;
+  try { start = calendarStartDate(action.start); }
+  catch (error) {
+    pendingCalendarAction = null;
+    addMessage(error.message);
+    return;
+  }
   pendingCalendarAction = action;
-
-  const start = new Date(action.start);
-  if (Number.isNaN(start.getTime())) return;
 
   const end = new Date(start.getTime() + (Number(action.duration_minutes) || 15) * 60000);
   const pad = n => String(n).padStart(2, '0');
@@ -168,8 +212,8 @@ function saveTaskNoticeMap(value) {
 
 function taskLocalDate(value) {
   if (!value) return null;
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date;
+  try { return calendarStartDate(value); }
+  catch { return null; }
 }
 
 async function enableTaskNotifications() {
@@ -211,7 +255,7 @@ async function checkTaskReminders({ startup = false } = {}) {
     });
 
     if (startup && !taskStartupBriefShown) {
-      const today = new Date().toLocaleDateString('sv-SE');
+      const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Berlin' });
       const todayTasks = tasks.filter(task => String(task.dueAt || '').slice(0, 10) === today);
       if (due.length || todayTasks.length) {
         taskStartupBriefShown = true;

@@ -2,7 +2,7 @@
    SOFIA V4.3.1 — SERVICE WORKER
    ========================================================= */
 
-const CACHE = "sofia-live-v4129";
+const CACHE = "sofia-live-v41810c1";
 
 
 const ASSETS = [
@@ -13,9 +13,9 @@ const ASSETS = [
 
   "./style.css",
 
-  "./app.js",
+  "./app.js?v=41810c1",
 
-  "./live.js",
+  "./live.js?v=41810",
 
   "./sofia-avatar.js",
 
@@ -163,13 +163,19 @@ self.addEventListener(
     }
 
 
+    // Authenticated API responses must never be served from the PWA cache.
+    if (new URL(event.request.url).pathname.startsWith("/api/")) {
+      return;
+    }
+
+    // Refresh the document online so it can reference the current asset version.
+    const cachedLookup = event.request.mode === "navigate"
+      ? Promise.resolve(undefined)
+      : caches.match(event.request);
+
     event.respondWith(
 
-      caches
-        .match(
-          event.request
-        )
-
+      cachedLookup
         .then(
           (cachedResponse) => {
 
@@ -249,9 +255,9 @@ self.addEventListener(
                     "navigate"
                   ) {
 
-                    return caches.match(
-                      "./index.html"
-                    );
+                    return caches.match(event.request).then(
+                      cached => cached || caches.match("./index.html")
+                    ).then(cached => cached || Response.error());
 
                   }
 
