@@ -34,6 +34,40 @@ function textOf(x) {
   return typeof x === "string" ? x.trim() : String(x?.text || "").trim();
 }
 
+async function extractLiveCalendarAction(message, referenceTime) {
+  if (!/(erinner|kalender|termin|eintrag|trag\s+.*\s+ein)/i.test(message)) return null;
+  try {
+    const r = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "gpt-5.6",
+        instructions: `Extrahiere eine ausdrücklich gewünschte Kalender-Erinnerung. Nutze die angegebene Referenzzeit in Europe/Berlin für relative Datumsangaben. Wenn Datum oder Uhrzeit fehlt, gib {"calendar_action":null} zurück. Sonst ausschließlich JSON: {"calendar_action":{"title":"kurzer Titel","start":"YYYY-MM-DDTHH:MM:SS","duration_minutes":15,"alarm_minutes":0,"notes":""}}.`,
+        input: `Referenzzeit Europe/Berlin: ${referenceTime}\nNutzer: ${message}`,
+        max_output_tokens: 180
+      })
+    });
+    if (!r.ok) return null;
+    const d = await r.json();
+    const out = d.output?.flatMap(x => x.content || []).find(x => x.type === "output_text")?.text || "";
+    const action = JSON.parse(out)?.calendar_action;
+    if (!action || typeof action !== "object") return null;
+    const title = typeof action.title === "string" ? action.title.trim().slice(0, 160) : "";
+    const start = String(action.start || "").trim();
+    if (!title || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?$/.test(start)) return null;
+    return {
+      title,
+      start,
+      duration_minutes: Number.isFinite(Number(action.duration_minutes)) ? Math.min(1440, Math.max(5, Math.round(Number(action.duration_minutes)))) : 15,
+      alarm_minutes: Number.isFinite(Number(action.alarm_minutes)) ? Math.min(10080, Math.max(0, Math.round(Number(action.alarm_minutes)))) : 0,
+      notes: typeof action.notes === "string" ? action.notes.trim().slice(0, 500) : ""
+    };
+  } catch (error) {
+    console.warn("Live calendar fallback:", error?.message || error);
+    return null;
+  }
+}
+
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
@@ -87,6 +121,10 @@ export default async function handler(req, res) {
       }
     } catch (error) {
       console.warn("Live calendar context:", error?.message || error);
+    }
+
+    if (!calendarAction) {
+      calendarAction = await extractLiveCalendarAction(message, hamburgNow);
     }
 
     // V4.16.2 Live: retrieve current web information for the exact spoken turn.
