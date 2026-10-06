@@ -1607,7 +1607,7 @@ Kein Markdown außerhalb des JSON-Objekts.
     ];
 
 
-    const reply =
+    let reply =
       typeof parsed.reply === "string" &&
       parsed.reply.trim()
 
@@ -1652,6 +1652,23 @@ Kein Markdown außerhalb des JSON-Objekts.
       taskAction = await executeTaskAction(message.trim(), hamburgNow);
     } catch (taskError) {
       console.warn("Task action:", taskError?.message || taskError);
+    }
+
+    if (taskAction?.ok && taskAction.action === "create" && taskAction.task?.title) {
+      reply = `Hab ich als Aufgabe gespeichert: „${taskAction.task.title}“.`;
+    } else if (taskAction?.ok && taskAction.action === "complete" && taskAction.task?.title) {
+      reply = `Erledigt: „${taskAction.task.title}“.`;
+    } else if (taskAction?.ok && taskAction.action === "delete" && taskAction.task?.title) {
+      reply = `„${taskAction.task.title}“ habe ich aus den Aufgaben gelöscht.`;
+    } else if (taskAction?.ok && taskAction.action === "update" && taskAction.task?.title) {
+      reply = `Aufgabe aktualisiert: „${taskAction.task.title}“.`;
+    } else if (taskAction?.ok && taskAction.action === "list") {
+      const openTasks = Array.isArray(taskAction.tasks) ? taskAction.tasks : [];
+      reply = openTasks.length
+        ? `Offen sind: ${openTasks.slice(0, 8).map(task => task.title).join("; ")}.`
+        : "Du hast aktuell keine offenen Aufgaben.";
+    } else if (taskAction?.ok === false && taskAction.status === "ambiguous") {
+      reply = "Welche Aufgabe genau meinst du?";
     }
 
     const validMemoryActions = [
