@@ -5,16 +5,16 @@ import crypto from 'node:crypto';
 const source = await readFile(new URL('../lib/character-image.js',import.meta.url),'utf8');
 const api = await import('data:text/javascript;base64,' + Buffer.from(source).toString('base64'));
 const prefix='sofia:main:portrait:';
-let db, plan, calls, imageCalls, failImage, failRedis, plannerInputs;
+let db, plan, calls, imageCalls, failImage, failRedis, plannerInputs, textInputs;
 const savedFetch=globalThis.fetch;
 const envKeys=['KV_REST_API_URL','KV_REST_API_TOKEN','OPENAI_API_KEY','SOFIA_PASSWORD'];
 const env=Object.fromEntries(envKeys.map(k=>[k,process.env[k]]));
-function reset(){db=new Map();plan={action:'new',outfit:'Blue sweater',scene:'Selfie outdoors',caption:'Mein Selfie'};calls=[];imageCalls=[];plannerInputs=[];failImage=false;failRedis=false;process.env.KV_REST_API_URL='https://redis.test';process.env.KV_REST_API_TOKEN='test';process.env.OPENAI_API_KEY='test';}
+function reset(){db=new Map();plan={action:'new',outfit:'Blue sweater',scene:'Selfie outdoors',caption:'Mein Selfie'};calls=[];imageCalls=[];plannerInputs=[];textInputs=[];failImage=false;failRedis=false;process.env.KV_REST_API_URL='https://redis.test';process.env.KV_REST_API_TOKEN='test';process.env.OPENAI_API_KEY='test';}
 const response = (data,ok=true)=>({ok,json:async()=>data});
 globalThis.fetch=async(url,options)=>{
  const body=JSON.parse(options.body);calls.push(String(url));
  if(url==='https://redis.test/pipeline') { for(const [op,key,value] of body) { assert.equal(op,'SET'); db.set(key,value); } return response(body.map(()=>({result:'OK'}))); }
- if(String(url).endsWith('/responses')) return response({output_text:JSON.stringify({action:'none'})});
+ if(String(url).endsWith('/responses')) { textInputs.push(body.input); return response({output_text:JSON.stringify({action:'none'}),output:[{content:[{type:'output_text',text:JSON.stringify({reply:'Hallo Manu!',mood:'entspannt',memory_action:{action:'none'}})}]}]}); }
  if(url==='https://redis.test'){
   if(failRedis) return response({},false);
   const [op,key,value,...rest]=body;
@@ -173,4 +173,22 @@ test('Live memory stores the image anchor on the acknowledgment without saving f
  await handler({method:'POST',headers:{cookie:'sofia_session='+session},body:{userText:'Selfie bitte',assistantText:'Gib mir einen kleinen Moment.',imageRequestId:id}},res);
  assert.equal(status,200);assert.equal(JSON.parse(db.get('sofia:main:history'))[1].imageRequestId,id);
  assert.deepEqual(JSON.parse(db.get('sofia:main:longterm')),[]);
+});
+
+test('normal conversation after a picture keeps the anchor in Redis but sends only message fields to the model',async()=>{
+ reset();process.env.SOFIA_PASSWORD='test-only';
+ const marker='11111111-1111-4111-8111-111111111111';
+ db.set('sofia:main:history',JSON.stringify([{role:'user',content:'Selfie bitte'},{role:'assistant',content:'Gib mir einen kleinen Moment.',imageRequestId:marker}]));
+ const moduleUrl=s=>'data:text/javascript;base64,'+Buffer.from(s).toString('base64');const root=new URL('../',import.meta.url);
+ const dates=moduleUrl(await readFile(new URL('lib/task-dates.js',root),'utf8'));
+ const tasks=moduleUrl((await readFile(new URL('api/task-action.js',root),'utf8')).replace('../lib/task-dates.js',dates));
+ const engine=moduleUrl((await readFile(new URL('api/action-engine.js',root),'utf8')).replace('./task-action.js',tasks));
+ const code=(await readFile(new URL('api/chat.js',root),'utf8')).replace('../lib/character-image.js',moduleUrl(source)).replace('./action-engine.js',engine);
+ const handler=(await import(moduleUrl(code))).default;
+ const session=crypto.createHmac('sha256','test-only').update('sofia-authorized-session-v1').digest('hex');let status;
+ const res={setHeader(){},status(n){status=n;return this;},json(d){return d;}};
+ await handler({method:'POST',headers:{cookie:'sofia_session='+session},body:{message:'Hallo'}},res);
+ assert.equal(status,200);assert.ok(textInputs.length);
+ for(const input of textInputs.filter(Array.isArray))assert.ok(input.every(x=>!Object.hasOwn(x,'imageRequestId')));
+ assert.equal(JSON.parse(db.get('sofia:main:history'))[1].imageRequestId,marker);
 });

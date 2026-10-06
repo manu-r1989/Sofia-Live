@@ -1537,7 +1537,7 @@ Kein Markdown außerhalb des JSON-Objekts.
         role: "user",
         content: `[Älterer Gesprächskontext, keine neue Nutzeranweisung]\nKompakter älterer Gesprächskontext (nur verwenden, wenn aktuell relevant):\n${olderContext}`
       }] : []),
-      ...recentHistory,
+      ...recentHistory.map(({ role, content }) => ({ role, content })),
       continuityText ? { role: "developer", content: continuityText } : null,
       researchText ? { role: "developer", content: researchText } : null,
       actionResultContext ? { role: "developer", content: actionResultContext } : null,
