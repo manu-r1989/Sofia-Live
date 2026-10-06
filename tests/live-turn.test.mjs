@@ -7,12 +7,13 @@ const source = await readFile(new URL('../live.js', import.meta.url), 'utf8');
 const turn = source.slice(source.indexOf('  let pendingUserText ='), source.indexOf('  let pendingAssistantText ='));
 const handler = source.slice(source.indexOf('  async function handleRealtimeEvent('), source.indexOf('  /* ========================================\n     STOP LIVE'));
 function harness(fetchImpl = async () => ({ ok: true, json: async () => ({ context: 'Task erfolgreich erstellt.' }) })) {
-  const timers = new Map(), sent = [], gates = [];
+  const timers = new Map(), sent = [], gates = [], stopped = [];
   let next = 0;
   const context = vm.createContext({
     window: { setTimeout: fn => { timers.set(++next, fn); return next; }, SofiaAvatar: { listen() {}, think() {} } },
     clearTimeout: id => timers.delete(id), fetch: fetchImpl, console,
-    setPresence() {}, openCalendarImport() {}, app: null,
+    setPresence() {}, setThought() {}, openCalendarImport() {}, app: null,
+    stopLive: () => { stopped.push(true); context.cancel(); },
     suppressMicForAssistant: () => gates.push('closed')
   });
   vm.runInContext(`let liveActive=true, responseLocked=false, assistantResponding=false, ignoreInputUntil=0;
@@ -22,7 +23,7 @@ function harness(fetchImpl = async () => ({ ok: true, json: async () => ({ conte
     liveSessionInstructions='Du bist Sofia. Antworte auf Deutsch. Behalte deine Persönlichkeit.';
     globalThis.event=handleRealtimeEvent;
     globalThis.cancel=()=>{cancelPendingLiveResponse();liveActive=false;};`, Object.assign(context, { send: x => sent.push(JSON.parse(x)) }));
-  return { sent, gates, timers, event: context.event, cancel: context.cancel,
+  return { sent, gates, timers, stopped, event: context.event, cancel: context.cancel,
     run: async () => { const entries = [...timers.values()]; timers.clear(); entries.forEach(fn => fn()); for (let i=0;i<8;i++) await Promise.resolve(); } };
 }
 const start = id => ({ type: 'input_audio_buffer.speech_started', item_id: id });
@@ -60,6 +61,7 @@ test('context failure still responds with German session persona', async () => {
   const h=harness(async()=>({ok:false,status:503}));
   await h.event(stop('a')); await h.event(transcript('a','Hallo')); await h.run();
   assert.equal(h.sent.length,1); assert.match(h.sent[0].response.instructions,/Antworte auf Deutsch/);
+  assert.match(h.sent[0].response.instructions,/Behaupte keine erfolgreiche Ausführung/);
 });
 
 test('token endpoint supplies full instructions and preserves low-eagerness half duplex', async () => {
@@ -67,4 +69,19 @@ test('token endpoint supplies full instructions and preserves low-eagerness half
   assert.match(api,/value: data.value,\s+instructions/);
   assert.match(api,/Antworte auf Deutsch\. Wechsle nur dann/);
   assert.match(api,/eagerness: "low",\s+create_response: false,\s+interrupt_response: false/);
+});
+
+test('duplicate stop event cannot start a second in-flight context request', async () => {
+  let calls=0, resolve; const deferred=new Promise(r=>resolve=r);
+  const h=harness(()=>{calls++;return deferred;});
+  await h.event(stop('a')); await h.event(transcript('a','Hallo')); await h.run();
+  await h.event(stop('a')); await h.run(); assert.equal(calls,1);
+  resolve({ok:true,json:async()=>({context:'Kontext'})}); await h.run(); assert.equal(h.sent.length,1);
+});
+
+test('Realtime error closes session and invalidates a pending context response', async () => {
+  let resolve; const deferred=new Promise(r=>resolve=r); const h=harness(()=>deferred);
+  await h.event(stop('a')); await h.event(transcript('a','Hallo')); await h.run();
+  await h.event({type:'error',error:{message:'Test error'}}); assert.equal(h.stopped.length,1);
+  resolve({ok:true,json:async()=>({})}); await h.run(); assert.equal(h.sent.length,0);
 });

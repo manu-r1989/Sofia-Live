@@ -64,6 +64,7 @@
   let liveSessionInstructions = "";
   let userSpeaking = false;
   let userTurnRevision = 0;
+  let userContextRequestRevision = -1;
   let userTurnTimer = null;
   let latestSpeechItemId = null;
   const transcribedSpeechItems = new Set();
@@ -89,9 +90,11 @@
   async function createLiveTurnResponse(revision) {
     const current = () => liveActive && revision === userTurnRevision && !userSpeaking &&
       !responseLocked && !assistantResponding && dataChannel?.readyState === "open";
-    if (!current()) return;
+    if (!current() || userContextRequestRevision === revision) return;
+    userContextRequestRevision = revision;
     const message = pendingUserText.trim();
     let contextData = {};
+    let contextFailed = false;
     try {
       const contextResponse = await fetch("/api/live-context", {
         method: "POST", credentials: "same-origin", cache: "no-store",
@@ -101,6 +104,7 @@
       if (!contextResponse.ok) throw new Error("Live Kontext HTTP " + contextResponse.status);
       contextData = await contextResponse.json();
     } catch (error) {
+      contextFailed = true;
       console.warn("Live Kontext:", error);
     }
     // A resumed utterance or stopped session invalidates this response, even
@@ -115,7 +119,9 @@
     const turnContext = typeof contextData.context === "string" ? contextData.context.trim() : "";
     // response.instructions replaces session.instructions. Preserve the full
     // persona and German language rules when adding per-turn action results.
-    const instructions = liveSessionInstructions + (turnContext
+    const instructions = liveSessionInstructions + (contextFailed
+      ? "\n\nDie Action-/Kontextabfrage ist fehlgeschlagen. Der Status von Task- oder Kalenderaktionen ist unbekannt. Behaupte keine erfolgreiche Ausführung und biete keinen Kalenderimport als vorbereitet an. Weise bei einer Aktionsanfrage knapp auf die fehlende Bestätigung hin. Antworte auf Deutsch."
+      : "") + (turnContext
       ? "\n\nZusätzlicher Kontext nur für diesen Redezug:\n" + turnContext +
         "\nNutze ihn nur, wenn er die aktuelle Frage unterstützt. Antworte auf Deutsch."
       : "");
@@ -126,6 +132,8 @@
       setPresence("thinking", "denkt nach…");
     } catch (error) {
       console.warn("Live Antwort:", error);
+      stopLive(false);
+      setThought("Die Live-Verbindung wurde beendet. Bitte Live neu starten.");
     }
   }
 
@@ -1600,20 +1608,10 @@
         );
 
 
-        setThought(
-          event?.error?.message ||
-          "Live Voice hat einen Fehler gemeldet."
-        );
-
-
-        setPresence(
-          "error",
-          "Verbindung gestört"
-        );
-
-
-        window.SofiaAvatar
-          ?.idle();
+        // Close the failed session instead of reopening the mic while remote
+        // audio may still be buffered. A new Live session starts cleanly.
+        stopLive(false);
+        setThought("Die Live-Verbindung wurde nach einem Fehler beendet. Bitte Live neu starten.");
 
 
         break;
