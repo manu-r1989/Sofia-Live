@@ -68,14 +68,16 @@ export default async function handler(req,res) {
     if(action==="complete"){
       const recurrence=tasks[index].recurrence;
       if(recurrence&&tasks[index].dueAt){
-        const next=new Date(tasks[index].dueAt);
+        const next=new Date(tasks[index].dueAt),previousDue=new Date(tasks[index].dueAt),previousReminder=tasks[index].remindAt?new Date(tasks[index].remindAt):null;
         if(recurrence==="daily")next.setDate(next.getDate()+1);
         else if(recurrence==="weekly")next.setDate(next.getDate()+7);
         else if(recurrence==="monthly")next.setMonth(next.getMonth()+1);
         else next.setTime(NaN);
         if(!Number.isNaN(next.getTime())){
-          const nextDue=next.toISOString().slice(0,19);
-          tasks[index]=normalizeTask({status:"open",dueAt:nextDue,remindAt:tasks[index].remindAt?nextDue:null},tasks[index]);
+          const localStamp=date=>`${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}-${String(date.getDate()).padStart(2,"0")}T${String(date.getHours()).padStart(2,"0")}:${String(date.getMinutes()).padStart(2,"0")}:${String(date.getSeconds()).padStart(2,"0")}`;
+          const nextDue=localStamp(next);
+          const nextReminder=previousReminder&&!Number.isNaN(previousReminder.getTime())?localStamp(new Date(next.getTime()+(previousReminder.getTime()-previousDue.getTime()))):null;
+          tasks[index]=normalizeTask({status:"open",dueAt:nextDue,remindAt:nextReminder},tasks[index]);
           await saveTasks(tasks);return res.status(200).json({ok:true,recurring:true,task:tasks[index]});
         }
       }
