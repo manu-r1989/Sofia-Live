@@ -4,12 +4,12 @@
 
   const VERSION = "4.6.1";
   const ASSETS = {
-    neutral: "./sofia-avatar.PNG",
-    blink: "./avatar/sofia-blink-closed.png",
-    small: "./avatar/sofia-mouth-small.png",
-    medium: "./avatar/sofia-mouth-medium.png",
-    wide: "./avatar/sofia-mouth-wide.png",
-    wink: "./avatar/sofia-local-wink.png"
+    neutral: "./sofia-avatar.PNG?v=4192c1",
+    blink: "./avatar/sofia-blink-closed.png?v=4192c1",
+    small: "./avatar/sofia-mouth-small.png?v=4192c1",
+    medium: "./avatar/sofia-mouth-medium.png?v=4192c1",
+    wide: "./avatar/sofia-mouth-wide.png?v=4192c1",
+    wink: "./avatar/sofia-local-wink.png?v=4192c1"
   };
 
   const CONFIG = {

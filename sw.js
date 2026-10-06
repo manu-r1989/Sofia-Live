@@ -2,7 +2,7 @@
    SOFIA V4.3.1 — SERVICE WORKER
    ========================================================= */
 
-const CACHE = "sofia-live-v4192p1";
+const CACHE = "sofia-live-v4192c1";
 
 
 const ASSETS = [
@@ -17,7 +17,7 @@ const ASSETS = [
 
   "./live.js?v=41810",
 
-  "./sofia-avatar.js?v=470",
+  "./sofia-avatar.js?v=4192c1",
 
   "./avatar-presence.js?v=4192p1",
 
@@ -25,19 +25,21 @@ const ASSETS = [
     WICHTIG:
     Master-Datei heißt exakt .PNG
   */
-  "./sofia-avatar.PNG",
+  "./sofia-avatar.PNG?v=4192c1",
 
 
   /*
     V4.3 Avatar States
   */
-  "./avatar/sofia-blink-closed.png",
+  "./avatar/sofia-blink-closed.png?v=4192c1",
 
-  "./avatar/sofia-mouth-small.png",
+  "./avatar/sofia-mouth-small.png?v=4192c1",
 
-  "./avatar/sofia-mouth-medium.png",
+  "./avatar/sofia-mouth-medium.png?v=4192c1",
 
-  "./avatar/sofia-mouth-wide.png",
+  "./avatar/sofia-mouth-wide.png?v=4192c1",
+
+  "./avatar/sofia-local-wink.png?v=4192c1",
 
 
   /*
