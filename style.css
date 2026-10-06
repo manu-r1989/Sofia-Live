@@ -797,3 +797,33 @@
   cursor: pointer;
 }
 .taskNotificationOptIn button:disabled { opacity: .65; cursor: default; }
+
+
+/* V4.22.3 — full-height desktop chat with persistent tools. */
+@media (orientation:landscape) and (min-width:851px) {
+  .chatPanel,
+  .chatPanel.minimized,
+  .chatPanel.chat-full {
+    top:84px!important;
+    bottom:max(18px,env(safe-area-inset-bottom))!important;
+    height:auto!important;
+    min-height:0!important;
+    max-height:none!important;
+  }
+  .chatPanel .messages { min-height:0; }
+  .actions,
+  .app.tools-closed .actions {
+    top:max(18px,env(safe-area-inset-top))!important;
+    bottom:auto!important;
+    height:58px!important;
+    opacity:1!important;
+    visibility:visible!important;
+    pointer-events:auto!important;
+    transform:none!important;
+  }
+  #toolsToggle { display:none!important; }
+  .moodPanel {
+    top:84px!important;
+    bottom:auto!important;
+  }
+}
