@@ -1477,6 +1477,18 @@ Kein Markdown außerhalb des JSON-Objekts.
           .join("\n")
       : "";
 
+    let taskAction = { ok: true, action: "none" };
+    try {
+      const unifiedAction = await executeUnifiedAction(message.trim(), hamburgNow, { mode: "text" });
+      taskAction = unifiedAction.taskAction;
+    } catch (taskError) {
+      console.warn("Task action:", taskError?.message || taskError);
+    }
+
+    const actionResultContext = taskAction?.action && taskAction.action !== "none"
+      ? `Bereits ausgeführte Aktion dieses Turns: ${JSON.stringify(taskAction).slice(0, 3500)}. Formuliere die Antwort passend zum tatsächlichen Ergebnis. Behaupte keinen Erfolg, wenn ok nicht true ist.`
+      : "";
+
     const input = [
       ...(olderContext ? [{
         role: "user",
@@ -1485,6 +1497,7 @@ Kein Markdown außerhalb des JSON-Objekts.
       ...recentHistory,
       continuityText ? { role: "developer", content: continuityText } : null,
       researchText ? { role: "developer", content: researchText } : null,
+      actionResultContext ? { role: "developer", content: actionResultContext } : null,
       {
         role: "user",
         content: userContent
@@ -1659,14 +1672,6 @@ Kein Markdown außerhalb des JSON-Objekts.
 
     if (!calendarAction) {
       calendarAction = await extractCalendarActionFallback(message, hamburgNow);
-    }
-
-    let taskAction = { ok: true, action: "none" };
-    try {
-      const unifiedAction = await executeUnifiedAction(message.trim(), hamburgNow, { mode: "text" });
-      taskAction = unifiedAction.taskAction;
-    } catch (taskError) {
-      console.warn("Task action:", taskError?.message || taskError);
     }
 
     if (taskAction?.calendarAction) {
