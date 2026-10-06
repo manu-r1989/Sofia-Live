@@ -1663,7 +1663,7 @@ Kein Markdown außerhalb des JSON-Objekts.
 
     let taskAction = { ok: true, action: "none" };
     try {
-      taskAction = (await executeUnifiedAction(message.trim(), hamburgNow, { mode: "text" })).taskAction;
+      const unifiedAction = await executeUnifiedAction(message.trim(), hamburgNow, { mode: "text" });\n      taskAction = unifiedAction.taskAction;
     } catch (taskError) {
       console.warn("Task action:", taskError?.message || taskError);
     }
