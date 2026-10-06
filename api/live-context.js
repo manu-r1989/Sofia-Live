@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 
 const MEMORY_KEY = "sofia:main:longterm";
+const TASKS_KEY = "sofia:main:tasks";
 
 function cookie(req, name) {
   for (const part of String(req.headers.cookie || "").split(";")) {
@@ -85,9 +86,17 @@ export default async function handler(req, res) {
   }).format(now);
 
   try {
-    const raw = await redisGet(MEMORY_KEY, []);
+    const [raw, rawTasks] = await Promise.all([
+      redisGet(MEMORY_KEY, []),
+      redisGet(TASKS_KEY, [])
+    ]);
     const memories = Array.isArray(raw) ? raw.filter(x => textOf(x)).slice(-80) : [];
     const catalog = memories.map((m, i) => `${i}: [${m?.category || "Sonstiges"}] ${textOf(m)}`).join("\n");
+    const taskContext = Array.isArray(rawTasks)
+      ? rawTasks.filter(task => task?.status === "open").slice(-30).map(task =>
+          `- [${task.id}] ${task.title}${task.dueAt ? ` | fällig: ${task.dueAt}` : ""}${task.priority && task.priority !== "normal" ? ` | Priorität: ${task.priority}` : ""}`
+        ).join("\n")
+      : "";
 
     // V4.16.3 Live: classify explicit spoken reminder requests without
     // changing the Realtime audio pipeline. The browser performs the final
@@ -184,6 +193,7 @@ export default async function handler(req, res) {
     }
     const context = [
       memoryContext ? `Relevante Erinnerungen:\n${memoryContext}` : "",
+      taskContext ? `Offene Aufgaben aus der Task Engine:\n${taskContext}` : "",
       webContext ? `Aktuelle externe Informationen:\n${webContext}` : ""
     ].filter(Boolean).join("\n\n");
     return res.status(200).json({ context, calendarAction });
