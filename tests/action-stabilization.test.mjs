@@ -17,6 +17,7 @@ const TASKS = 'sofia:main:tasks';
 const STATE = 'sofia:main:action-state';
 const fixture = id => ({ id, title: `TEST ${id}`, status: 'open', dueAt: '2026-10-07T09:00:00', remindAt: '2026-10-07T08:30:00', priority: 'high', notes: 'keep me', recurrence: 'daily', createdAt: '2026-10-01T00:00:00Z' });
 let db, writes, classifierCalls, parsed, classifierFailure, malformed, stateFailure, writeUncertain, finishFailure, modelHook, classifierHook, memoryFailure;
+let calendarCalls, calendarOutput;
 const savedFetch = globalThis.fetch;
 const envNames = ['SOFIA_PASSWORD', 'OPENAI_API_KEY', 'KV_REST_API_URL', 'KV_REST_API_TOKEN'];
 const savedEnv = Object.fromEntries(envNames.map(key => [key, process.env[key]]));
@@ -27,6 +28,7 @@ function reset(tasks = [], recentTaskId = null) {
   parsed = { action: 'none' };
   classifierFailure = malformed = stateFailure = writeUncertain = finishFailure = memoryFailure = false;
   modelHook = classifierHook = null;
+  calendarCalls = 0; calendarOutput = null;
   process.env.SOFIA_PASSWORD = 'local-test-password';
   process.env.OPENAI_API_KEY = 'local-test-key';
   process.env.KV_REST_API_URL = 'https://redis.test';
@@ -96,6 +98,9 @@ globalThis.fetch = async (url, options) => {
     if (classifierHook) await classifierHook(body);
     if (classifierFailure) return { ok: false, status: 503, json: async () => ({}) };
     output = malformed ? 'not JSON' : JSON.stringify(parsed);
+  } else if (body.instructions.includes('Kalender-Erinnerung') || body.instructions.includes('Kalendereintrag')) {
+    calendarCalls++;
+    output = JSON.stringify({ calendar_action: calendarOutput });
   } else if (Array.isArray(body.input)) {
     if (modelHook) modelHook(body);
     output = JSON.stringify({ reply: 'I falsely claim success', mood: 'entspannt', calendar_action: null, memory_action: { action: 'none' } });
@@ -304,6 +309,40 @@ test('UI lock release cannot delete a newer owner after lease expiry', async () 
   reset();
   await withTaskMutationLock(async () => { db.set('sofia:main:action-lock:v2', 'new-owner'); });
   assert.equal(db.get('sofia:main:action-lock:v2'), 'new-owner');
+});
+
+test('ordinary live conversation does not run a calendar classifier', async () => {
+  reset();
+  const result = await endpoint('live-context', 'Hallo Sofia');
+  assert.equal(result.calendarAction, null); assert.equal(calendarCalls, 0);
+});
+
+test('explicit live calendar request is classified once and returned', async () => {
+  reset();
+  calendarOutput = { title: 'TEST Termin', start: '2026-10-07T09:00:00', duration_minutes: 15, alarm_minutes: 0, notes: '' };
+  const result = await endpoint('live-context', 'Kalendertermin morgen um neun');
+  assert.deepEqual(result.calendarAction, calendarOutput); assert.equal(calendarCalls, 1);
+});
+
+test('confirmed task calendar export needs no calendar classifier', async () => {
+  reset([fixture('a')], 'a'); parsed = { action: 'calendar_export', id: 'a' };
+  const result = await endpoint('live-context', 'Die in den Kalender');
+  assert.equal(result.calendarAction.start, fixture('a').dueAt); assert.equal(calendarCalls, 0);
+});
+
+test('failed live reminder action never offers an independent calendar import', async () => {
+  reset(); classifierFailure = true;
+  calendarOutput = { title: 'TEST Reminder', start: '2026-10-07T09:00:00' };
+  const result = await endpoint('live-context', 'Erinnere mich morgen um neun');
+  assert.equal(result.taskAction.ok, false); assert.equal(result.calendarAction, null);
+  assert.equal(calendarCalls, 0); assert.match(result.context, /unbestätigt/);
+});
+
+test('task without a due date asks for clarification without calendar fallback', async () => {
+  reset([{ ...fixture('a'), dueAt: null }], 'a'); parsed = { action: 'calendar_export', id: 'a' };
+  const result = await endpoint('live-context', 'Die in den Kalender');
+  assert.equal(result.taskAction.status, 'missing_due_at'); assert.equal(result.calendarAction, null);
+  assert.equal(calendarCalls, 0); assert.match(result.context, /Datum und Uhrzeit/);
 });
 
 test.after(() => {

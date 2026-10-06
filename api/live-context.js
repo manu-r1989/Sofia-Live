@@ -42,6 +42,7 @@ async function extractLiveCalendarAction(message, referenceTime) {
     const r = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
       headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, "Content-Type": "application/json" },
+      signal: AbortSignal.timeout(15000),
       body: JSON.stringify({
         model: "gpt-5.6",
         instructions: `Extrahiere eine ausdrücklich gewünschte Kalender-Erinnerung. Nutze die angegebene Referenzzeit in Europe/Berlin für relative Datumsangaben. Wenn Datum oder Uhrzeit fehlt, gib {"calendar_action":null} zurück. Sonst ausschließlich JSON: {"calendar_action":{"title":"kurzer Titel","start":"YYYY-MM-DDTHH:MM:SS","duration_minutes":15,"alarm_minutes":0,"notes":""}}.`,
@@ -132,38 +133,11 @@ export default async function handler(req, res) {
     // V4.16.3 Live: classify explicit spoken reminder requests without
     // changing the Realtime audio pipeline. The browser performs the final
     // iPhone calendar import after the spoken turn.
-    let calendarAction = null;
-    try {
-      const calendarResponse = await fetch("https://api.openai.com/v1/responses", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "gpt-5.6",
-          instructions: "Erkenne nur ausdrückliche Wünsche nach einer Erinnerung oder einem Kalendereintrag. Antworte ausschließlich als JSON. Ohne solchen Wunsch: {\\\"calendar_action\\\":null}. Bei eindeutigem Zeitpunkt: {\\\"calendar_action\\\":{\\\"title\\\":\\\"kurzer Titel\\\",\\\"start\\\":\\\"YYYY-MM-DDTHH:MM:SS\\\",\\\"duration_minutes\\\":15,\\\"alarm_minutes\\\":0,\\\"notes\\\":\\\"\\\"}}. Wenn Datum oder Uhrzeit wesentlich unklar ist, calendar_action null. Löse relative Zeitangaben ausschließlich anhand der mitgelieferten Referenzzeit auf. Nutze lokale Europe/Berlin-Zeit ohne Zeitzonen-Suffix.",
-          input: `Referenzzeit Europe/Berlin: ${hamburgNow}\nNutzer: ${message}`,
-          max_output_tokens: 180
-        })
-      });
-      if (calendarResponse.ok) {
-        const calendarData = await calendarResponse.json();
-        const calendarText = calendarData.output?.flatMap(x => x.content || []).find(x => x.type === "output_text")?.text || "";
-        const parsedCalendar = JSON.parse(calendarText);
-        const action = parsedCalendar?.calendar_action;
-        if (action && typeof action === "object" && typeof action.title === "string" && /^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(?::\\d{2})?$/.test(String(action.start || ""))) {
-          calendarAction = {
-            title: action.title.trim().slice(0, 160),
-            start: String(action.start),
-            duration_minutes: Number.isFinite(Number(action.duration_minutes)) ? Math.min(1440, Math.max(5, Math.round(Number(action.duration_minutes)))) : 15,
-            alarm_minutes: Number.isFinite(Number(action.alarm_minutes)) ? Math.min(10080, Math.max(0, Math.round(Number(action.alarm_minutes)))) : 0,
-            notes: typeof action.notes === "string" ? action.notes.trim().slice(0, 500) : ""
-          };
-        }
-      }
-    } catch (error) {
-      console.warn("Live calendar context:", error?.message || error);
-    }
-
-    if (!calendarAction) {
+    // Reuse confirmed Task→Calendar exports; classify explicit standalone
+    // requests once. Failed or unresolved task actions must not fall through
+    // into an unrelated calendar request.
+    let calendarAction = taskAction?.ok === true ? taskAction.calendarAction || null : null;
+    if (taskAction?.ok === true && !calendarAction) {
       calendarAction = await extractLiveCalendarAction(message, hamburgNow);
     }
 
