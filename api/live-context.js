@@ -203,6 +203,7 @@ export default async function handler(req, res) {
       if (!taskAction) return "";
       if (taskAction.ok === false && taskAction.status === "ambiguous") return "TASK-AKTION: Die gewünschte Aufgabe war nicht eindeutig. Frage kurz, welche Aufgabe gemeint ist.";
       if (taskAction.action === "create" && taskAction.task?.title) return `TASK-AKTION ERFOLGREICH: Aufgabe „${taskAction.task.title}“ wurde gespeichert. Bestätige das knapp.`;
+      if (taskAction.action === "create_existing" && taskAction.task?.title) return `TASK-AKTION: Aufgabe „${taskAction.task.title}“ existiert bereits. Sage das knapp, ohne sie erneut anzulegen.`;
       if (taskAction.action === "complete" && taskAction.task?.title) return `TASK-AKTION ERFOLGREICH: Aufgabe „${taskAction.task.title}“ wurde erledigt. Bestätige das knapp.`;
       if (taskAction.action === "complete_recurring" && taskAction.task?.title) return `TASK-AKTION ERFOLGREICH: Wiederkehrende Aufgabe „${taskAction.task.title}“ wurde erledigt und auf den nächsten Termin gesetzt. Bestätige das knapp.`;
       if (taskAction.action === "calendar_export" && taskAction.task?.title) return `TASK-AKTION ERFOLGREICH: Kalenderimport für „${taskAction.task.title}“ wurde vorbereitet. Sage das knapp.`;
