@@ -149,6 +149,100 @@ function addCalendarDownload(action) {
 
 window.SofiaCalendarDownload = addCalendarDownload;
 
+/* =========================
+   V4.17 TASK REMINDERS
+========================= */
+
+const TASK_NOTICE_KEY = 'sofia_task_notices_v417';
+let taskReminderTimer = null;
+let taskStartupBriefShown = false;
+
+function taskNoticeMap() {
+  try { return JSON.parse(localStorage.getItem(TASK_NOTICE_KEY) || '{}') || {}; }
+  catch { return {}; }
+}
+
+function saveTaskNoticeMap(value) {
+  localStorage.setItem(TASK_NOTICE_KEY, JSON.stringify(value));
+}
+
+function taskLocalDate(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+async function enableTaskNotifications() {
+  if (!('Notification' in window)) return 'unsupported';
+  if (Notification.permission === 'granted') return 'granted';
+  try { return await Notification.requestPermission(); }
+  catch { return 'denied'; }
+}
+
+function addNotificationOptIn() {
+  if (!messages || !('Notification' in window) || Notification.permission !== 'default') return;
+  if (messages.querySelector('.taskNotificationOptIn')) return;
+  const row = document.createElement('div');
+  row.className = 'msg sofia taskNotificationOptIn';
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.textContent = 'Aufgaben-Benachrichtigungen aktivieren';
+  button.addEventListener('click', async () => {
+    const result = await enableTaskNotifications();
+    button.textContent = result === 'granted' ? 'Benachrichtigungen aktiviert' : 'Benachrichtigungen nicht aktiviert';
+    button.disabled = true;
+  }, { once: true });
+  row.appendChild(button);
+  messages.appendChild(row);
+  scrollChatToLatest('smooth');
+}
+
+async function checkTaskReminders({ startup = false } = {}) {
+  try {
+    const response = await fetch('/api/tasks?status=open', { credentials: 'same-origin', cache: 'no-store' });
+    if (!response.ok) return;
+    const data = await response.json();
+    const tasks = Array.isArray(data.tasks) ? data.tasks : [];
+    const now = Date.now();
+    const notices = taskNoticeMap();
+    const due = tasks.filter(task => {
+      const when = taskLocalDate(task.remindAt || task.dueAt);
+      return when && when.getTime() <= now;
+    });
+
+    if (startup && !taskStartupBriefShown && due.length) {
+      taskStartupBriefShown = true;
+      const names = due.slice(0, 3).map(task => task.title).join('; ');
+      addMessage(due.length === 1 ? `Noch offen: ${names}.` : `Noch offen: ${names}${due.length > 3 ? ` und ${due.length - 3} weitere` : ''}.`, 'sofia');
+    }
+
+    for (const task of due) {
+      const stamp = task.remindAt || task.dueAt || '';
+      const key = `${task.id}|${stamp}`;
+      if (notices[key]) continue;
+      notices[key] = new Date().toISOString();
+      if (!startup) addMessage(`Erinnerung: ${task.title}`, 'sofia');
+      if ('Notification' in window && Notification.permission === 'granted') {
+        try { new Notification('Sofia · Erinnerung', { body: task.title, tag: key }); } catch {}
+      }
+    }
+    saveTaskNoticeMap(notices);
+  } catch (error) {
+    console.warn('Task reminders:', error);
+  }
+}
+
+function startTaskReminderChecks() {
+  if (taskReminderTimer) clearInterval(taskReminderTimer);
+  checkTaskReminders({ startup: true });
+  taskReminderTimer = setInterval(() => {
+    if (document.visibilityState === 'visible') checkTaskReminders();
+  }, 30000);
+}
+
+window.addEventListener('load', startTaskReminderChecks);
+
+
 let lastServerHistorySignature = '';
 let historySyncTimer = null;
 let pendingCalendarAction = null;
@@ -423,6 +517,11 @@ async function askSofia(userMessage, imageDataUrl = null) {
 
     if (mode) {
       mode.textContent = 'bereit';
+    }
+
+    if (data.taskAction?.action === 'create' && (data.taskAction.task?.remindAt || data.taskAction.task?.dueAt)) {
+      addNotificationOptIn();
+      checkTaskReminders();
     }
 
     if (data.calendarAction) {
