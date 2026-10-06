@@ -98,19 +98,27 @@ function saveMemory() {
    MESSAGES
 ========================= */
 
+let chatScrollFrame = null;
+let chatPinnedToLatest = true;
+
+messages?.addEventListener('scroll', () => {
+  chatPinnedToLatest = messages.scrollHeight - messages.clientHeight - messages.scrollTop <= 64;
+}, { passive: true });
+// Restored thumbnails can finish loading after the history has been positioned.
+messages?.addEventListener('load', event => {
+  if (event.target?.tagName === 'IMG' && chatPinnedToLatest) scrollChatToLatest('auto');
+}, true);
+
 function scrollChatToLatest(behavior = 'auto') {
   if (!messages) return;
-
-  const run = () => {
-    messages.scrollTo({
-      top: messages.scrollHeight,
-      behavior
-    });
-  };
-
-  requestAnimationFrame(() => {
+  if (chatScrollFrame !== null) cancelAnimationFrame(chatScrollFrame);
+  const run = () => messages.scrollTo({ top: messages.scrollHeight, behavior });
+  chatScrollFrame = requestAnimationFrame(() => {
     run();
-    requestAnimationFrame(run);
+    chatScrollFrame = requestAnimationFrame(() => {
+      run();
+      chatScrollFrame = null;
+    });
   });
 }
 
