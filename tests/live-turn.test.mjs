@@ -10,8 +10,8 @@ function harness(fetchImpl = async () => ({ ok: true, json: async () => ({ conte
   const timers = new Map(), sent = [], gates = [], stopped = [];
   let next = 0;
   const context = vm.createContext({
-    window: { setTimeout: fn => { timers.set(++next, fn); return next; }, SofiaAvatar: { listen() {}, think() {} } },
-    clearTimeout: id => timers.delete(id), fetch: fetchImpl, console,
+    window: { setTimeout: (fn, delay) => { timers.set(++next, { fn, delay }); return next; }, SofiaAvatar: { listen() {}, think() {} } },
+    clearTimeout: id => timers.delete(id), fetch: fetchImpl, console, AbortController,
     setPresence() {}, setThought() {}, openCalendarImport() {}, app: null,
     stopLive: () => { stopped.push(true); context.cancel(); },
     suppressMicForAssistant: () => gates.push('closed')
@@ -24,7 +24,7 @@ function harness(fetchImpl = async () => ({ ok: true, json: async () => ({ conte
     globalThis.event=handleRealtimeEvent;
     globalThis.cancel=()=>{cancelPendingLiveResponse();liveActive=false;};`, Object.assign(context, { send: x => sent.push(JSON.parse(x)) }));
   return { sent, gates, timers, stopped, event: context.event, cancel: context.cancel,
-    run: async () => { const entries = [...timers.values()]; timers.clear(); entries.forEach(fn => fn()); for (let i=0;i<8;i++) await Promise.resolve(); } };
+    run: async (elapsed = 1500) => { const entries = [...timers.entries()].filter(([, timer]) => timer.delay <= elapsed); entries.forEach(([id]) => timers.delete(id)); entries.forEach(([, timer]) => timer.fn()); for (let i=0;i<20;i++) await Promise.resolve(); } };
 }
 const start = id => ({ type: 'input_audio_buffer.speech_started', item_id: id });
 const stop = id => ({ type: 'input_audio_buffer.speech_stopped', item_id: id });
@@ -84,4 +84,30 @@ test('Realtime error closes session and invalidates a pending context response',
   await h.event(stop('a')); await h.event(transcript('a','Hallo')); await h.run();
   await h.event({type:'error',error:{message:'Test error'}}); assert.equal(h.stopped.length,1);
   resolve({ok:true,json:async()=>({})}); await h.run(); assert.equal(h.sent.length,0);
+});
+
+test('hung context times out without success claims, aborts request and ignores late result', async () => {
+  let resolve, signal; const deferred=new Promise(r=>resolve=r);
+  const h=harness((_, options)=>{signal=options.signal;return deferred;});
+  await h.event(stop('a')); await h.event(transcript('a','Aufgabe erstellen')); await h.run();
+  assert.equal(h.sent.length,0); assert.equal(h.gates.length,0);
+  await h.run(20000); assert.equal(signal.aborted,true); assert.equal(h.sent.length,1);
+  assert.match(h.sent[0].response.instructions,/Status von Task- oder Kalenderaktionen ist unbekannt/);
+  resolve({ok:true,json:async()=>({context:'Später Erfolg'})}); await h.run();
+  assert.equal(h.sent.length,1); assert.equal(h.timers.size,0);
+});
+
+test('deadline covers a stalled response body and successful context clears timer', async () => {
+  const h=harness(async()=>({ok:true,json:()=>new Promise(()=>{})}));
+  await h.event(stop('a')); await h.event(transcript('a','Hallo')); await h.run();
+  await h.run(20000); assert.equal(h.sent.length,1);
+  const success=harness(); await success.event(stop('a')); await success.event(transcript('a','Hallo')); await success.run();
+  assert.equal(success.sent.length,1); assert.equal(success.timers.size,0);
+});
+
+test('timeout after resumed speech does not interrupt the new utterance', async () => {
+  const h=harness(()=>new Promise(()=>{}));
+  await h.event(stop('a')); await h.event(transcript('a','Hallo')); await h.run();
+  await h.event(start('b')); await h.run(20000);
+  assert.equal(h.sent.length,0); assert.equal(h.gates.length,0);
 });

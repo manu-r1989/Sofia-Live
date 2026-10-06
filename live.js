@@ -87,6 +87,33 @@
     }, 1500);
   }
 
+  async function fetchLiveTurnContext(message) {
+    const controller = new AbortController();
+    let timeout;
+    const deadline = new Promise((_, reject) => {
+      timeout = window.setTimeout(() => {
+        reject(new Error("Live Kontext Zeitlimit überschritten."));
+        controller.abort();
+      }, 20000);
+    });
+    try {
+      return await Promise.race([
+        (async () => {
+          const response = await fetch("/api/live-context", {
+            method: "POST", credentials: "same-origin", cache: "no-store",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ message }), signal: controller.signal
+          });
+          if (!response.ok) throw new Error("Live Kontext HTTP " + response.status);
+          return await response.json();
+        })(),
+        deadline
+      ]);
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
   async function createLiveTurnResponse(revision) {
     const current = () => liveActive && revision === userTurnRevision && !userSpeaking &&
       !responseLocked && !assistantResponding && dataChannel?.readyState === "open";
@@ -96,13 +123,7 @@
     let contextData = {};
     let contextFailed = false;
     try {
-      const contextResponse = await fetch("/api/live-context", {
-        method: "POST", credentials: "same-origin", cache: "no-store",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message })
-      });
-      if (!contextResponse.ok) throw new Error("Live Kontext HTTP " + contextResponse.status);
-      contextData = await contextResponse.json();
+      contextData = await fetchLiveTurnContext(message);
     } catch (error) {
       contextFailed = true;
       console.warn("Live Kontext:", error);
