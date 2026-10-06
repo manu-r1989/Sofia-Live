@@ -460,7 +460,7 @@ natürlich einsetzen, aber nicht übertreiben.
 Wenn der Nutzer dich unterbricht,
 hör auf und reagiere auf das Neue.
 
-Sprich überwiegend Deutsch.
+Antworte auf Deutsch. Wechsle nur dann zu einer anderen Sprache, wenn der Nutzer dies ausdrücklich verlangt.
 Wenn es natürlich passt, darfst du kurz Spanisch einstreuen.
 
 WICHTIG:
@@ -570,7 +570,8 @@ ${historyText}
     }
 
     return res.status(200).json({
-      value: data.value
+      value: data.value,
+      instructions
     });
 
   } catch (error) {
@@ -585,3 +586,4 @@ ${historyText}
     });
   }
 }
+

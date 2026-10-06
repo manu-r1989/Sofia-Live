@@ -68,8 +68,8 @@ test('posture profiles are limited to active state and reset under reduced motio
   for (const state of ['listening', 'thinking', 'speaking']) {
     assert.ok(css.includes('[data-presence-state="' + state + '"][data-presence-motion="active"]'));
   }
-  assert.match(css, /rotate: -.18deg; translate: 0 -.5px; scale: 1.001/);
-  assert.match(css, /rotate: .12deg; translate: 0 .4px; scale: 1/);
+  assert.match(css, /rotate: -.55deg; translate: 0 -1px; scale: 1.002/);
+  assert.match(css, /rotate: .35deg; translate: 0 .5px; scale: 1/);
   assert.match(css, /rotate: 0deg; translate: 0 0; scale: 1/);
   assert.match(css, /translate: none !important; scale: none !important/);
 });

@@ -61,6 +61,74 @@
   ======================================== */
 
   let pendingUserText = "";
+  let liveSessionInstructions = "";
+  let userSpeaking = false;
+  let userTurnRevision = 0;
+  let userTurnTimer = null;
+  let latestSpeechItemId = null;
+  const transcribedSpeechItems = new Set();
+
+  function cancelPendingLiveResponse() {
+    userTurnRevision++;
+    if (userTurnTimer !== null) clearTimeout(userTurnTimer);
+    userTurnTimer = null;
+  }
+
+  function scheduleLiveResponse() {
+    if (userTurnTimer !== null) clearTimeout(userTurnTimer);
+    userTurnTimer = null;
+    if (userSpeaking || !pendingUserText.trim() || responseLocked || assistantResponding ||
+        (latestSpeechItemId && !transcribedSpeechItems.has(latestSpeechItemId))) return;
+    const revision = userTurnRevision;
+    userTurnTimer = window.setTimeout(() => {
+      userTurnTimer = null;
+      void createLiveTurnResponse(revision);
+    }, 1500);
+  }
+
+  async function createLiveTurnResponse(revision) {
+    const current = () => liveActive && revision === userTurnRevision && !userSpeaking &&
+      !responseLocked && !assistantResponding && dataChannel?.readyState === "open";
+    if (!current()) return;
+    const message = pendingUserText.trim();
+    let contextData = {};
+    try {
+      const contextResponse = await fetch("/api/live-context", {
+        method: "POST", credentials: "same-origin", cache: "no-store",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message })
+      });
+      if (!contextResponse.ok) throw new Error("Live Kontext HTTP " + contextResponse.status);
+      contextData = await contextResponse.json();
+    } catch (error) {
+      console.warn("Live Kontext:", error);
+    }
+    // A resumed utterance or stopped session invalidates this response, even
+    // when the context request completes later. Keep the mic open until here.
+    if (!current()) return;
+    if (contextData.calendarAction) openCalendarImport(contextData.calendarAction);
+    if (contextData.taskAction?.action === "create" &&
+        (contextData.taskAction.task?.remindAt || contextData.taskAction.task?.dueAt)) {
+      window.SofiaTasks?.offerNotifications?.();
+      window.SofiaTasks?.checkReminders?.();
+    }
+    const turnContext = typeof contextData.context === "string" ? contextData.context.trim() : "";
+    // response.instructions replaces session.instructions. Preserve the full
+    // persona and German language rules when adding per-turn action results.
+    const instructions = liveSessionInstructions + (turnContext
+      ? "\n\nZusätzlicher Kontext nur für diesen Redezug:\n" + turnContext +
+        "\nNutze ihn nur, wenn er die aktuelle Frage unterstützt. Antworte auf Deutsch."
+      : "");
+    try {
+      dataChannel.send(JSON.stringify({ type: "response.create", response: { instructions } }));
+      responseLocked = true;
+      suppressMicForAssistant();
+      setPresence("thinking", "denkt nach…");
+    } catch (error) {
+      console.warn("Live Antwort:", error);
+    }
+  }
+
   let pendingAssistantText = "";
   let presenceStartedAt = 0;
   let lastPresenceState = "idle";
@@ -869,6 +937,13 @@
       }
 
 
+      cancelPendingLiveResponse();
+      userSpeaking = false;
+      latestSpeechItemId = null;
+      transcribedSpeechItems.clear();
+      liveSessionInstructions = typeof tokenData.instructions === "string"
+        ? tokenData.instructions : "Du bist Sofia. Antworte auf Deutsch, sofern der Nutzer nicht ausdrücklich eine andere Sprache verlangt.";
+
       const ephemeralKey =
         tokenData.value;
 
@@ -1263,6 +1338,10 @@
 
       case
         "input_audio_buffer.speech_started":
+        if (responseLocked || assistantResponding || Date.now() < ignoreInputUntil) break;
+        userSpeaking = true;
+        latestSpeechItemId = event.item_id || null;
+        cancelPendingLiveResponse();
 
 
         setPresence(
@@ -1292,6 +1371,10 @@
 
       case
         "input_audio_buffer.speech_stopped":
+        if (responseLocked || assistantResponding || Date.now() < ignoreInputUntil) break;
+        userSpeaking = false;
+        latestSpeechItemId = event.item_id || latestSpeechItemId;
+        scheduleLiveResponse();
 
 
         setPresence(
@@ -1330,53 +1413,11 @@
           event.transcript.trim()
         ) {
 
-          pendingUserText =
-            event.transcript.trim();
-
-
-          console.log(
-            "Live User:",
-            pendingUserText
-          );
-
-          // V4.12.1: retrieve memories for this exact spoken turn before inference.
-          suppressMicForAssistant();
-          setPresence("thinking", "denkt nach…");
-
-          try {
-            const contextResponse = await fetch("/api/live-context", {
-              method: "POST",
-              credentials: "same-origin",
-              cache: "no-store",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ message: pendingUserText })
-            });
-            const contextData = await contextResponse.json();
-            const turnContext = typeof contextData.context === "string" ? contextData.context.trim() : "";
-            if (contextData.calendarAction) {
-              // Opening the import is a browser-side handoff; the user still
-              // confirms the event in iOS Calendar.
-              openCalendarImport(contextData.calendarAction);
-            }
-            if (contextData.taskAction?.action === "create" && (contextData.taskAction.task?.remindAt || contextData.taskAction.task?.dueAt)) {
-              window.SofiaTasks?.offerNotifications?.();
-              window.SofiaTasks?.checkReminders?.();
-            }
-
-            if (dataChannel?.readyState === "open") {
-              dataChannel.send(JSON.stringify({
-                type: "response.create",
-                response: turnContext ? {
-                  instructions: `Zusätzlicher, nur für diesen Redezug relevanter Memory-Kontext:\n${turnContext}\nNutze ihn nur, wenn er die aktuelle Frage tatsächlich unterstützt.`
-                } : {}
-              }));
-            }
-          } catch (error) {
-            console.warn("Live Kontext:", error);
-            if (dataChannel?.readyState === "open") {
-              dataChannel.send(JSON.stringify({ type: "response.create", response: {} }));
-            }
-          }
+          if (event.item_id && transcribedSpeechItems.has(event.item_id)) break;
+          if (event.item_id) transcribedSpeechItems.add(event.item_id);
+          pendingUserText = [pendingUserText.trim(), event.transcript.trim()].filter(Boolean).join(" ");
+          cancelPendingLiveResponse();
+          scheduleLiveResponse();
 
         }
 
@@ -1589,6 +1630,10 @@
   function stopLive(
     userInitiated = true
   ) {
+    cancelPendingLiveResponse();
+    userSpeaking = false;
+    latestSpeechItemId = null;
+    transcribedSpeechItems.clear();
 
     /*
       Falls bereits ein fertiges
@@ -1813,3 +1858,4 @@
   );
 
 })();
+

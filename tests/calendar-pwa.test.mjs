@@ -170,8 +170,8 @@ test('service worker retains offline versioned assets and precaches the actual s
   let installed;
   harness.listeners.install({ waitUntil(value) { installed = value; } }); await installed;
   const paths = harness.cacheCalls.find(call => call.op === 'addAll').paths;
-  assert.ok(paths.includes('./app.js?v=41810c1')); assert.ok(paths.includes('./live.js?v=41810'));
-  assert.ok(paths.includes('./sofia-avatar.js?v=4192c1')); assert.ok(paths.includes('./avatar-presence.js?v=4193p1'));
+  assert.ok(paths.includes('./app.js?v=41810c1')); assert.ok(paths.includes('./live.js?v=4193fix1'));
+  assert.ok(paths.includes('./sofia-avatar.js?v=4192c1')); assert.ok(paths.includes('./avatar-presence.js?v=4193p2'));
 });
 
 test('service worker removes its old cache during activation', async () => {

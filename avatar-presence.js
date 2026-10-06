@@ -18,10 +18,10 @@
       }
       #sofiaAvatar[data-presence-motion="active"] { animation-play-state: running; }
       #sofiaAvatar[data-presence-state="listening"][data-presence-motion="active"] {
-        rotate: -.18deg; translate: 0 -.5px; scale: 1.001;
+        rotate: -.55deg; translate: 0 -1px; scale: 1.002;
       }
       #sofiaAvatar[data-presence-state="thinking"][data-presence-motion="active"] {
-        rotate: .12deg; translate: 0 .4px; scale: 1;
+        rotate: .35deg; translate: 0 .5px; scale: 1;
       }
       #sofiaAvatar[data-presence-state="speaking"][data-presence-motion="active"] {
         rotate: 0deg; translate: 0 0; scale: 1;
