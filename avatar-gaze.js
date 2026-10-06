@@ -10,7 +10,7 @@
     img.className = "sofia-avatar-v435-layer";
     img.alt = "";
     img.setAttribute("aria-hidden", "true");
-    img.src = "./avatar/sofia-gaze-left.png?v=4192g1";
+    img.src = "./avatar/sofia-gaze-left.png?v=4192g3";
     img.style.opacity = "1";
     img.style.pointerEvents = "none";
     img.hidden = true;
