@@ -210,10 +210,20 @@ async function checkTaskReminders({ startup = false } = {}) {
       return when && when.getTime() <= now;
     });
 
-    if (startup && !taskStartupBriefShown && due.length) {
-      taskStartupBriefShown = true;
-      const names = due.slice(0, 3).map(task => task.title).join('; ');
-      addMessage(due.length === 1 ? `Noch offen: ${names}.` : `Noch offen: ${names}${due.length > 3 ? ` und ${due.length - 3} weitere` : ''}.`, 'sofia');
+    if (startup && !taskStartupBriefShown) {
+      const today = new Date().toLocaleDateString('sv-SE');
+      const todayTasks = tasks.filter(task => String(task.dueAt || '').slice(0, 10) === today);
+      if (due.length || todayTasks.length) {
+        taskStartupBriefShown = true;
+        const parts = [];
+        if (due.length) parts.push(due.length + ' überfällig');
+        const futureToday = todayTasks.filter(task => {
+          const when = taskLocalDate(task.dueAt);
+          return when && when.getTime() > now;
+        });
+        if (futureToday.length) parts.push(futureToday.length + ' heute fällig');
+        addMessage('Kurzer Überblick: ' + parts.join(', ') + '.', 'sofia');
+      }
     }
 
     for (const task of due) {
