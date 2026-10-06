@@ -147,6 +147,8 @@ function addCalendarDownload(action) {
   scrollChatToLatest('smooth');
 }
 
+window.SofiaCalendarDownload = addCalendarDownload;
+
 let lastServerHistorySignature = '';
 let historySyncTimer = null;
 let pendingCalendarAction = null;
