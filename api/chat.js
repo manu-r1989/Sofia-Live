@@ -1660,6 +1660,8 @@ Kein Markdown außerhalb des JSON-Objekts.
 
     if (taskAction?.ok && taskAction.action === "create" && taskAction.task?.title) {
       reply = `Hab ich als Aufgabe gespeichert: „${taskAction.task.title}“.`;
+    } else if (taskAction?.ok && taskAction.action === "create_existing" && taskAction.task?.title) {
+      reply = `„${taskAction.task.title}“ steht schon in deinen Aufgaben.`;
     } else if (taskAction?.ok && taskAction.action === "complete" && taskAction.task?.title) {
       reply = `Erledigt: „${taskAction.task.title}“.`;
     } else if (taskAction?.ok && taskAction.action === "complete_recurring" && taskAction.task?.title) {
