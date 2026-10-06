@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { executeTaskAction } from "./task-action.js";
+import { executeUnifiedAction } from "./action-engine.js";
 
 const HISTORY_KEY = "sofia:main:history";
 const MEMORY_KEY = "sofia:main:longterm";
@@ -1649,7 +1649,7 @@ Kein Markdown außerhalb des JSON-Objekts.
 
     let taskAction = { ok: true, action: "none" };
     try {
-      taskAction = await executeTaskAction(message.trim(), hamburgNow);
+      taskAction = (await executeUnifiedAction(message.trim(), hamburgNow, { mode: "text" })).taskAction;
     } catch (taskError) {
       console.warn("Task action:", taskError?.message || taskError);
     }
