@@ -739,7 +739,7 @@ export default async function handler(req, res) {
     const SOFIA_PROMPT = `
 Du bist Sofia.
 
-${lifeContext(sofiaLife)}
+${lifeContext(sofiaLife,message)}
 
 
 ALLTAG UND FOTOS
@@ -1439,6 +1439,9 @@ ergänzt und beide gleichzeitig wahr sein können,
 darf ADD verwendet werden.
 
 MEMORY CONFIDENCE:
+Sofias fiktiver Alltag, ihre eigenen Vorlieben und ihre Antworten sind keine
+Nutzererinnerungen. Speichere hier ausschließlich ausdrücklich belegte
+Nutzerinformationen; Charakterdetails gehören in den getrennten Charakterzustand.
 Speichere nur Informationen, die der Nutzer ausdrücklich als eigene Tatsache,
 Vorliebe, Absicht oder Gewohnheit formuliert oder ausdrücklich zum Merken nennt.
 Bloße Vermutungen, indirekte Schlüsse und Interpretationen führen zu none.
@@ -1891,7 +1894,7 @@ Kein Markdown außerhalb des JSON-Objekts.
     }
 
 
-    sofiaLife = await learnSofiaLife(message, reply, new Date(), mood);
+    sofiaLife = await learnSofiaLife(message, reply, new Date(), mood, sofiaLife.revision);
     let spontaneousImageRequest = null;
     if (taskAction?.ok && taskAction.action === "none" && !calendarAction && !image) {
       spontaneousImageRequest = await prepareProactivePortrait(message, sofiaLife, reply);
@@ -1984,7 +1987,7 @@ Kein Markdown außerhalb des JSON-Objekts.
       life: sofiaLife,
       ...(spontaneousImageRequest ? {imageRequest:spontaneousImageRequest} : {}),
 
-      mood,
+      mood: sofiaLife.mood,
 
       calendarAction,
 

@@ -62,6 +62,7 @@
 
   let pendingUserText = "";
   let pendingImageRequestId = null;
+  let pendingLifeRevision = null;
   let liveSessionInstructions = "";
   let userSpeaking = false;
   let userTurnRevision = 0;
@@ -133,6 +134,7 @@
     // when the context request completes later. Keep the mic open until here.
     if (!current()) return;
     window.SofiaLifeStatus?.update(contextData.life);
+    pendingLifeRevision = contextData.life?.revision ?? null;
     window.SofiaActionFeedback?.show(contextFailed ? { ok: false, status: "execution_failed" } : contextData.taskAction);
     if (contextData.imageRequest) {
       pendingImageRequestId = contextData.imageRequest.id;
@@ -514,7 +516,8 @@
   function queueLiveMemory(
     userText,
     assistantText,
-    imageRequestId = null
+    imageRequestId = null,
+    lifeRevision = null
   ) {
 
     const cleanUser =
@@ -548,7 +551,8 @@
             saveLiveMemory(
               cleanUser,
               cleanAssistant,
-              imageRequestId
+              imageRequestId,
+              lifeRevision
             )
         )
         .catch(error => {
@@ -572,7 +576,8 @@
   async function saveLiveMemory(
     userText,
     assistantText,
-    imageRequestId = null
+    imageRequestId = null,
+    lifeRevision = null
   ) {
 
     const response =
@@ -597,7 +602,8 @@
             JSON.stringify({
               userText,
               assistantText,
-              imageRequestId
+              imageRequestId,
+              lifeRevision
             })
         }
       );
@@ -633,6 +639,7 @@
       data.memoryAction,
       `(${data.longTermMemories} Memories)`
     );
+    window.SofiaLifeStatus?.update(data.life);
 
   }
 
@@ -691,7 +698,8 @@
       queueLiveMemory(
         userText,
         assistantText,
-        pendingImageRequestId
+        pendingImageRequestId,
+        pendingLifeRevision
       );
 
     window.SofiaLiveHistoryReady =
@@ -718,6 +726,7 @@
     pendingUserText =
       "";
     pendingImageRequestId = null;
+    pendingLifeRevision = null;
 
 
     pendingAssistantText =
@@ -882,6 +891,7 @@
     pendingUserText =
       "";
     pendingImageRequestId = null;
+    pendingLifeRevision = null;
 
 
     pendingAssistantText =
@@ -1896,4 +1906,3 @@
   );
 
 })();
-

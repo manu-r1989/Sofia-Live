@@ -208,7 +208,7 @@ export default async function handler(req, res) {
     let imageRequest = null;
     if (taskAction?.ok && taskAction.action === "none" && !calendarAction) imageRequest = await prepareProactivePortrait(message, sofiaLife);
     const context = [
-      lifeContext(sofiaLife),
+      lifeContext(sofiaLife,message),
       imageRequest ? `BILDANFRAGE ANGENOMMEN: Ein spontanes Foto passend zum obigen Alltag wird erstellt. Bleibe bei dieser Situation und kündige zum Schluss an: „${PROACTIVE_PHOTO_ANNOUNCEMENT}“. Noch keinen Bilderfolg behaupten.` : "",
       taskActionContext,
       continuityContext,
@@ -222,7 +222,7 @@ export default async function handler(req, res) {
   } catch (error) {
     console.error("Live context:", error);
     return res.status(200).json({
-      context: lifeContext(sofiaLife) + "\n" + taskContextOf(taskAction),
+      context: lifeContext(sofiaLife,message) + "\n" + taskContextOf(taskAction),
       calendarAction: taskAction?.ok ? taskAction.calendarAction || null : null,
       taskAction
     });

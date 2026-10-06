@@ -9,8 +9,8 @@ const prefix='sofia:main:portrait:';
 const savedFetch=globalThis.fetch;
 const keys=['KV_REST_API_URL','KV_REST_API_TOKEN','OPENAI_API_KEY','SOFIA_PASSWORD'];
 const env=Object.fromEntries(keys.map(k=>[k,process.env[k]]));
-let db,quotas,decision,narrative,inputs;
-function reset(){db=new Map();quotas=new Map();decision=true;narrative=null;inputs=[];process.env.KV_REST_API_URL='https://redis.test';process.env.KV_REST_API_TOKEN='test';process.env.OPENAI_API_KEY='test';process.env.SOFIA_PASSWORD='test-only';}
+let db,quotas,decision,narrative,inputs,details;
+function reset(){db=new Map();quotas=new Map();decision=true;narrative=null;details={};inputs=[];process.env.KV_REST_API_URL='https://redis.test';process.env.KV_REST_API_TOKEN='test';process.env.OPENAI_API_KEY='test';process.env.SOFIA_PASSWORD='test-only';}
 const response=data=>({ok:true,json:async()=>data});
 globalThis.fetch=async(endpoint,options)=>{
  const body=JSON.parse(options.body);
@@ -20,6 +20,10 @@ globalThis.fetch=async(endpoint,options)=>{
   const [op,key,value,...args]=body;
   if(op==='GET')return response({result:db.get(key)||null});
   if(op==='SET'){db.set(key,value);return response({result:'OK'});}
+  if(op==='EVAL' && key.includes('sofia-life-cas')) {
+   const target=body[3];if((db.get(target)||'')!==body[4])return response({result:0});
+   db.set(target,body[5]);return response({result:1});
+  }
   if(op==='EVAL' && key.includes('sofia-proactive-photo-limit')) {
    const queueKey=body[3],now=Number(body[4]),id=body[5];
    const queue=(quotas.get(queueKey)||[]).filter(x=>x.at>now-3600000);
@@ -34,7 +38,7 @@ globalThis.fetch=async(endpoint,options)=>{
  if(String(endpoint).endsWith('/chat/completions')){
   inputs.push(body);
   const instruction=body.messages[0].content;
-  const result=instruction.startsWith('Soll Sofia')?{offerPhoto:decision}:instruction.startsWith('Extrahiere nur Sofias')?{life:narrative}:{action:'new',scene:'Ein Selfie',outfit:''};
+  const result=instruction.startsWith('Soll Sofia')?{offerPhoto:decision}:instruction.startsWith('Extrahiere nur Sofias')?{life:narrative,...details}:{action:'new',scene:'Ein Selfie',outfit:''};
   return response({choices:[{message:{content:JSON.stringify(result)}}]});
  }
  if(String(endpoint).endsWith('/responses')){
@@ -139,7 +143,7 @@ test('nighttime and date changes always override carried daytime scenes',async()
 });
 test('Text mood and Live-selected mood feed the same photograph context without changing identity',async()=>{
  reset();const now=new Date('2026-10-06T12:15Z');
- await api.learnSofiaLife('Danke','Gerne.',now,'amüsiert');
+ await api.getSofiaLife(now,'amüsiert');
  const text=await api.preparePortrait('Selfie',null,now);
  assert.equal(JSON.parse(db.get(prefix+'request:'+text.id)).mood,'amüsiert');
  const live=await api.preparePortrait('Selfie',null,now,'ernst');
@@ -167,4 +171,85 @@ test('a delayed life extraction crossing bedtime cannot restore a stale outdoor 
   const life=await api.learnSofiaLife('Wo bist du gerade?','Ich spaziere an der Alster.',now);
   assert.match(life.location,/Bett/);assert.ok(life.key.endsWith(':sleep'));
  } finally {Date.now=originalClock;globalThis.fetch=normal;}
+});
+test('simultaneous cold starts converge on one revision and a stale editor gets a conflict',async()=>{
+ reset();const now=new Date('2026-10-06T12:15Z');
+ const states=await Promise.all([api.getSofiaLife(now),api.getSofiaLife(now),api.getSofiaLife(now)]);
+ assert.ok(states.every(s=>s.revision===1));
+ const updated=await api.editCharacterState({revision:1,field:'location',value:'zu Hause in Hamburg'},now);
+ assert.equal(updated.revision,2);
+ await assert.rejects(api.editCharacterState({revision:1,field:'location',value:'an der Alster'},now),/character_conflict/);
+ assert.equal((await api.getSofiaLife(now)).location,'zu Hause in Hamburg');
+});
+test('late classification cannot overwrite a newer corrected state in the same time slot',async()=>{
+ reset();const now=new Date('2026-10-06T12:15Z');const first=await api.getSofiaLife(now);
+ const normal=globalThis.fetch;let release;
+ globalThis.fetch=async(e,o)=>String(e).endsWith('/chat/completions')?new Promise(resolve=>release=resolve):normal(e,o);
+ try {
+  const pending=api.learnSofiaLife('Wo bist du?','Ich sitze im Café.',now,undefined,first.revision);
+  await new Promise(setImmediate);
+  await api.editCharacterState({revision:first.revision,field:'location',value:'zu Hause in Hamburg'},now);
+  release(response({choices:[{message:{content:JSON.stringify({life:{location:'in einem Café'}})}}]}));
+  assert.equal((await pending).location,'zu Hause in Hamburg');
+ } finally {globalThis.fetch=normal;}
+});
+test('evidenced own preferences persist across dates; user guesses and quotations are not character facts',async()=>{
+ reset();const now=new Date('2026-10-06T12:15Z');
+ details={preferences:[{topic:'kaffee',value:'Sofia mag Cappuccino',evidence:'Ich mag Cappuccino'}],threads:[{topic:'arbeit',text:'Der Nutzer hat Stress',status:'open',evidence:'Mein Arbeitstag war stressig'}]};
+ const learned=await api.learnSofiaLife('Mein Arbeitstag war stressig.','Ich mag Cappuccino.',now);
+ assert.equal(learned.preferences[0].topic,'kaffee');assert.equal(learned.threads[0].origin,'user_statement');
+ assert.equal(db.get('sofia:main:longterm'),undefined);
+ const tomorrow=await api.getSofiaLife(new Date('2026-10-07T12:15Z'));
+ assert.equal(tomorrow.preferences[0].value,'Sofia mag Cappuccino');
+ const rejected=api.mergeCharacterDetails({...tomorrow,preferences:[],threads:[]},details,'Vielleicht: Mein Arbeitstag war stressig.','Du sagst „Ich mag Cappuccino“.',now);
+ assert.equal(rejected.preferences.length,0);assert.equal(rejected.threads.length,0);
+});
+test('a known opinion needs a reason to evolve; corrected or deleted preferences are protected',async()=>{
+ reset();const now=new Date('2026-10-06T12:15Z');
+ let state=await api.getSofiaLife(now);
+ const p={topic:'kaffee',value:'Espresso',evidence:'Ich mag Espresso'};
+ state=api.mergeCharacterDetails(state,{preferences:[p]},'Was magst du?','Ich mag Espresso.',now);
+ const changed={...p,value:'Cappuccino',evidence:'Ich mag Cappuccino'};
+ assert.equal(api.mergeCharacterDetails(state,{preferences:[changed]},'','Ich mag Cappuccino.',now).preferences[0].value,'Espresso');
+ assert.equal(api.mergeCharacterDetails(state,{preferences:[{...changed,reason:'Neuer Geschmack'}]},'','Ich mag Cappuccino.',now).preferences[0].previousValue,'Espresso');
+ let corrected=await api.editCharacterState({revision:state.revision,field:'preference',topic:'kaffee',value:'Tee'},now);
+ assert.equal(api.mergeCharacterDetails(corrected,{preferences:[changed]},'','Ich mag Cappuccino.',now).preferences[0].value,'Tee');
+ corrected=await api.editCharacterState({revision:corrected.revision,field:'preference',topic:'kaffee',value:''},now);
+ assert.equal(api.mergeCharacterDetails(corrected,{preferences:[changed]},'','Ich mag Cappuccino.',now).preferences[0].origin,'dismissed');
+});
+test('closed and expired threads stay out of context and dismissed threads are not reopened casually',()=>{
+ const now=new Date(),future=new Date(now.getTime()+86400000).toISOString();
+ const state={preferences:[],mood:'entspannt',threads:[{topic:'arbeit',text:'Arbeitsstress',status:'open',expiresAt:future},{topic:'prüfung',text:'Prüfung fertig',status:'resolved',expiresAt:future},{topic:'alt',text:'Vergangenes',status:'open',expiresAt:new Date(now.getTime()-1).toISOString()}]};
+ const context=api.characterContext(state,'Mein Arbeitstag');assert.match(context,/Arbeitsstress/);assert.doesNotMatch(context,/Prüfung fertig|Vergangenes/);
+ state.threads[0].status='dismissed';
+ const reopened=api.mergeCharacterDetails(state,{threads:[{topic:'arbeit',text:'Arbeitsstress',status:'open',evidence:'Mein Arbeitstag'}]},'Mein Arbeitstag','',now);
+ assert.equal(reopened.threads.find(t=>t.topic==='arbeit').status,'dismissed');
+});
+test('automatic mood changes need a repeated proposal and ten minutes; manual mode wins until released',async()=>{
+ reset();const now=new Date('2026-10-06T12:15Z');let state=await api.getSofiaLife(now);
+ state=api.proposeCharacterMood(state,'amüsiert',now);assert.equal(state.mood,'entspannt');
+ assert.equal(api.proposeCharacterMood(state,'amüsiert',new Date(now.getTime()+1000)).mood,'entspannt');
+ assert.equal(api.proposeCharacterMood(state,'amüsiert',new Date(now.getTime()+11*60000)).mood,'amüsiert');
+ state=await api.editCharacterState({revision:state.revision,field:'mood',value:'ernst'},now);
+ assert.equal(api.proposeCharacterMood(state,'amüsiert',new Date(now.getTime()+3600000)).mood,'ernst');
+ state=await api.editCharacterState({revision:state.revision,field:'mood',value:'auto'},now);assert.equal(state.moodMode,'auto');
+});
+test('day story preserves current-day stations and resets next date without losing preferences',async()=>{
+ reset();const first=await api.getSofiaLife(new Date('2026-10-06T08:00Z'));
+ const noon=await api.getSofiaLife(new Date('2026-10-06T10:40Z'));
+ assert.equal(noon.dayStory[0].location,first.location);assert.equal(noon.dayStory.at(-1).location,noon.location);
+ const next=await api.getSofiaLife(new Date('2026-10-07T08:00Z'));assert.equal(next.dayStory.length,1);
+});
+test('memory API separates user memories from character state and validates correction versions',async()=>{
+ reset();const now=new Date();let state=await api.getSofiaLife(now);
+ const code=(await readFile(new URL('../api/memory.js',import.meta.url),'utf8')).replace('../lib/character-image.js',url(source));
+ const handler=(await import(url(code))).default;
+ const session=crypto.createHmac('sha256','test-only').update('sofia-authorized-session-v1').digest('hex');
+ db.set('sofia:main:longterm',JSON.stringify([{text:'Der Nutzer mag Tee.',category:'Vorlieben'}]));
+ const invoke=async(method,body,cookie='sofia_session='+session)=>{let status,data;await handler({method,body,headers:{cookie}}, {setHeader(){},status(n){status=n;return this;},json(d){data=d;return d;}});return {status,data};};
+ const before=await invoke('GET');assert.equal(before.data.items[0].text,'Der Nutzer mag Tee.');assert.equal(before.data.character.revision,state.revision);
+ const edit=await invoke('PUT',{scope:'character',revision:state.revision,field:'preference',topic:'getränk',value:'Sofia mag Kaffee.'});assert.equal(edit.status,200);
+ const conflict=await invoke('PUT',{scope:'character',revision:state.revision,field:'preference',topic:'getränk',value:'Tee'});assert.equal(conflict.status,409);
+ assert.equal((await invoke('GET')).data.items[0].text,'Der Nutzer mag Tee.');
+ assert.equal((await invoke('PUT',{scope:'character',revision:edit.data.character.revision,field:'preference',topic:'x',value:'y'},'')).status,401);
 });

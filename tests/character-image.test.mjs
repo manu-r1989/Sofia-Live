@@ -21,6 +21,7 @@ globalThis.fetch=async(url,options)=>{
   if(op==='GET')return response({result:db.get(key)||null});
   if(op==='SET'){if(rest.includes('NX')&&db.has(key))return response({result:null});db.set(key,value);return response({result:'OK'});}
   if(op==='DEL'){db.delete(key);return response({result:1});}
+  if(op==='EVAL' && key.includes('sofia-life-cas')) {const target=body[3];if((db.get(target)||'')!==body[4])return response({result:0});db.set(target,body[5]);return response({result:1});}
   if(op==='EVAL'){const lock=body[3],id=body[4]; if(lock === 'sofia:main:history') { const history=JSON.parse(db.get(lock)||'[]'); history.push({role:'user',content:body[4]},{role:'assistant',content:body[5],imageRequestId:body[6]});db.set(lock,JSON.stringify(history.slice(-40))); } else if(db.get(lock)===id)db.delete(lock);return response({result:1});}
   throw Error('Unexpected Redis '+op);
  }
@@ -39,7 +40,7 @@ test('same period preserves outfit, new day permits variety, explicit outfit cha
  let r=await api.preparePortrait('Ein Selfie bitte',null,new Date('2026-10-06T12:00Z'));
  assert.equal(JSON.parse(db.get(prefix+'request:'+r.id)).outfit,'Red jacket');
  r=await api.preparePortrait('Ein Selfie bitte',null,new Date('2026-10-07T12:00Z'));
- assert.equal(JSON.parse(db.get(prefix+'request:'+r.id)).outfit,'Blue sweater');
+ assert.notEqual(JSON.parse(db.get(prefix+'request:'+r.id)).outfit,'Red jacket');
  plan.changeOutfit=true;r=await api.preparePortrait('Selfie mit neuem Outfit',null,new Date('2026-10-06T12:00Z'));
  assert.equal(JSON.parse(db.get(prefix+'request:'+r.id)).outfit,'Blue sweater');
 });
@@ -75,6 +76,21 @@ test('mood affects expressions and photo variants retain earlier life, hair and 
  assert.equal(job.outfit,original.outfit);await api.generatePortrait(second.id);
  assert.match(imageCalls[1].prompt,/preserve the earlier expression unless/);
 });
+test('environment photographs omit people, retain the master reference and preserve their kind in variants',async()=>{
+ reset();plan.kind='environment';
+ const first=await api.preparePortrait('Zeig mir deine Umgebung',null,new Date('2026-10-06T12:00Z'));
+ assert.ok(first);await api.generatePortrait(first.id);
+ assert.match(imageCalls[0].prompt,/environment snapshot from Sofias perspective, with no Sofia/);
+ assert.equal(imageCalls[0].images.length,1);
+ plan.action='variant';plan.kind='selfie';
+ const variant=await api.preparePortrait('Dasselbe in anderem Licht',first.id,new Date('2026-10-06T12:00Z'));
+ assert.equal(JSON.parse(db.get(prefix+'request:'+variant.id)).kind,'environment');
+});
+test('a corrected current outfit wins over legacy photograph state for a new selfie',async()=>{
+ reset();const now=new Date('2026-10-06T12:00Z');db.set(prefix+'state',JSON.stringify({period:'2026-10-06:day',outfit:'Red jacket'}));
+ const current=await api.getSofiaLife(now);await api.editCharacterState({revision:current.revision,field:'outfit',value:'Green sweater'},now);
+ const job=await api.preparePortrait('Selfie',null,now);assert.equal(JSON.parse(db.get(prefix+'request:'+job.id)).outfit,'Green sweater');
+});
 test('failed or uncertain generation is not replayed and does not publish or change outfit',async()=>{
  reset();const r=await api.preparePortrait('Selfie');failImage=true;
  await assert.rejects(api.generatePortrait(r.id));
@@ -96,7 +112,7 @@ test('image delivery is private JPEG with download attachment and validated IDs'
 });
 test('UI integration loads shared renderer before app and does not alter avatar assets',async()=>{
  const root=new URL('../',import.meta.url);const index=await readFile(new URL('index.html',root),'utf8');
- assert.ok(index.indexOf('sofia-images.js?v=42212s1')<index.indexOf('app.js?v=42212s1'));
+ assert.ok(index.indexOf('sofia-images.js?v=4237c1')<index.indexOf('app.js?v=4237c1'));
  const chat=await readFile(new URL('api/chat.js',root),'utf8');
  assert.ok(chat.indexOf('!safeEqual(')<chat.indexOf('await servePortrait'));
  const ui=await readFile(new URL('sofia-images.js',root),'utf8');assert.match(ui,/dialog.showModal/);assert.match(ui,/download=1/);assert.doesNotMatch(ui,/spinner|generating-status/);

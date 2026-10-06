@@ -1,4 +1,4 @@
-import { learnSofiaLife } from '../lib/character-image.js';
+import { learnSofiaLife, getSofiaLife } from '../lib/character-image.js';
 import crypto from "node:crypto";
 
 const HISTORY_KEY = "sofia:main:history";
@@ -452,6 +452,9 @@ Du bekommst:
 3. optional Sofias Antwort.
 
 Entscheide, ob das Langzeitgedächtnis geändert werden muss.
+Sofias fiktiver Alltag und ihre eigenen Vorlieben sind keine Nutzererinnerungen.
+Hier nur ausdrücklich belegte Nutzerinformationen speichern; Charakterdetails
+werden getrennt im Charakterzustand verwaltet.
 
 Speicherwürdig sind insbesondere:
 - bevorzugter Name oder Anrede
@@ -751,10 +754,13 @@ ${cleanUser}
     ]);
 
 
-    await learnSofiaLife(cleanUser, cleanAssistant);
+    const life = Number.isInteger(req.body?.lifeRevision)
+      ? await learnSofiaLife(cleanUser, cleanAssistant, new Date(), undefined, req.body.lifeRevision)
+      : await getSofiaLife();
 
     return res.status(200).json({
       ok: true,
+      life,
 
       memoryAction,
 
@@ -895,4 +901,3 @@ async function redisPipeline(
 
   return data;
 }
-

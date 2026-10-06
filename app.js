@@ -9,14 +9,20 @@ const chatPanel = document.querySelector('.chatPanel');
 const chatMinimize = document.querySelector('#chatMinimize');
 const chatRestore = document.querySelector('#chatRestore');
 
+let latestSofiaLife = null;
 function updateSofiaLocation(life) {
   const node = document.getElementById('sofiaLocation');
   if (!node || typeof life?.location !== 'string' || !life.location.trim()) return;
+  if (latestSofiaLife && Number.isInteger(latestSofiaLife.revision) &&
+      (!Number.isInteger(life.revision) || life.revision < latestSofiaLife.revision)) return;
+  latestSofiaLife = life;
+  document.getElementById('moodAuto')?.classList?.toggle('active',life.moodMode!=='manual');
+  if (life.mood && app?.dataset.mood !== life.mood) applyMood(life.mood);
   // The server supplies the same character state used by Text, Live and photos.
   node.textContent = (life.statusLabel || life.location).trim().slice(0, 180);
   node.title = typeof life.activity === 'string' ? life.activity.slice(0, 240) : '';
 }
-window.SofiaLifeStatus = { update: updateSofiaLocation, get mood() { return app?.dataset.mood; } };
+window.SofiaLifeStatus = { update: updateSofiaLocation, get mood() { return undefined; } };
 
 const MEMORY_KEY = 'sofia_memory';
 const MAX_STORED_MESSAGES = 100;
@@ -497,7 +503,7 @@ function applyMood(mood) {
   window.SofiaAvatar?.setMood?.(next);
 
   document
-    .querySelectorAll('[data-mood]')
+    .querySelectorAll('.moods [data-mood]')
     .forEach(button => {
       button.classList.toggle(
         'active',
@@ -595,7 +601,7 @@ async function askSofia(userMessage, imageDataUrl = null) {
           history: historyForAPI,
           image: imageDataUrl,
           referenceImageId: window.SofiaImages?.referenceId,
-          mood: app?.dataset.mood
+          mood: window.SofiaLifeStatus?.mood
         })
       });
 
@@ -636,7 +642,7 @@ async function askSofia(userMessage, imageDataUrl = null) {
 
     saveMemory();
 
-    applyMood(data.mood);
+    applyMood(latestSofiaLife?.mood || data.mood);
 
     addMessage(
       reply,
@@ -1173,6 +1179,7 @@ async function loadLongTermMemories() {
       memories.length === 0
     ) {
       renderEmptyMemory();
+      renderCharacterMemories(data.character);
       return;
     }
 
@@ -1195,6 +1202,7 @@ async function loadLongTermMemories() {
       return aOrder - bOrder;
     });
 
+    const userHeading=document.createElement('h3');userHeading.textContent='Über dich';memoryList.append(userHeading);
     let lastCategory = '';
     groupedItems.forEach((item, index) => {
       const category = item.category || 'Sonstiges';
@@ -1214,6 +1222,7 @@ async function loadLongTermMemories() {
       }
       renderMemoryItem(item.text, index, category);
     });
+    renderCharacterMemories(data.character);
 
   } catch (error) {
     console.error(
@@ -1228,6 +1237,35 @@ async function loadLongTermMemories() {
       'Memory konnte gerade nicht geladen werden.'
     );
   }
+}
+
+async function saveCharacterEdit(field,value,topic,revision=latestSofiaLife?.revision) {
+  const response=await fetch('/api/memory',{method:'PUT',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json'},body:JSON.stringify({scope:'character',field,value,topic,revision})});
+  if(response.status===401){window.location.reload();return false;}
+  const data=await response.json();
+  if(!response.ok){const error=data.error || 'Änderung konnte nicht gespeichert werden.';setMemoryStatus(error);const note=document.getElementById('moodStatus');if(note)note.textContent=error;return false;}
+  updateSofiaLocation(data.character);const note=document.getElementById('moodStatus');if(note)note.textContent='';return true;
+}
+
+function renderCharacterMemories(character) {
+  if(!character || !memoryList)return;
+  updateSofiaLocation(character);
+  const heading=document.createElement('h3');heading.textContent='Über Sofia';memoryList.append(heading);
+  const note=document.createElement('p');note.textContent='Fiktiver Charakteralltag und eigene Vorlieben — getrennt von deinen Erinnerungen.';note.style.cssText='font-size:12px;opacity:.65';memoryList.append(note);
+  const row=(label,value,field,topic,removable=false)=>{
+    const item=document.createElement('div');item.style.cssText='padding:12px 0;border-top:1px solid rgba(255,255,255,.1)';
+    const text=document.createElement('div');text.textContent=label+': '+value;item.append(text);
+    const button=document.createElement('button');button.type='button';button.textContent='Bearbeiten';
+    button.onclick=async()=>{const next=window.prompt(label+' bearbeiten:',value);if(next===null || !next.trim())return;button.disabled=true;try{if(await saveCharacterEdit(field,next,topic,character.revision))await loadLongTermMemories();}catch{setMemoryStatus('Änderung konnte nicht gespeichert werden.');}finally{button.disabled=false;}};item.append(button);
+    if(removable){const remove=document.createElement('button');remove.type='button';remove.textContent='Entfernen';remove.onclick=async()=>{remove.disabled=true;try{if(await saveCharacterEdit(field,'',topic,character.revision))await loadLongTermMemories();}catch{setMemoryStatus('Änderung konnte nicht gespeichert werden.');}finally{remove.disabled=false;}};item.append(remove);}
+    memoryList.append(item);
+  };
+  for(const [field,label]of [['location','Ort'],['activity','Tätigkeit'],['outfit','Outfit'],['hairstyle','Frisur']])row(label,character[field]||'',field);
+  const mood=document.createElement('p');mood.textContent='Stimmung: '+character.mood+' ('+(character.moodMode==='manual'?'manuell':'automatisch')+')';memoryList.append(mood);
+  for(const pref of character.preferences||[])if(pref.value)row('Vorliebe: '+pref.topic,pref.value,'preference',pref.topic,true);
+  const threadHeading=document.createElement('h3');threadHeading.textContent='Persönliche Gesprächsfäden';memoryList.append(threadHeading);
+  for(const thread of character.threads||[])if(thread.status!=='dismissed')row(thread.status==='resolved'?'Erledigt':'Offen',thread.text,'thread',thread.topic,true);
+  const add=document.createElement('button');add.type='button';add.textContent='Sofias Vorliebe ergänzen';add.onclick=async()=>{const topic=window.prompt('Thema der Vorliebe:');if(!topic?.trim())return;const value=window.prompt('Sofias Vorliebe:');if(!value?.trim())return;try{if(await saveCharacterEdit('preference',value,topic,character.revision))await loadLongTermMemories();}catch{setMemoryStatus('Änderung konnte nicht gespeichert werden.');}};memoryList.append(add);
 }
 
 function renderEmptyMemory() {
@@ -1650,14 +1688,17 @@ document.addEventListener('pointerdown', event => {
 ========================= */
 
 document
-  .querySelectorAll('[data-mood]')
+  .querySelectorAll('.moods [data-mood]')
   .forEach(button => {
     button.addEventListener(
       'click',
       () => {
-        applyMood(
-          button.dataset.mood
-        );
+        void (async()=>{
+          try {
+            if(!latestSofiaLife){await syncConversationFromServer({silent:true});}
+            if(await saveCharacterEdit('mood',button.dataset.mood))applyMood(button.dataset.mood);
+          } catch { console.warn('Stimmung konnte gerade nicht gespeichert werden.'); }
+        })();
 
         if (moodToggle) {
           const chosen = button.textContent.trim();
@@ -1669,6 +1710,12 @@ document
       }
     );
   });
+
+document.querySelector('#moodAuto')?.addEventListener('click',async()=>{
+  try{if(!latestSofiaLife)await syncConversationFromServer({silent:true});await saveCharacterEdit('mood','auto');}
+  catch{console.warn('Automatische Stimmung konnte gerade nicht aktiviert werden.');}
+  setMoodPanelOpen(false);
+});
 
 /* =========================
    LIVE + MUTE CONTROLS

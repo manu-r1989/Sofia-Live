@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { getSofiaLife, editCharacterState } from '../lib/character-image.js';
 
 const MEMORY_KEY = "sofia:main:longterm";
 
@@ -140,6 +141,15 @@ export default async function handler(req, res) {
 
 
   try {
+    if (req.body?.scope === 'character' && ['PUT','DELETE'].includes(req.method)) {
+      try {
+        const character=await editCharacterState({...req.body,value:req.method==='DELETE'?'':req.body.value});
+        return res.status(200).json({ok:true,character});
+      } catch(error) {
+        if(!['character_conflict','character_invalid'].includes(error.message))throw error;
+        return res.status(error.message==='character_conflict'?409:400).json({error:error.message==='character_conflict'?'Sofias Zustand hat sich geändert. Bitte die Ansicht neu laden.':'Diese Änderung ist nicht möglich.'});
+      }
+    }
 
     /* ========================================
        ERINNERUNGEN LESEN
@@ -160,7 +170,8 @@ export default async function handler(req, res) {
       return res.status(200).json({
         memories: items.map(item => item.text),
         items,
-        count: items.length
+        count: items.length,
+        character: await getSofiaLife()
       });
 
     }
