@@ -226,6 +226,10 @@ async function checkTaskReminders({ startup = false } = {}) {
         try { new Notification('Sofia · Erinnerung', { body: task.title, tag: key }); } catch {}
       }
     }
+    const liveKeys = new Set(tasks.map(task => `${task.id}|${task.remindAt || task.dueAt || ''}`));
+    for (const key of Object.keys(notices)) {
+      if (!liveKeys.has(key)) delete notices[key];
+    }
     saveTaskNoticeMap(notices);
   } catch (error) {
     console.warn('Task reminders:', error);
