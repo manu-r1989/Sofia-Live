@@ -531,7 +531,7 @@ export default async function handler(req, res) {
         .filter(item => item && ["user","assistant"].includes(item.role) && typeof item.content === "string")
         .slice(-MAX_HISTORY_MESSAGES);
       res.setHeader("Cache-Control","no-store");
-      return res.status(200).json({ history, images: await portraitGallery() });
+      return res.status(200).json({ history, life: await getSofiaLife(), images: await portraitGallery() });
     }
 
     const { message, image, history: clientHistory } =
@@ -593,7 +593,7 @@ export default async function handler(req, res) {
       if (imageRequest) {
         const reply = "Gib mir einen kleinen Moment.";
         await appendPortraitAcknowledgment(message, reply, imageRequest.id);
-        return res.status(200).json({ reply, mood: "neutral", imageRequest, taskAction: { ok:true, action:"none" } });
+        return res.status(200).json({ reply, life: await getSofiaLife(), mood: "neutral", imageRequest, taskAction: { ok:true, action:"none" } });
       }
     } catch (error) {
       return res.status(200).json({ reply:error.message, taskAction:{ok:true,action:"none"} });
@@ -1972,6 +1972,7 @@ Kein Markdown außerhalb des JSON-Objekts.
     return res.status(200).json({
 
       reply,
+      life: sofiaLife,
       ...(spontaneousImageRequest ? {imageRequest:spontaneousImageRequest} : {}),
 
       mood,

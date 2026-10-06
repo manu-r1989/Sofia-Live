@@ -102,7 +102,7 @@ export default async function handler(req, res) {
 
   try {
     const imageRequest = await preparePortrait(message, req.body?.referenceImageId);
-    if (imageRequest) return res.status(200).json({ context:'BILDANFRAGE ANGENOMMEN: Sage auf Deutsch nur „Gib mir einen kleinen Moment.“ Das Bild wird separat erstellt. Noch keinen Erfolg behaupten.', imageRequest, taskAction:{ok:true,action:'none'}, calendarAction:null });
+    if (imageRequest) return res.status(200).json({ context:'BILDANFRAGE ANGENOMMEN: Sage auf Deutsch nur „Gib mir einen kleinen Moment.“ Das Bild wird separat erstellt. Noch keinen Erfolg behaupten.', imageRequest, life:await getSofiaLife(), taskAction:{ok:true,action:'none'}, calendarAction:null });
   } catch (error) {
     return res.status(200).json({ context:'BILDANFRAGE: ' + error.message, taskAction:{ok:true,action:'none'}, calendarAction:null });
   }
@@ -218,7 +218,7 @@ export default async function handler(req, res) {
       webContext ? `Aktuelle externe Informationen:\n${webContext}` : ""
     ].filter(Boolean).join("\n\n");
     if (taskAction?.ok && taskAction.calendarAction) calendarAction = taskAction.calendarAction;
-    return res.status(200).json({ context, calendarAction, taskAction, ...(imageRequest ? {imageRequest} : {}) });
+    return res.status(200).json({ context, calendarAction, taskAction, life:sofiaLife, ...(imageRequest ? {imageRequest} : {}) });
   } catch (error) {
     console.error("Live context:", error);
     return res.status(200).json({

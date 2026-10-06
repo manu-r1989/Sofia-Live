@@ -132,6 +132,7 @@
     // A resumed utterance or stopped session invalidates this response, even
     // when the context request completes later. Keep the mic open until here.
     if (!current()) return;
+    window.SofiaLifeStatus?.update(contextData.life);
     window.SofiaActionFeedback?.show(contextFailed ? { ok: false, status: "execution_failed" } : contextData.taskAction);
     if (contextData.imageRequest) {
       pendingImageRequestId = contextData.imageRequest.id;

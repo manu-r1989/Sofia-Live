@@ -9,6 +9,15 @@ const chatPanel = document.querySelector('.chatPanel');
 const chatMinimize = document.querySelector('#chatMinimize');
 const chatRestore = document.querySelector('#chatRestore');
 
+function updateSofiaLocation(life) {
+  const node = document.getElementById('sofiaLocation');
+  if (!node || typeof life?.location !== 'string' || !life.location.trim()) return;
+  // The server supplies the same character state used by Text, Live and photos.
+  node.textContent = life.location.trim().slice(0, 180);
+  node.title = typeof life.activity === 'string' ? life.activity.slice(0, 240) : '';
+}
+window.SofiaLifeStatus = { update: updateSofiaLocation };
+
 const MEMORY_KEY = 'sofia_memory';
 const MAX_STORED_MESSAGES = 100;
 const MAX_API_HISTORY = 20;
@@ -336,6 +345,7 @@ async function syncConversationFromServer({ silent = false } = {}) {
     if (!response.ok) return false;
 
     const data = await response.json();
+    updateSofiaLocation(data.life);
     if (!Array.isArray(data.history)) return false;
 
     const serverHistory = data.history.filter(item =>
@@ -565,6 +575,7 @@ async function askSofia(userMessage, imageDataUrl = null) {
       );
     }
 
+    updateSofiaLocation(data.life);
     actionResultReceived = true;
     window.SofiaActionFeedback?.show(data.taskAction);
 
