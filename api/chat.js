@@ -1676,9 +1676,14 @@ Kein Markdown außerhalb des JSON-Objekts.
       reply = `Aufgabe aktualisiert: „${taskAction.task.title}“.`;
     } else if (taskAction?.ok && taskAction.action === "list") {
       const openTasks = Array.isArray(taskAction.tasks) ? taskAction.tasks : [];
+      const scopeLabel = taskAction.scope === "today" ? "Heute" : taskAction.scope === "week" ? "In den nächsten sieben Tagen" : taskAction.scope === "overdue" ? "Überfällig" : "Offen";
       reply = openTasks.length
-        ? `Offen sind: ${openTasks.slice(0, 8).map(task => task.title).join("; ")}.`
-        : "Du hast aktuell keine offenen Aufgaben.";
+        ? `${scopeLabel}: ${openTasks.slice(0, 8).map(task => {
+            const priority = task.priority === "high" ? " [hoch]" : "";
+            const due = task.dueAt ? ` (${task.dueAt.replace("T", " ").slice(0, 16)})` : "";
+            return task.title + priority + due;
+          }).join("; ")}.`
+        : (taskAction.scope === "today" ? "Für heute hast du keine offenen Aufgaben." : taskAction.scope === "week" ? "In den nächsten sieben Tagen ist nichts fällig." : taskAction.scope === "overdue" ? "Du hast keine überfälligen Aufgaben." : "Du hast aktuell keine offenen Aufgaben.");
     } else if (taskAction?.ok === false && taskAction.status === "ambiguous") {
       reply = "Welche Aufgabe genau meinst du?";
     }
