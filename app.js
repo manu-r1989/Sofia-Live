@@ -241,6 +241,8 @@ function startTaskReminderChecks() {
 }
 
 window.addEventListener('load', startTaskReminderChecks);
+window.SofiaTasks = { checkReminders: checkTaskReminders, offerNotifications: addNotificationOptIn };
+
 
 
 let lastServerHistorySignature = '';
