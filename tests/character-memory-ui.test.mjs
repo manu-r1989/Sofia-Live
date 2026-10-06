@@ -24,3 +24,12 @@ test('conflicting character edits show feedback and do not claim or render succe
  const h=harness(false);assert.equal(await h.context.saveCharacterEdit('mood','ernst',undefined,7),false);
  assert.deepEqual(h.status,['Zustand geändert']);assert.equal(h.reloads(),0);
 });
+
+test('conversation settings use revision guarded character API and habits can be reset',async()=>{
+ const h=harness();const controls=h.root.children.find(n=>n.children.some(x=>x.textContent==='Gesprächseinstellungen speichern'));
+ const selects=controls.children.flatMap(n=>n.children).filter(n=>n.tag==='select');selects[0].value='quiet';selects[1].value='short';
+ const photos=controls.children.flatMap(n=>n.children).find(n=>n.type==='checkbox');photos.checked=false;
+ await controls.children.find(n=>n.textContent==='Gesprächseinstellungen speichern').onclick();
+ assert.deepEqual(h.requests[0].value,{initiative:'quiet',replyLength:'short',photos:false});assert.equal(h.requests[0].revision,7);
+ await h.root.children.find(n=>n.textContent==='Gesprächsgewohnheiten zurücksetzen').onclick();assert.equal(h.requests[1].field,'habits');
+});

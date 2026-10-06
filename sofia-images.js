@@ -3,6 +3,12 @@
   const pending = new Set();
   const failureReply = 'Ich bin gerade nicht in der passenden Umgebung für ein Foto. Frag mich gern gleich noch einmal.';
   let referenceId = null;
+  try { referenceId=localStorage.getItem('sofia-photo-reference'); } catch {}
+  function rememberReference(id) { referenceId=id;try { localStorage.setItem('sofia-photo-reference',id); } catch {} }
+  function hideAcknowledgment(image) {
+    const node=document.getElementById('messages')?.querySelector(`[data-portrait-request-id="${image.anchorId || image.id}"]`);
+    if(node && /^Gib mir einen kleinen Moment[.!]?$/i.test(node.textContent.trim()))node.hidden=true;
+  }
   const valid = id => typeof id === 'string' && /^[a-f0-9-]{36}$/.test(id);
   function slotFor(id) {
     if (!valid(id)) return null;
@@ -42,6 +48,8 @@
     if (!messages) return;
     const slot=locate(image);
     if (!slot) return;
+    if(image.status==='pending')return;
+    if(image.status!=='failed')hideAcknowledgment(image);
     const existing=document.getElementById('portrait-' + image.id);
     if (existing && (existing.dataset.portraitStatus !== 'failed' || image.status === 'failed')) return;
     const viewport=window.SofiaChatViewport?.capture();
@@ -64,7 +72,7 @@
     img.style.cssText = 'display:block;width:180px;height:auto;aspect-ratio:2/3;max-width:100%;border-radius:12px;object-fit:cover';
     button.append(img);
     button.onclick = () => {
-      referenceId = image.id;
+      rememberReference(image.id);
       const dialog = document.createElement('dialog');
       dialog.style.cssText = 'max-width:92vw;max-height:92vh;border:0;border-radius:16px;padding:16px;background:#171722;color:white';
       const full = document.createElement('img'); full.src = url; full.alt = img.alt;
@@ -89,8 +97,10 @@
         .filter(x=>x.textContent === 'Gib mir einen kleinen Moment.' && !x.dataset.portraitRequestId).slice(-old.length);
       old.forEach((image,index)=>{const node=acknowledgments[index];if(node)node.dataset.portraitRequestId=image.id;});
       events.forEach(show);
-      const successful=events.filter(x=>x.status !== 'failed' && valid(x.id));
-      if (!referenceId && successful.length) referenceId=successful.at(-1).id;
+      events.filter(x=>x.status==='pending' && x.jobStatus==='ready').forEach(x=>window.SofiaImages.generate(x));
+      const successful=events.filter(x=>x.status !== 'failed' && x.status !== 'pending' && valid(x.id));
+      if (!successful.some(x=>x.id===referenceId))referenceId=null;
+      if (!referenceId && successful.length) rememberReference(successful.at(-1).id);
     },
     generate(request) {
       if (!valid(request?.id)) return Promise.resolve();
@@ -102,7 +112,7 @@
           const response = await fetch('/api/chat',{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json'},body:JSON.stringify({operation:'generate_image',requestId:request.id}),signal:typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function' ? AbortSignal.timeout(250000) : undefined});
           const data = await response.json();
           if (!response.ok) throw new Error('portrait_failed');
-          show(data.image); referenceId=data.image.id;
+          show(data.image); rememberReference(data.image.id);
         } catch {
           show({...request,anchorId:request.id,status:'failed'});
         } finally {

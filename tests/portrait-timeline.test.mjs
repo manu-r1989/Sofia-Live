@@ -79,3 +79,19 @@ test('pictures have an accessible image button but no visible caption or subtitl
  assert.equal(figure.children[0].children[0].tag,'img');
  assert.equal(figure.children[0].children[0].alt,'Diese Bildunterschrift soll nicht sichtbar sein');
 });
+
+test('successful photo hides only its moment acknowledgment, including after reload',()=>{
+ const h=harness();const ack=h.message('Gib mir einen kleinen Moment.','sofia',id);const content=h.message('Eine richtige Antwort.','sofia',id2);
+ h.api.restore([image(id),image(id2)]);assert.equal(ack.hidden,true);assert.equal(content.hidden,false);
+});
+test('failed photo retains acknowledgment and friendly explanation',()=>{
+ const h=harness();const ack=h.message('Gib mir einen kleinen Moment.','sofia',id);
+ h.api.restore([{...image(id),status:'failed'}]);assert.equal(ack.hidden,false);
+});
+test('reload resumes ready jobs once and never restarts processing jobs',async()=>{
+ let calls=0;const h=harness(async()=>{calls++;return {ok:true,json:async()=>({image:image(id)})};});
+ h.message('Gib mir einen kleinen Moment.','sofia',id);
+ const jobs=[{id,status:'pending',jobStatus:'ready'},{id:id2,status:'pending',jobStatus:'processing'}];
+ h.api.restore(jobs);h.api.restore(jobs);await h.api.generate({id});assert.equal(calls,1);assert.equal(h.api.referenceId,id);
+ assert.equal(h.document.getElementById('portrait-'+id2),null);
+});

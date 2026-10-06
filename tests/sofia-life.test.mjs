@@ -20,15 +20,19 @@ globalThis.fetch=async(endpoint,options)=>{
   const [op,key,value,...args]=body;
   if(op==='GET')return response({result:db.get(key)||null});
   if(op==='SET'){db.set(key,value);return response({result:'OK'});}
+  if(op==='EVAL' && key.includes('sofia-portrait-jobs')) {const target=body[3],id=body[4];let jobs=JSON.parse(db.get(target)||'[]').filter(x=>x.id!==id);if(body[5])jobs.push(JSON.parse(body[5]));db.set(target,JSON.stringify(jobs.slice(-20)));return response({result:1});}
   if(op==='EVAL' && key.includes('sofia-life-cas')) {
    const target=body[3];if((db.get(target)||'')!==body[4])return response({result:0});
    db.set(target,body[5]);return response({result:1});
   }
   if(op==='EVAL' && key.includes('sofia-proactive-photo-limit')) {
-   const queueKey=body[3],now=Number(body[4]),id=body[5];
+   const queueKey=body[3],now=Number(body[5]),id=body[6],motif=body[7];
+   const motifs=(quotas.get(body[4])||[]).filter(x=>x.at>now-21600000);
    const queue=(quotas.get(queueKey)||[]).filter(x=>x.at>now-3600000);
    if(queue.some(x=>x.id===id))return response({result:1});
+   if(motif && motifs.some(x=>x.id===motif))return response({result:0});
    if(queue.length>=2)return response({result:0});
+   if(motif){motifs.push({id:motif,at:now});quotas.set(body[4],motifs);}
    queue.push({id,at:now});quotas.set(queueKey,queue);return response({result:1});
   }
   if(op==='EVAL' && key.includes('local cached'))return response({result:['acquired','']});
@@ -89,9 +93,9 @@ test('rolling hourly reservation is atomic across parallel modes, idempotent, an
 test('proactive pictures use current life, limit two jobs, while explicit photos do not consume quota',async()=>{
  reset();const now=new Date('2026-10-06T12:15Z');const life=await api.getSofiaLife(now);
  const jobs=await Promise.all([1,2,3].map(()=>api.prepareProactivePortrait('Was machst du gerade?',life,'Ich bin in der Stadt.',now)));
- assert.equal(jobs.filter(Boolean).length,2);
+ assert.equal(jobs.filter(Boolean).length,1);
  const explicit=await api.preparePortrait('Mach bitte ein Selfie',null,now);assert.ok(explicit.id);
- assert.equal([...quotas.values()][0].length,2);
+ assert.equal([...quotas.values()][0].length,1);
  const job=JSON.parse(db.get(prefix+'request:'+jobs.find(Boolean).id));assert.equal(job.proactive,true);assert.equal(job.life.key,life.key);
  assert.equal(await api.prepareProactivePortrait('Erinnere mich an einen Termin',life,'',now),null);
  const night=await api.getSofiaLife(new Date('2026-10-07T00:00Z'));
@@ -114,12 +118,12 @@ test('Text and Live return an unsolicited image with announcement and common quo
   let data,status;const res={setHeader(){},status(n){status=n;return this;},json(d){data=d;return d;}};
   await handler({method:'POST',headers:{cookie:'sofia_session='+session,host:'sofia.test'},body:{message:'Was machst du gerade?'}},res);
   assert.equal(status,200);assert.equal(data.taskAction?.action,'none',JSON.stringify(data.taskAction));
-  if(index<2)assert.ok(data.imageRequest,JSON.stringify({name,data}));else assert.equal(data.imageRequest,undefined);
+  if(index===0)assert.ok(data.imageRequest,JSON.stringify({name,data}));else assert.equal(data.imageRequest,undefined);
   index++;
   if(data.imageRequest)assert.match(data.reply||data.context,/Warte kurz, ich zeig’s dir/);
   if(name==='chat' && !data.imageRequest)assert.doesNotMatch(data.reply,/Warte kurz/);
  }
- assert.equal([...quotas.values()][0].length,2);
+ assert.equal([...quotas.values()][0].length,1);
 });
 test('image prompts preserve face and master hair color and request ordinary snapshots without subtitles',()=>{
  assert.match(source,/hair COLOR/);assert.match(source,/Small natural variations in facial expression/);
@@ -252,4 +256,36 @@ test('memory API separates user memories from character state and validates corr
  const conflict=await invoke('PUT',{scope:'character',revision:state.revision,field:'preference',topic:'getränk',value:'Tee'});assert.equal(conflict.status,409);
  assert.equal((await invoke('GET')).data.items[0].text,'Der Nutzer mag Tee.');
  assert.equal((await invoke('PUT',{scope:'character',revision:edit.data.character.revision,field:'preference',topic:'x',value:'y'},'')).status,401);
+});
+
+test('shared dialogue carries topic, pending question and pause guidance',()=>{
+ const now=new Date('2026-10-06T12:00Z');let life=api.defaultSofiaLife(now);
+ life=api.updateDialogue(life,'Was liest du?','Ich lese einen Roman. Was liest du gern?',now);
+ life=api.updateDialogue(life,'Und danach?','Danach gehe ich spazieren.',new Date(now.getTime()+60000));
+ assert.equal(life.dialogue.topic,'Was liest du?');assert.equal(life.dialogue.questions.length,1);
+ assert.match(api.lifeContext(life,'Und danach?'),/LETZTER GEMEINSAMER/);
+ assert.match(api.initiativeContext(life,'Hallo',new Date(now.getTime()+10800000)),/WIEDERAUFNAHME NACH PAUSE/);
+});
+test('settings persist across dates, disable only proactive photos, and validate enums',async()=>{
+ reset();const now=new Date('2026-10-06T12:15Z'),first=await api.getSofiaLife(now);
+ const settings={initiative:'quiet',photos:false,replyLength:'short'};
+ const life=await api.editCharacterState({field:'settings',value:settings,revision:first.revision},now);
+ assert.deepEqual((await api.getSofiaLife(new Date('2026-10-07T12:15Z'))).settings,settings);
+ assert.equal(await api.prepareProactivePortrait('Wo bist du?',life,'',now),null);
+ assert.match(api.initiativeContext(life,'Wie geht es dir?',now),/Zurückhaltend/);
+ assert.ok(await api.preparePortrait('Ein Selfie bitte',null,now));
+});
+test('habits require repetition, interests retain progress and preferences retain history',()=>{
+ const now=new Date('2026-10-06T12:00Z'),base=api.defaultSofiaLife(now);
+ const message='Bitte antworte kurz.',reply='Ich lese gerade einen Roman. Ich mag Kaffee.';
+ const decision={habits:[{topic:'länge',value:'kurz',evidence:message}],interests:[{topic:'roman',description:'Einen Roman lesen',progress:'Kapitel 2',evidence:'Ich lese gerade einen Roman.'}],preferences:[{topic:'kaffee',value:'Kaffee',evidence:'Ich mag Kaffee.'}]};
+ const first=api.mergeCharacterDetails(base,decision,message,reply,now);assert.equal(first.habits[0].count,1);assert.equal(first.interests[0].progress,'Kapitel 2');
+ const second=api.mergeCharacterDetails(first,decision,message,reply,new Date(now.getTime()+60000));assert.equal(second.habits[0].count,2);assert.equal(second.preferences[0].history.length,1);
+});
+test('same proactive motif is suppressed but another motif fits rolling quota',async()=>{
+ reset();const now=new Date('2026-10-06T12:00Z');
+ assert.equal(await api.reserveProactivePhoto('one',now,'cafe-selfie'),true);
+ assert.equal(await api.reserveProactivePhoto('two',now,'cafe-selfie'),false);
+ assert.equal(await api.reserveProactivePhoto('three',now,'alster-view'),true);
+ assert.equal(await api.reserveProactivePhoto('four',now,'home'),false);
 });

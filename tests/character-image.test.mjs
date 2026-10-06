@@ -21,6 +21,7 @@ globalThis.fetch=async(url,options)=>{
   if(op==='GET')return response({result:db.get(key)||null});
   if(op==='SET'){if(rest.includes('NX')&&db.has(key))return response({result:null});db.set(key,value);return response({result:'OK'});}
   if(op==='DEL'){db.delete(key);return response({result:1});}
+  if(op==='EVAL' && key.includes('sofia-portrait-jobs')) {const target=body[3],id=body[4];let jobs=JSON.parse(db.get(target)||'[]').filter(x=>x.id!==id);if(body[5])jobs.push(JSON.parse(body[5]));db.set(target,JSON.stringify(jobs.slice(-20)));return response({result:1});}
   if(op==='EVAL' && key.includes('sofia-life-cas')) {const target=body[3];if((db.get(target)||'')!==body[4])return response({result:0});db.set(target,body[5]);return response({result:1});}
   if(op==='EVAL'){const lock=body[3],id=body[4]; if(lock === 'sofia:main:history') { const history=JSON.parse(db.get(lock)||'[]'); history.push({role:'user',content:body[4]},{role:'assistant',content:body[5],imageRequestId:body[6]});db.set(lock,JSON.stringify(history.slice(-40))); } else if(db.get(lock)===id)db.delete(lock);return response({result:1});}
   throw Error('Unexpected Redis '+op);
@@ -112,7 +113,7 @@ test('image delivery is private JPEG with download attachment and validated IDs'
 });
 test('UI integration loads shared renderer before app and does not alter avatar assets',async()=>{
  const root=new URL('../',import.meta.url);const index=await readFile(new URL('index.html',root),'utf8');
- assert.ok(index.indexOf('sofia-images.js?v=4237c1')<index.indexOf('app.js?v=4237c1'));
+ assert.ok(index.indexOf('sofia-images.js?v=4257')<index.indexOf('app.js?v=4257'));
  const chat=await readFile(new URL('api/chat.js',root),'utf8');
  assert.ok(chat.indexOf('!safeEqual(')<chat.indexOf('await servePortrait'));
  const ui=await readFile(new URL('sofia-images.js',root),'utf8');assert.match(ui,/dialog.showModal/);assert.match(ui,/download=1/);assert.doesNotMatch(ui,/spinner|generating-status/);
@@ -221,4 +222,18 @@ test('normal conversation after a picture keeps the anchor in Redis but sends on
  assert.equal(status,200);assert.ok(textInputs.length);
  for(const input of textInputs.filter(Array.isArray))assert.ok(input.every(x=>!Object.hasOwn(x,'imageRequestId')));
  assert.equal(JSON.parse(db.get('sofia:main:history'))[1].imageRequestId,marker);
+});
+
+test('pending job gallery survives reload and processing cannot bill again',async()=>{
+ reset();const r=await api.preparePortrait('Selfie');let jobs=await api.portraitGallery();assert.equal(jobs[0].jobStatus,'ready');
+ const stored=JSON.parse(db.get(prefix+'request:'+r.id));db.set(prefix+'request:'+r.id,JSON.stringify({...stored,status:'processing'}));
+ db.set(prefix+'jobs',JSON.stringify([{id:r.id,status:'pending',jobStatus:'processing',requestedAt:new Date().toISOString()}]));
+ await assert.rejects(()=>api.generatePortrait(r.id),/bereits gestartet/);assert.equal(imageCalls.length,0);
+ assert.equal((await api.portraitGallery())[0].jobStatus,'processing');
+});
+test('explicit smile variant preserves selected face source even when planner says new',async()=>{
+ reset();const old='11111111-1111-4111-8111-111111111111';db.set(prefix+'image:'+old,JSON.stringify({id:old,outfit:'Green dress',base64:'/9j/AA==',scene:'Mirror selfie',kind:'mirror'}));
+ const r=await api.preparePortrait('Dasselbe mit einem Lächeln',old);
+ const job=JSON.parse(db.get(prefix+'request:'+r.id));assert.equal(job.sourceId,old);assert.equal(job.kind,'mirror');assert.equal(job.outfit,'Green dress');
+ assert.equal(api.photoVariantRequest('Dieses Bild ist schön'),false);
 });
