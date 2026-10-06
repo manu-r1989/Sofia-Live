@@ -1,0 +1,258 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
+import { readFile } from 'node:fs/promises';
+
+// No credentials or services are used: all HTTP calls are intercepted.
+const root = new URL('../', import.meta.url);
+const moduleUrl = source => `data:text/javascript;base64,${Buffer.from(source).toString('base64')}`;
+const taskUrl = moduleUrl(await readFile(new URL('api/task-action.js', root), 'utf8'));
+const engineUrl = moduleUrl((await readFile(new URL('api/action-engine.js', root), 'utf8')).replace('./task-action.js', taskUrl));
+const { executeUnifiedAction } = await import(engineUrl);
+const endpoints = {};
+for (const name of ['chat', 'live-context']) {
+  endpoints[name] = (await import(moduleUrl((await readFile(new URL(`api/${name}.js`, root), 'utf8')).replace('./action-engine.js', engineUrl)))).default;
+}
+const TASKS = 'sofia:main:tasks';
+const STATE = 'sofia:main:action-state';
+const fixture = id => ({ id, title: `TEST ${id}`, status: 'open', dueAt: '2026-10-07T09:00:00', remindAt: '2026-10-07T08:30:00', priority: 'high', notes: 'keep me', recurrence: 'daily', createdAt: '2026-10-01T00:00:00Z' });
+let db, writes, classifierCalls, parsed, classifierFailure, malformed, stateFailure, writeUncertain, finishFailure, modelHook, classifierHook, memoryFailure;
+const savedFetch = globalThis.fetch;
+const envNames = ['SOFIA_PASSWORD', 'OPENAI_API_KEY', 'KV_REST_API_URL', 'KV_REST_API_TOKEN'];
+const savedEnv = Object.fromEntries(envNames.map(key => [key, process.env[key]]));
+
+function reset(tasks = [], recentTaskId = null) {
+  db = new Map([[TASKS, JSON.stringify(tasks)], [STATE, JSON.stringify({ lastTaskId: recentTaskId, lastActionSummary: 'previous action' })]]);
+  writes = classifierCalls = 0;
+  parsed = { action: 'none' };
+  classifierFailure = malformed = stateFailure = writeUncertain = finishFailure = memoryFailure = false;
+  modelHook = classifierHook = null;
+  process.env.SOFIA_PASSWORD = 'local-test-password';
+  process.env.OPENAI_API_KEY = 'local-test-key';
+  process.env.KV_REST_API_URL = 'https://redis.test';
+  process.env.KV_REST_API_TOKEN = 'local-test-token';
+}
+
+// Emulate Redis command results and atomic EVAL execution. Actual Lua syntax
+// and reservation behavior are additionally checked separately before release.
+function redis(command) {
+  const [op, key, ...args] = command;
+  if (op === 'GET') {
+    if (memoryFailure && key === 'sofia:main:longterm') throw new Error('memory read failed');
+    return db.get(key) ?? null;
+  }
+  if (op === 'SET') {
+    if (key === STATE && stateFailure) throw new Error('state save failed');
+    db.set(key, args[0]);
+    if (key === TASKS) {
+      writes++;
+      if (writeUncertain) throw new Error('write response lost');
+    }
+    return 'OK';
+  }
+  if (op === 'EVAL') {
+    const count = Number(args[0]);
+    const keys = args.slice(1, count + 1);
+    const argv = args.slice(count + 1);
+    const [resultKey, lockKey] = keys;
+    if (key.includes('local cached')) {
+      const cached = db.get(resultKey);
+      if (cached) {
+        const value = JSON.parse(cached), state = JSON.parse(db.get(keys[2]) || '{}');
+        const task = value.taskAction?.task;
+        if (!task || task.id === state.lastTaskId || value.contextTaskId === state.lastTaskId) return ['cached', cached];
+        db.delete(resultKey);
+      }
+      if (db.has(lockKey)) return ['busy', ''];
+      db.set(lockKey, argv[0]); db.set(resultKey, argv[1]);
+      return ['acquired', ''];
+    }
+    if (finishFailure) throw new Error('finalization failed');
+    if (db.get(lockKey) !== argv[0]) return 0;
+    if (argv[1]) db.set(resultKey, argv[1]); else db.delete(resultKey);
+    db.delete(lockKey);
+    return 1;
+  }
+  throw new Error(`Unexpected command ${op}`);
+}
+
+globalThis.fetch = async (url, options) => {
+  const body = JSON.parse(options.body);
+  if (String(url).startsWith('https://redis.test')) {
+    const result = String(url).endsWith('/pipeline') ? body.map(command => ({ result: redis(command) })) : { result: redis(body) };
+    return { ok: true, json: async () => result };
+  }
+  if (String(url).endsWith('/api/sofia-identity')) return { ok: true, json: async () => ({}) };
+  assert.equal(String(url), 'https://api.openai.com/v1/responses');
+  let output;
+  if (body.instructions.includes('Task-Action-Parser')) {
+    classifierCalls++;
+    if (classifierHook) await classifierHook(body);
+    if (classifierFailure) return { ok: false, status: 503, json: async () => ({}) };
+    output = malformed ? 'not JSON' : JSON.stringify(parsed);
+  } else if (Array.isArray(body.input)) {
+    if (modelHook) modelHook(body);
+    output = JSON.stringify({ reply: 'I falsely claim success', mood: 'entspannt', calendar_action: null, memory_action: { action: 'none' } });
+  } else if (body.instructions.includes('NO_WEB')) output = 'NO_WEB';
+  else output = JSON.stringify({ calendar_action: null, indexes: [] });
+  return { ok: true, json: async () => ({ output: [{ content: [{ type: 'output_text', text: output }] }] }) };
+};
+
+const run = (message, mode = 'text', referenceTime = '2026-10-06 14:59:59') => executeUnifiedAction(message, referenceTime, { mode });
+async function endpoint(name, message) {
+  const session = crypto.createHmac('sha256', process.env.SOFIA_PASSWORD).update('sofia-authorized-session-v1').digest('hex');
+  const req = { method: 'POST', body: { message }, headers: { cookie: `sofia_session=${session}`, host: 'sofia.test' } };
+  const res = { code: 200, setHeader() {}, status(code) { this.code = code; return this; }, json(value) { this.value = value; return this; } };
+  await endpoints[name](req, res);
+  assert.equal(res.code, 200);
+  return res.value;
+}
+
+test('conversation skips task classifier and preserves continuity', async () => {
+  reset([fixture('a')], 'a');
+  await run('Hallo Sofia');
+  assert.equal(classifierCalls, 0); assert.equal(writes, 0);
+  assert.equal(JSON.parse(db.get(STATE)).lastActionSummary, 'previous action');
+});
+
+test('parallel same action is reserved before classifier execution', async () => {
+  reset(); parsed = { action: 'create', task: { title: 'TEST new' } };
+  let entered, release;
+  const ready = new Promise(resolve => entered = resolve);
+  const gate = new Promise(resolve => release = resolve);
+  classifierHook = async () => { entered(); await gate; };
+  const first = run('Lege eine Aufgabe an'); await ready;
+  const second = await run('Lege eine Aufgabe an', 'live');
+  assert.equal(second.taskAction.status, 'in_progress');
+  release(); assert.equal((await first).taskAction.action, 'create');
+  assert.equal(writes, 1); assert.equal(classifierCalls, 1);
+});
+
+test('retry across modes and minute boundary advances recurring task once', async () => {
+  reset([fixture('a')], 'a'); parsed = { action: 'complete', id: 'a' };
+  const first = await run('Die ist erledigt');
+  const retry = await run('  DIE   IST erledigt  ', 'live', '2026-10-06 15:00:01');
+  assert.equal(first.taskAction.action, 'complete_recurring');
+  assert.deepEqual(retry, first); assert.equal(writes, 1);
+  assert.equal(JSON.parse(db.get(TASKS))[0].dueAt, '2026-10-08T09:00:00');
+});
+
+test('parallel different action cannot overwrite another task mutation', async () => {
+  reset(); parsed = { action: 'create', task: { title: 'TEST first' } };
+  let entered, release;
+  const ready = new Promise(resolve => entered = resolve);
+  const gate = new Promise(resolve => release = resolve);
+  classifierHook = async () => { entered(); await gate; };
+  const first = run('Lege eine Aufgabe TEST first an'); await ready;
+  const second = await run('Lege eine Aufgabe TEST second an');
+  assert.equal(second.taskAction.status, 'in_progress');
+  release(); await first;
+  assert.equal(writes, 1); assert.equal(JSON.parse(db.get(TASKS)).length, 1);
+});
+
+test('same follow-up for a newly selected task does not reuse old result', async () => {
+  reset([fixture('a'), fixture('b')], 'a'); parsed = { action: 'complete', id: 'a' };
+  await run('Die ist erledigt');
+  db.set(STATE, JSON.stringify({ lastTaskId: 'b' })); parsed = { action: 'complete', id: 'b' };
+  const second = await run('Die ist erledigt');
+  assert.equal(second.taskAction.task.id, 'b'); assert.equal(writes, 2);
+});
+
+test('state-save failure preserves real success and retry protection', async () => {
+  reset([fixture('a')], null); stateFailure = true; parsed = { action: 'complete', id: 'a' };
+  const first = await run('Erledige Aufgabe TEST a');
+  assert.equal(first.taskAction.ok, true); assert.equal(first.continuityWarning, 'state_save_failed');
+  assert.deepEqual(await run('Erledige Aufgabe TEST a', 'live'), first); assert.equal(writes, 1);
+});
+
+test('uncertain task write is not confirmed or replayed', async () => {
+  reset([fixture('a')], 'a'); writeUncertain = true; parsed = { action: 'complete', id: 'a' };
+  const first = await run('Die ist erledigt');
+  assert.equal(first.taskAction.ok, false); assert.equal(first.taskAction.status, 'execution_failed');
+  assert.deepEqual(await run('Die ist erledigt'), first); assert.equal(writes, 1);
+});
+
+test('failed finalization leaves pending reservation instead of replay', async () => {
+  reset([fixture('a')], 'a'); finishFailure = true; parsed = { action: 'complete', id: 'a' };
+  assert.equal((await run('Die ist erledigt')).taskAction.ok, true);
+  assert.equal((await run('Die ist erledigt')).taskAction.status, 'in_progress'); assert.equal(writes, 1);
+});
+
+for (const kind of ['HTTP', 'JSON']) test(`classifier ${kind} error is explicit and performs no task write`, async () => {
+  reset(); classifierFailure = kind === 'HTTP'; malformed = kind === 'JSON';
+  const result = await run('Lege eine Aufgabe an');
+  assert.equal(result.taskAction.ok, false); assert.equal(result.taskAction.status, 'execution_failed'); assert.equal(writes, 0);
+});
+
+test('sparse date update preserves priority, notes, recurrence and reminder', async () => {
+  reset([fixture('a')], 'a'); parsed = { action: 'update', id: 'a', task: { dueAt: '2026-10-09T10:00:00' } };
+  const { taskAction: { task } } = await run('Verschiebe die auf Freitag');
+  assert.equal(task.priority, 'high'); assert.equal(task.notes, 'keep me'); assert.equal(task.recurrence, 'daily');
+  assert.equal(task.remindAt, '2026-10-07T08:30:00'); assert.equal(task.dueAt, '2026-10-09T10:00:00');
+});
+
+test('multi-item list clears singular follow-up target and is not cached', async () => {
+  reset([fixture('a'), fixture('b')], 'a'); parsed = { action: 'list' };
+  await run('Zeig meine Aufgaben'); assert.equal(JSON.parse(db.get(STATE)).lastTaskId, null);
+  db.set(TASKS, JSON.stringify([fixture('b')]));
+  assert.equal((await run('Zeig meine Aufgaben')).taskAction.tasks.length, 1);
+});
+
+test('live without memories includes task result, continuity and calendar payload', async () => {
+  reset([fixture('a')], 'a'); parsed = { action: 'calendar_export', id: 'a' };
+  const result = await endpoint('live-context', 'Pack die in den Kalender');
+  assert.equal(result.taskAction.action, 'calendar_export'); assert.equal(result.calendarAction.title, 'TEST a');
+  assert.match(result.context, /Kalenderimport.*vorbereitet/); assert.match(result.context, /LETZTE AKTION/);
+});
+
+test('live error context cannot claim task success', async () => {
+  reset(); classifierFailure = true;
+  const result = await endpoint('live-context', 'Lege eine Aufgabe an');
+  assert.equal(result.taskAction.ok, false); assert.match(result.context, /Keinen Erfolg behaupten/);
+});
+
+test('live without memories confirms actual creation', async () => {
+  reset(); parsed = { action: 'create', task: { title: 'TEST live' } };
+  const result = await endpoint('live-context', 'Lege eine Aufgabe TEST live an');
+  assert.equal(result.taskAction.action, 'create'); assert.match(result.context, /TEST live.*gespeichert/);
+});
+
+test('live missing task date asks for a date instead of confirming export', async () => {
+  reset([{ ...fixture('a'), dueAt: null }], 'a'); parsed = { action: 'calendar_export', id: 'a' };
+  const result = await endpoint('live-context', 'Pack die in den Kalender');
+  assert.equal(result.taskAction.ok, false); assert.equal(result.taskAction.status, 'missing_due_at');
+  assert.match(result.context, /Datum und Uhrzeit/); assert.equal(result.calendarAction, null);
+});
+
+test('live preserves completed action even when downstream memory read fails', async () => {
+  reset(); parsed = { action: 'create', task: { title: 'TEST fallback' } }; memoryFailure = true;
+  const previousError = console.error;
+  console.error = () => {};
+  try {
+    const result = await endpoint('live-context', 'Lege eine Aufgabe TEST fallback an');
+    assert.equal(result.taskAction.ok, true); assert.match(result.context, /TEST fallback.*gespeichert/);
+  } finally { console.error = previousError; }
+});
+
+test('text error overrides model success claim and receives actual failure context', async () => {
+  reset(); classifierFailure = true;
+  modelHook = body => assert.match(body.input.find(item => item.role === 'developer' && item.content.startsWith('Tatsächliches Task-Ergebnis')).content, /execution_failed/);
+  const result = await endpoint('chat', 'Lege eine Aufgabe an');
+  assert.equal(result.taskAction.ok, false); assert.match(result.reply, /nicht sicher bestätigen/);
+});
+
+test('text model receives result after task has actually been persisted', async () => {
+  reset(); parsed = { action: 'create', task: { title: 'TEST text' } };
+  modelHook = body => {
+    assert.equal(writes, 1);
+    assert.equal(JSON.parse(db.get(TASKS))[0].title, 'TEST text');
+    assert.match(body.input.find(item => item.role === 'developer' && item.content.startsWith('Tatsächliches Task-Ergebnis')).content, /TEST text/);
+  };
+  const result = await endpoint('chat', 'Lege eine Aufgabe TEST text an');
+  assert.equal(result.taskAction.ok, true); assert.match(result.reply, /als Aufgabe gespeichert/);
+});
+
+test.after(() => {
+  globalThis.fetch = savedFetch;
+  for (const key of envNames) if (savedEnv[key] === undefined) delete process.env[key]; else process.env[key] = savedEnv[key];
+});

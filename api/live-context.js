@@ -70,6 +70,26 @@ async function extractLiveCalendarAction(message, referenceTime) {
   }
 }
 
+function taskContextOf(taskAction) {
+  if (!taskAction) return "";
+  if (taskAction.ok === false && taskAction.status === "in_progress") return "TASK-AKTION: Eine Aufgabenaktion wird gerade verarbeitet. Nicht erneut ausführen und keinen Erfolg bestätigen.";
+  if (taskAction.ok === false && taskAction.status === "execution_failed") return "TASK-AKTION: Der Ausgang ist unbestätigt. Keinen Erfolg behaupten. Bitte um Prüfung des Aufgabenstands vor erneuter Ausführung.";
+  if (taskAction.ok === false && taskAction.status === "ambiguous") return "TASK-AKTION: Die gewünschte Aufgabe war nicht eindeutig. Frage kurz, welche Aufgabe gemeint ist.";
+  if (taskAction.ok === true && taskAction.action === "create" && taskAction.task?.title) return `TASK-AKTION ERFOLGREICH: Aufgabe „${taskAction.task.title}“ wurde gespeichert. Bestätige das knapp.`;
+  if (taskAction.ok === true && taskAction.action === "create_existing" && taskAction.task?.title) return `TASK-AKTION: Aufgabe „${taskAction.task.title}“ existiert bereits. Sage das knapp, ohne sie erneut anzulegen.`;
+  if (taskAction.ok === true && taskAction.action === "complete" && taskAction.task?.title) return `TASK-AKTION ERFOLGREICH: Aufgabe „${taskAction.task.title}“ wurde erledigt. Bestätige das knapp.`;
+  if (taskAction.ok === true && taskAction.action === "complete_recurring" && taskAction.task?.title) return `TASK-AKTION ERFOLGREICH: Wiederkehrende Aufgabe „${taskAction.task.title}“ wurde erledigt und auf den nächsten Termin gesetzt. Bestätige das knapp.`;
+  if (taskAction.ok === true && taskAction.action === "calendar_export" && taskAction.task?.title) return `TASK-AKTION ERFOLGREICH: Kalenderimport für „${taskAction.task.title}“ wurde vorbereitet. Sage das knapp.`;
+  if (taskAction.ok === false && taskAction.status === "missing_due_at") return "TASK-AKTION: Die Aufgabe hat noch keinen Termin. Frage kurz nach Datum und Uhrzeit.";
+  if (taskAction.ok === true && taskAction.action === "delete" && taskAction.task?.title) return `TASK-AKTION ERFOLGREICH: Aufgabe „${taskAction.task.title}“ wurde gelöscht. Bestätige das knapp.`;
+  if (taskAction.ok === true && taskAction.action === "update" && taskAction.task?.title) return `TASK-AKTION ERFOLGREICH: Aufgabe „${taskAction.task.title}“ wurde aktualisiert. Bestätige das knapp.`;
+  if (taskAction.ok === true && taskAction.action === "list") {
+    const list = Array.isArray(taskAction.tasks) ? taskAction.tasks.slice(0, 8).map(task => task.title).join("; ") : "";
+    return list ? `TASK-LISTE: ${list}. Beantworte die Aufgabenfrage anhand dieser Liste.` : "TASK-LISTE: Keine offenen Aufgaben.";
+  }
+  return "TASK-AKTION: In diesem Turn wurde keine Aufgabenaktion ausgeführt. Keine Task-Ausführung bestätigen.";
+}
+
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
@@ -86,11 +106,12 @@ export default async function handler(req, res) {
     hour12: false
   }).format(now);
 
+  let taskAction = { ok: true, action: "none" };
   try {
-    let taskAction = { ok: true, action: "none" };
     try {
       taskAction = (await executeUnifiedAction(message, hamburgNow, { mode: "live" })).taskAction;
     } catch (taskError) {
+      taskAction = { ok: false, action: "none", status: "execution_failed" };
       console.warn("Live task action:", taskError?.message || taskError);
     }
 
@@ -172,52 +193,32 @@ export default async function handler(req, res) {
       console.warn("Live web context:", error?.message || error);
     }
 
-    if (!memories.length) {
-      return res.status(200).json({
-        context: webContext ? `Aktuelle externe Informationen:\n${webContext}` : "",
-        calendarAction
-      });
-    }
     let memoryContext = "";
     try {
-      const r = await fetch("https://api.openai.com/v1/responses", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "gpt-5.6",
-          instructions: "Wähle maximal 10 Erinnerungen, die für den aktuellen gesprochenen Nutzerturn wirklich relevant sind. Keine bloß ähnlichen oder zufällig aktuellen Einträge. Antworte nur als JSON: {\"indexes\":[0,1]}.",
-          input: `Aktueller Turn:\n${message}\n\nErinnerungen:\n${catalog}`,
-          max_output_tokens: 120
-        })
-      });
-      if (r.ok) {
-        const d = await r.json();
-        const out = d.output?.flatMap(x => x.content || []).find(x => x.type === "output_text")?.text || "";
-        const parsed = JSON.parse(out);
-        const indexes = Array.isArray(parsed.indexes) ? [...new Set(parsed.indexes)].filter(i => Number.isInteger(i) && memories[i]).slice(0, 10) : [];
-        const selected = indexes.map(i => memories[i]);
-        memoryContext = selected.map(m => `[${m?.category || "Sonstiges"}] ${textOf(m)}`).join("\n");
+      if (memories.length) {
+        const r = await fetch("https://api.openai.com/v1/responses", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: "gpt-5.6",
+            instructions: "Wähle maximal 10 Erinnerungen, die für den aktuellen gesprochenen Nutzerturn wirklich relevant sind. Keine bloß ähnlichen oder zufällig aktuellen Einträge. Antworte nur als JSON: {\"indexes\":[0,1]}.",
+            input: `Aktueller Turn:\n${message}\n\nErinnerungen:\n${catalog}`,
+            max_output_tokens: 120
+          })
+        });
+        if (r.ok) {
+          const d = await r.json();
+          const out = d.output?.flatMap(x => x.content || []).find(x => x.type === "output_text")?.text || "";
+          const parsed = JSON.parse(out);
+          const indexes = Array.isArray(parsed.indexes) ? [...new Set(parsed.indexes)].filter(i => Number.isInteger(i) && memories[i]).slice(0, 10) : [];
+          const selected = indexes.map(i => memories[i]);
+          memoryContext = selected.map(m => `[${m?.category || "Sonstiges"}] ${textOf(m)}`).join("\n");
+        }
       }
     } catch (error) {
       console.warn("Live memory context:", error?.message || error);
     }
-    const taskActionContext = (() => {
-      if (!taskAction) return "";
-      if (taskAction.ok === false && taskAction.status === "ambiguous") return "TASK-AKTION: Die gewünschte Aufgabe war nicht eindeutig. Frage kurz, welche Aufgabe gemeint ist.";
-      if (taskAction.action === "create" && taskAction.task?.title) return `TASK-AKTION ERFOLGREICH: Aufgabe „${taskAction.task.title}“ wurde gespeichert. Bestätige das knapp.`;
-      if (taskAction.action === "create_existing" && taskAction.task?.title) return `TASK-AKTION: Aufgabe „${taskAction.task.title}“ existiert bereits. Sage das knapp, ohne sie erneut anzulegen.`;
-      if (taskAction.action === "complete" && taskAction.task?.title) return `TASK-AKTION ERFOLGREICH: Aufgabe „${taskAction.task.title}“ wurde erledigt. Bestätige das knapp.`;
-      if (taskAction.action === "complete_recurring" && taskAction.task?.title) return `TASK-AKTION ERFOLGREICH: Wiederkehrende Aufgabe „${taskAction.task.title}“ wurde erledigt und auf den nächsten Termin gesetzt. Bestätige das knapp.`;
-      if (taskAction.action === "calendar_export" && taskAction.task?.title) return `TASK-AKTION ERFOLGREICH: Kalenderimport für „${taskAction.task.title}“ wurde vorbereitet. Sage das knapp.`;
-      if (taskAction.ok === false && taskAction.status === "missing_due_at") return "TASK-AKTION: Die Aufgabe hat noch keinen Termin. Frage kurz nach Datum und Uhrzeit.";
-      if (taskAction.action === "delete" && taskAction.task?.title) return `TASK-AKTION ERFOLGREICH: Aufgabe „${taskAction.task.title}“ wurde gelöscht. Bestätige das knapp.`;
-      if (taskAction.action === "update" && taskAction.task?.title) return `TASK-AKTION ERFOLGREICH: Aufgabe „${taskAction.task.title}“ wurde aktualisiert. Bestätige das knapp.`;
-      if (taskAction.action === "list") {
-        const list = Array.isArray(taskAction.tasks) ? taskAction.tasks.slice(0, 8).map(task => task.title).join("; ") : "";
-        return list ? `TASK-LISTE: ${list}. Beantworte die Aufgabenfrage anhand dieser Liste.` : "TASK-LISTE: Keine offenen Aufgaben.";
-      }
-      return "";
-    })();
+    const taskActionContext = taskContextOf(taskAction);
 
     const continuityContext = actionState?.lastActionSummary ? `LETZTE AKTION: ${actionState.lastActionSummary}` : "";
     const researchContext = researchState?.items?.length ? `KURZFRISTIGER RECHERCHEKONTEXT: ${JSON.stringify(researchState).slice(0, 3500)}` : "";
@@ -230,10 +231,14 @@ export default async function handler(req, res) {
       taskContext ? `Offene Aufgaben aus der Task Engine:\n${taskContext}` : "",
       webContext ? `Aktuelle externe Informationen:\n${webContext}` : ""
     ].filter(Boolean).join("\n\n");
-    if (taskAction?.calendarAction) calendarAction = taskAction.calendarAction;
+    if (taskAction?.ok && taskAction.calendarAction) calendarAction = taskAction.calendarAction;
     return res.status(200).json({ context, calendarAction, taskAction });
   } catch (error) {
     console.error("Live context:", error);
-    return res.status(200).json({ context: "", calendarAction: null });
+    return res.status(200).json({
+      context: taskContextOf(taskAction),
+      calendarAction: taskAction?.ok ? taskAction.calendarAction || null : null,
+      taskAction
+    });
   }
 }

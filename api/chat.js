@@ -1482,12 +1482,11 @@ Kein Markdown außerhalb des JSON-Objekts.
       const unifiedAction = await executeUnifiedAction(message.trim(), hamburgNow, { mode: "text" });
       taskAction = unifiedAction.taskAction;
     } catch (taskError) {
+      taskAction = { ok: false, action: "none", status: "execution_failed" };
       console.warn("Task action:", taskError?.message || taskError);
     }
 
-    const actionResultContext = taskAction?.action && taskAction.action !== "none"
-      ? `Bereits ausgeführte Aktion dieses Turns: ${JSON.stringify(taskAction).slice(0, 3500)}. Formuliere die Antwort passend zum tatsächlichen Ergebnis. Behaupte keinen Erfolg, wenn ok nicht true ist.`
-      : "";
+    const actionResultContext = `Tatsächliches Task-Ergebnis dieses Turns: ${JSON.stringify(taskAction).slice(0, 3500)}. Bestätige eine Task-Aktion nur bei ok:true und action != none. Bei none wurde keine Task-Aktion ausgeführt. Bei ok:false keinen Erfolg behaupten; bei execution_failed ist der Ausgang unbestätigt, bei in_progress läuft eine Aktion bereits. Kalenderimport nur als vorbereitet bezeichnen.`;
 
     const input = [
       ...(olderContext ? [{
@@ -1678,7 +1677,11 @@ Kein Markdown außerhalb des JSON-Objekts.
       calendarAction = taskAction.calendarAction;
     }
 
-    if (taskAction?.ok && taskAction.action === "create" && taskAction.task?.title) {
+    if (taskAction?.ok === false && taskAction.status === "in_progress") {
+      reply = "Eine Aufgabenaktion wird gerade verarbeitet. Ich führe sie nicht doppelt aus.";
+    } else if (taskAction?.ok === false && taskAction.status === "execution_failed") {
+      reply = "Ich kann die Aufgabenaktion gerade nicht sicher bestätigen. Bitte prüfe den Aufgabenstand, bevor du sie erneut ausführen lässt.";
+    } else if (taskAction?.ok && taskAction.action === "create" && taskAction.task?.title) {
       reply = `Hab ich als Aufgabe gespeichert: „${taskAction.task.title}“.`;
     } else if (taskAction?.ok && taskAction.action === "create_existing" && taskAction.task?.title) {
       reply = `„${taskAction.task.title}“ steht schon in deinen Aufgaben.`;

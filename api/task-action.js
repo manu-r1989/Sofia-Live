@@ -7,6 +7,7 @@ async function redis(command) {
       Authorization: `Bearer ${process.env.KV_REST_API_TOKEN}`,
       "Content-Type": "application/json"
     },
+    signal: AbortSignal.timeout(10000),
     body: JSON.stringify(command)
   });
   if (!response.ok) throw new Error("Redis request failed");
@@ -47,6 +48,7 @@ async function interpret(message, tasks, referenceTime, recentTaskId = null) {
       "Content-Type": "application/json",
       Authorization: `Bearer ${process.env.OPENAI_API_KEY}`
     },
+    signal: AbortSignal.timeout(45000),
     body: JSON.stringify({
       model: "gpt-5.6",
       instructions: `Du bist ein strikter Task-Action-Parser. Erkenne nur Aufgabenverwaltung, nicht bloße Gesprächsinhalte.
@@ -55,17 +57,24 @@ create bei klarer Aufgabenabsicht, einer klaren eigenen Verpflichtung oder einer
 complete, delete und update nur wenn eine bestehende Aufgabe eindeutig gemeint ist; verwende deren exakte id. Kurze Folgeanweisungen wie "mach die morgen", "lösch die" oder "die ist erledigt" dürfen recentTaskId verwenden, sofern der Bezug eindeutig ist.
 list bei Fragen nach Aufgaben oder danach, was ansteht. Setze scope passend: today für heute, week für diese/nächsten 7 Tage, overdue für überfällige Aufgaben, sonst all.\ncalendar_export wenn eine bestehende Aufgabe ausdrücklich in den Kalender übernommen werden soll; verwende deren exakte id.
 Explizite neue Kalendereinträge ohne Aufgabenabsicht sind none, weil sie separat verarbeitet werden.
+Bei update enthält task ausschließlich ausdrücklich zu ändernde Felder. Unveränderte Felder vollständig weglassen; keine Standardwerte einsetzen. null nur bei ausdrücklich gewünschtem Entfernen von dueAt, remindAt oder recurrence. Leere notes nur bei ausdrücklich gewünschtem Löschen der Notizen. Ein reiner Termin-Follow-up darf Priorität, Notizen und Wiederholung nicht ändern.
 Relative Zeiten anhand der Referenzzeit Europe/Berlin auflösen. recurrence nur als null, "daily", "weekly" oder "monthly" ausgeben.
+Das folgende task-Beispiel gilt für create; bei update ist task ein sparsames Objekt nur mit geänderten Feldern.
 Antworte ausschließlich als JSON:
 {"action":"none|create|update|complete|delete|list|calendar_export","id":null,"task":{"title":"","dueAt":null,"remindAt":null,"priority":"normal","notes":"","recurrence":null},"status":"open","scope":"all|today|week|overdue"}`,
       input: `Referenzzeit: ${referenceTime}\nZuletzt relevante Aufgabe: ${recentTaskId || "(keine)"}\nNutzer: ${message}\n\nAufgaben:\n${catalog}`,
       max_output_tokens: 260
     })
   });
-  if (!response.ok) return { action: "none" };
+  if (!response.ok) throw new Error("Task classifier request failed");
   const data = await response.json();
   const text = data.output?.flatMap(x => x.content || [])?.find(x => x.type === "output_text")?.text || "";
-  try { return JSON.parse(text); } catch { return { action: "none" }; }
+  let parsed;
+  try { parsed = JSON.parse(text); } catch { throw new Error("Invalid task classifier JSON"); }
+  if (!parsed || !["none", "create", "update", "complete", "delete", "list", "calendar_export"].includes(parsed.action)) {
+    throw new Error("Invalid task classifier action");
+  }
+  return parsed;
 }
 
 export async function executeTaskAction(message, referenceTime, options = {}) {
@@ -116,7 +125,7 @@ export async function executeTaskAction(message, referenceTime, options = {}) {
   const now = new Date().toISOString();
   if (action === "create") {
     const title = String(parsed?.task?.title || "").trim().slice(0, 200);
-    if (!title) return { ok: true, action: "none" };
+    if (!title) throw new Error("Missing task title");
     const dueAt = normalizeDate(parsed.task.dueAt);
     const remindAt = normalizeDate(parsed.task.remindAt);
     const duplicate = tasks.find(t =>
