@@ -61,7 +61,6 @@
     img.src = url; img.alt = image.caption || 'Sofia'; img.loading = 'lazy';
     img.style.cssText = 'display:block;width:180px;max-width:100%;border-radius:12px';
     button.append(img);
-    const caption = document.createElement('figcaption'); caption.textContent = image.caption || 'Ein Bild von mir.';
     button.onclick = () => {
       referenceId = image.id;
       const dialog = document.createElement('dialog');
@@ -74,7 +73,7 @@
       dialog.addEventListener('close',()=>dialog.remove(),{once:true});
       dialog.showModal(); close.focus();
     };
-    figure.append(button,caption); slot.append(figure); slot.hidden=false;
+    figure.append(button); slot.append(figure); slot.hidden=false;
   }
   window.SofiaImages = {
     anchor,

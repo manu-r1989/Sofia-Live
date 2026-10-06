@@ -84,7 +84,7 @@ test('image delivery is private JPEG with download attachment and validated IDs'
 });
 test('UI integration loads shared renderer before app and does not alter avatar assets',async()=>{
  const root=new URL('../',import.meta.url);const index=await readFile(new URL('index.html',root),'utf8');
- assert.ok(index.indexOf('sofia-images.js?v=4212i1')<index.indexOf('app.js?v=4212i1'));
+ assert.ok(index.indexOf('sofia-images.js?v=4220l1')<index.indexOf('app.js?v=4220l1'));
  const chat=await readFile(new URL('api/chat.js',root),'utf8');
  assert.ok(chat.indexOf('!safeEqual(')<chat.indexOf('await servePortrait'));
  const ui=await readFile(new URL('sofia-images.js',root),'utf8');assert.match(ui,/dialog.showModal/);assert.match(ui,/download=1/);assert.doesNotMatch(ui,/spinner|generating-status/);
@@ -150,7 +150,7 @@ test('new request after failure has a fresh ID and no failure or moderation cont
  await assert.rejects(api.generatePortrait(failed.id));
  failImage=false;
  const fresh=await api.preparePortrait('Ein Selfie bitte');assert.notEqual(fresh.id,failed.id);
- const input=plannerInputs.at(-1);assert.deepEqual(Object.keys(input).sort(),['currentOutfit','message','period','reference']);
+ const input=plannerInputs.at(-1);assert.deepEqual(Object.keys(input).sort(),['currentOutfit','life','message','period','reference']);
  assert.doesNotMatch(JSON.stringify(input),/failed|moderation|Umgebung/);
  const image=await api.generatePortrait(fresh.id);assert.equal(image.id,fresh.id);assert.equal(imageCalls.length,2);
  assert.doesNotMatch(imageCalls[1].prompt,/failed|moderation|Umgebung/);
@@ -165,7 +165,7 @@ test('acknowledgment persists its image anchor and failed notice stays outside c
 });
 test('Live memory stores the image anchor on the acknowledgment without saving failure context',async()=>{
  reset();process.env.SOFIA_PASSWORD='test-only';
- const code=await readFile(new URL('../api/live-memory.js',import.meta.url),'utf8');
+ const code=(await readFile(new URL('../api/live-memory.js',import.meta.url),'utf8')).replace('../lib/character-image.js','data:text/javascript;base64,'+Buffer.from(source).toString('base64'));
  const handler=(await import('data:text/javascript;base64,'+Buffer.from(code).toString('base64'))).default;
  const session=crypto.createHmac('sha256','test-only').update('sofia-authorized-session-v1').digest('hex');
  const id='11111111-1111-4111-8111-111111111111';let status;

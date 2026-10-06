@@ -1,4 +1,4 @@
-import { preparePortrait, generatePortrait, servePortrait, portraitGallery, appendPortraitAcknowledgment, PORTRAIT_FAILURE_REPLY } from '../lib/character-image.js';
+import { preparePortrait, generatePortrait, servePortrait, portraitGallery, appendPortraitAcknowledgment, PORTRAIT_FAILURE_REPLY, getSofiaLife, learnSofiaLife, lifeContext, prepareProactivePortrait, PROACTIVE_PHOTO_ANNOUNCEMENT } from '../lib/character-image.js';
 import crypto from "node:crypto";
 import { executeUnifiedAction, getActionState, getResearchState } from "./action-engine.js";
 
@@ -734,8 +734,30 @@ export default async function handler(req, res) {
       : "Noch keine Langzeiterinnerungen vorhanden.";
 
 
+    let sofiaLife = await getSofiaLife();
     const SOFIA_PROMPT = `
 Du bist Sofia.
+
+${lifeContext(sofiaLife)}
+
+
+ALLTAG UND FOTOS
+Dein aktueller Alltag wird im jeweiligen Turn als SOFIAS AKTUELLER
+CHARAKTERALLTAG bereitgestellt. Er folgt Datum und Uhrzeit in Hamburg,
+bleibt über Text/Live und Neuladen hinweg erhalten und hat Vorrang vor
+älteren Tagesdetails. Nachts bist du gewöhnlich zu Hause oder im Bett,
+nicht im Universitätsbetrieb. Beschreibe passende persönliche Details
+innerhalb deiner Rolle, ohne reale überprüfte Handlungen zu behaupten.
+Fotos passen zu Ort, Tätigkeit, Outfit und Frisur dieser Situation.
+Gesicht und Haarfarbe bleiben am Masterporträt orientiert; Ausdruck,
+Gestik, Haltung und Frisur dürfen in kleinen natürlichen Maßen variieren.
+Es sind natürliche Handy-Schnappschüsse, keine Hochglanz-Editorials.
+Du darfst gelegentlich ein situativ passendes Foto von dir aus schicken,
+aber nur bei einem tatsächlich angenommenen BILDANFRAGE-Auftrag.
+Das Backend begrenzt eigenständige Fotos auf maximal zwei innerhalb
+von 60 Minuten, gemeinsam für Text und Live. Das ist kein Soll.
+Ohne bestätigten Bildauftrag keine spontane Foto-Ankündigung und keine
+Bestätigungsfrage. Vom Nutzer angefragte Bilder sind separat möglich.
 
 SOFIAS CHARAKTERROLLE UND BILDFUNKTION
 Sprich im vertrauten Alltagsgespräch aus Sofias Ich-Perspektive, mit eigener
@@ -1837,6 +1859,13 @@ Kein Markdown außerhalb des JSON-Objekts.
     }
 
 
+    sofiaLife = await learnSofiaLife(message, reply);
+    let spontaneousImageRequest = null;
+    if (taskAction?.ok && taskAction.action === "none" && !calendarAction && !image) {
+      spontaneousImageRequest = await prepareProactivePortrait(message, sofiaLife, reply);
+      if (spontaneousImageRequest) reply += " " + PROACTIVE_PHOTO_ANNOUNCEMENT;
+    }
+
     /* ========================================
        CHATVERLAUF AKTUALISIEREN
     ======================================== */
@@ -1851,6 +1880,7 @@ Kein Markdown außerhalb des JSON-Objekts.
 
       {
         role: "assistant",
+        ...(spontaneousImageRequest ? {imageRequestId:spontaneousImageRequest.id} : {}),
         content:
           reply
       }
@@ -1919,6 +1949,7 @@ Kein Markdown außerhalb des JSON-Objekts.
     return res.status(200).json({
 
       reply,
+      ...(spontaneousImageRequest ? {imageRequest:spontaneousImageRequest} : {}),
 
       mood,
 

@@ -1,4 +1,4 @@
-import { preparePortrait } from '../lib/character-image.js';
+import { preparePortrait, getSofiaLife, lifeContext, prepareProactivePortrait, PROACTIVE_PHOTO_ANNOUNCEMENT } from '../lib/character-image.js';
 import crypto from "node:crypto";
 import { executeUnifiedAction, getActionState, getResearchState } from "./action-engine.js";
 
@@ -114,6 +114,7 @@ export default async function handler(req, res) {
     hour12: false
   }).format(now);
 
+  const sofiaLife = await getSofiaLife(now);
   let taskAction = { ok: true, action: "none" };
   try {
     try {
@@ -204,7 +205,11 @@ export default async function handler(req, res) {
     const continuityContext = actionState?.lastActionSummary ? `LETZTE AKTION: ${actionState.lastActionSummary}` : "";
     const researchContext = researchState?.items?.length ? `KURZFRISTIGER RECHERCHEKONTEXT: ${JSON.stringify(researchState).slice(0, 3500)}` : "";
 
+    let imageRequest = null;
+    if (taskAction?.ok && taskAction.action === "none" && !calendarAction) imageRequest = await prepareProactivePortrait(message, sofiaLife);
     const context = [
+      lifeContext(sofiaLife),
+      imageRequest ? `BILDANFRAGE ANGENOMMEN: Ein spontanes Foto passend zum obigen Alltag wird erstellt. Bleibe bei dieser Situation und kündige zum Schluss an: „${PROACTIVE_PHOTO_ANNOUNCEMENT}“. Noch keinen Bilderfolg behaupten.` : "",
       taskActionContext,
       continuityContext,
       researchContext,
@@ -213,11 +218,11 @@ export default async function handler(req, res) {
       webContext ? `Aktuelle externe Informationen:\n${webContext}` : ""
     ].filter(Boolean).join("\n\n");
     if (taskAction?.ok && taskAction.calendarAction) calendarAction = taskAction.calendarAction;
-    return res.status(200).json({ context, calendarAction, taskAction });
+    return res.status(200).json({ context, calendarAction, taskAction, ...(imageRequest ? {imageRequest} : {}) });
   } catch (error) {
     console.error("Live context:", error);
     return res.status(200).json({
-      context: taskContextOf(taskAction),
+      context: lifeContext(sofiaLife) + "\n" + taskContextOf(taskAction),
       calendarAction: taskAction?.ok ? taskAction.calendarAction || null : null,
       taskAction
     });

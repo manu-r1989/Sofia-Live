@@ -71,3 +71,11 @@ test('late server success replaces a transport-failure notice without changing t
  assert.equal(h.document.getElementById('portrait-'+id).dataset.portraitStatus,'done');
  assert.deepEqual(h.messages.children,[ack,slot,later]);
 });
+
+test('pictures have an accessible image button but no visible caption or subtitle',()=>{
+ const h=harness();h.message('Gib mir einen kleinen Moment.','sofia',id);h.api.restore([{...image(id),caption:'Diese Bildunterschrift soll nicht sichtbar sein'}]);
+ const figure=h.document.getElementById('portrait-'+id);
+ assert.deepEqual(figure.children.map(n=>n.tag),['button']);
+ assert.equal(figure.children[0].children[0].tag,'img');
+ assert.equal(figure.children[0].children[0].alt,'Diese Bildunterschrift soll nicht sichtbar sein');
+});

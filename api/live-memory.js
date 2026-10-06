@@ -1,3 +1,4 @@
+import { learnSofiaLife } from '../lib/character-image.js';
 import crypto from "node:crypto";
 
 const HISTORY_KEY = "sofia:main:history";
@@ -749,6 +750,8 @@ ${cleanUser}
       ]
     ]);
 
+
+    await learnSofiaLife(cleanUser, cleanAssistant);
 
     return res.status(200).json({
       ok: true,
