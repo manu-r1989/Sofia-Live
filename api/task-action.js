@@ -36,7 +36,7 @@ function normalizeDate(value) {
   return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?$/.test(text) ? text : null;
 }
 
-async function interpret(message, tasks, referenceTime) {
+async function interpret(message, tasks, referenceTime, recentTaskId = null) {
   const catalog = tasks.slice(-80).map(t =>
     `[${t.id}] ${t.title}${t.dueAt ? ` | fällig ${t.dueAt}` : ""} | ${t.status}`
   ).join("\n") || "(keine Aufgaben)";
@@ -52,13 +52,13 @@ async function interpret(message, tasks, referenceTime) {
       instructions: `Du bist ein strikter Task-Action-Parser. Erkenne nur Aufgabenverwaltung, nicht bloße Gesprächsinhalte.
 Erlaubte Aktionen: none, create, update, complete, delete, list, calendar_export.
 create bei klarer Aufgabenabsicht, einer klaren eigenen Verpflichtung oder einer ausdrücklichen Erinnerung. Bei Erinnerungen setze remindAt und, falls keine andere Fälligkeit genannt ist, dueAt auf den Erinnerungszeitpunkt.
-complete, delete und update nur wenn eine bestehende Aufgabe eindeutig gemeint ist; verwende deren exakte id.
+complete, delete und update nur wenn eine bestehende Aufgabe eindeutig gemeint ist; verwende deren exakte id. Kurze Folgeanweisungen wie "mach die morgen", "lösch die" oder "die ist erledigt" dürfen recentTaskId verwenden, sofern der Bezug eindeutig ist.
 list bei Fragen nach Aufgaben oder danach, was ansteht. Setze scope passend: today für heute, week für diese/nächsten 7 Tage, overdue für überfällige Aufgaben, sonst all.\ncalendar_export wenn eine bestehende Aufgabe ausdrücklich in den Kalender übernommen werden soll; verwende deren exakte id.
 Explizite neue Kalendereinträge ohne Aufgabenabsicht sind none, weil sie separat verarbeitet werden.
 Relative Zeiten anhand der Referenzzeit Europe/Berlin auflösen. recurrence nur als null, "daily", "weekly" oder "monthly" ausgeben.
 Antworte ausschließlich als JSON:
 {"action":"none|create|update|complete|delete|list|calendar_export","id":null,"task":{"title":"","dueAt":null,"remindAt":null,"priority":"normal","notes":"","recurrence":null},"status":"open","scope":"all|today|week|overdue"}`,
-      input: `Referenzzeit: ${referenceTime}\nNutzer: ${message}\n\nAufgaben:\n${catalog}`,
+      input: `Referenzzeit: ${referenceTime}\nZuletzt relevante Aufgabe: ${recentTaskId || "(keine)"}\nNutzer: ${message}\n\nAufgaben:\n${catalog}`,
       max_output_tokens: 260
     })
   });
@@ -68,9 +68,9 @@ Antworte ausschließlich als JSON:
   try { return JSON.parse(text); } catch { return { action: "none" }; }
 }
 
-export async function executeTaskAction(message, referenceTime) {
+export async function executeTaskAction(message, referenceTime, options = {}) {
   let tasks = await loadTasks();
-  const parsed = await interpret(message, tasks, referenceTime);
+  const parsed = await interpret(message, tasks, referenceTime, options.recentTaskId || null);
   const action = String(parsed?.action || "none");
   if (action === "none") return { ok: true, action: "none" };
 
