@@ -204,6 +204,9 @@ export default async function handler(req, res) {
       if (taskAction.ok === false && taskAction.status === "ambiguous") return "TASK-AKTION: Die gewünschte Aufgabe war nicht eindeutig. Frage kurz, welche Aufgabe gemeint ist.";
       if (taskAction.action === "create" && taskAction.task?.title) return `TASK-AKTION ERFOLGREICH: Aufgabe „${taskAction.task.title}“ wurde gespeichert. Bestätige das knapp.`;
       if (taskAction.action === "complete" && taskAction.task?.title) return `TASK-AKTION ERFOLGREICH: Aufgabe „${taskAction.task.title}“ wurde erledigt. Bestätige das knapp.`;
+      if (taskAction.action === "complete_recurring" && taskAction.task?.title) return `TASK-AKTION ERFOLGREICH: Wiederkehrende Aufgabe „${taskAction.task.title}“ wurde erledigt und auf den nächsten Termin gesetzt. Bestätige das knapp.`;
+      if (taskAction.action === "calendar_export" && taskAction.task?.title) return `TASK-AKTION ERFOLGREICH: Kalenderimport für „${taskAction.task.title}“ wurde vorbereitet. Sage das knapp.`;
+      if (taskAction.ok === false && taskAction.status === "missing_due_at") return "TASK-AKTION: Die Aufgabe hat noch keinen Termin. Frage kurz nach Datum und Uhrzeit.";
       if (taskAction.action === "delete" && taskAction.task?.title) return `TASK-AKTION ERFOLGREICH: Aufgabe „${taskAction.task.title}“ wurde gelöscht. Bestätige das knapp.`;
       if (taskAction.action === "update" && taskAction.task?.title) return `TASK-AKTION ERFOLGREICH: Aufgabe „${taskAction.task.title}“ wurde aktualisiert. Bestätige das knapp.`;
       if (taskAction.action === "list") {
@@ -219,6 +222,7 @@ export default async function handler(req, res) {
       taskContext ? `Offene Aufgaben aus der Task Engine:\n${taskContext}` : "",
       webContext ? `Aktuelle externe Informationen:\n${webContext}` : ""
     ].filter(Boolean).join("\n\n");
+    if (taskAction?.calendarAction) calendarAction = taskAction.calendarAction;
     return res.status(200).json({ context, calendarAction, taskAction });
   } catch (error) {
     console.error("Live context:", error);
