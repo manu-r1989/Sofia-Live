@@ -244,7 +244,24 @@ function startTaskReminderChecks() {
   }, 30000);
 }
 
+
+async function showDailyBrief() {
+  try {
+    const response = await fetch('/api/daily-brief', { credentials: 'same-origin', cache: 'no-store' });
+    if (!response.ok) return;
+    const brief = await response.json();
+    if (!brief.counts?.overdue && !brief.counts?.today) return;
+    const key = 'sofia_daily_brief_' + new Date().toISOString().slice(0, 10);
+    if (sessionStorage.getItem(key)) return;
+    sessionStorage.setItem(key, '1');
+    const labels = [];
+    if (brief.counts.overdue) labels.push(brief.counts.overdue + ' überfällig');
+    if (brief.counts.today) labels.push(brief.counts.today + ' heute fällig');
+    addMessage('Kurzer Überblick: ' + labels.join(', ') + '.', 'sofia');
+  } catch (error) { console.warn('Daily brief:', error); }
+}
 window.addEventListener('load', startTaskReminderChecks);
+window.addEventListener('load', showDailyBrief);
 window.SofiaTasks = { checkReminders: checkTaskReminders, offerNotifications: addNotificationOptIn };
 
 
