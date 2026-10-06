@@ -1,3 +1,4 @@
+import { preparePortrait } from '../lib/character-image.js';
 import crypto from "node:crypto";
 import { executeUnifiedAction, getActionState, getResearchState } from "./action-engine.js";
 
@@ -99,6 +100,12 @@ export default async function handler(req, res) {
   const message = String(req.body?.message || "").trim().slice(0, 2000);
   if (!message) return res.status(200).json({ context: "", calendarAction: null });
 
+  try {
+    const imageRequest = await preparePortrait(message, req.body?.referenceImageId);
+    if (imageRequest) return res.status(200).json({ context:'BILDANFRAGE ANGENOMMEN: Sage auf Deutsch nur „Gib mir einen kleinen Moment.“ Das Bild wird separat erstellt. Noch keinen Erfolg behaupten.', imageRequest, taskAction:{ok:true,action:'none'}, calendarAction:null });
+  } catch (error) {
+    return res.status(200).json({ context:'BILDANFRAGE: ' + error.message, taskAction:{ok:true,action:'none'}, calendarAction:null });
+  }
   const now = new Date();
   const hamburgNow = new Intl.DateTimeFormat("sv-SE", {
     timeZone: "Europe/Berlin",

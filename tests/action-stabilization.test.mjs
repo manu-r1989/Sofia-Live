@@ -11,9 +11,10 @@ const { addCalendarDays, nextRecurringDates } = await import(datesUrl);
 const taskUrl = moduleUrl((await readFile(new URL('api/task-action.js', root), 'utf8')).replace('../lib/task-dates.js', datesUrl));
 const engineUrl = moduleUrl((await readFile(new URL('api/action-engine.js', root), 'utf8')).replace('./task-action.js', taskUrl));
 const { executeUnifiedAction, withTaskMutationLock } = await import(engineUrl);
+const portraitUrl = moduleUrl(await readFile(new URL('lib/character-image.js', root), 'utf8'));
 const endpoints = {};
 for (const name of ['chat', 'live-context', 'tasks']) {
-  endpoints[name] = (await import(moduleUrl((await readFile(new URL(`api/${name}.js`, root), 'utf8')).replace('./action-engine.js', engineUrl).replace('../lib/task-dates.js', datesUrl)))).default;
+  endpoints[name] = (await import(moduleUrl((await readFile(new URL(`api/${name}.js`, root), 'utf8')).replace('./action-engine.js', engineUrl).replace('../lib/task-dates.js', datesUrl).replace('../lib/character-image.js', portraitUrl)))).default;
 }
 const TASKS = 'sofia:main:tasks';
 const STATE = 'sofia:main:action-state';

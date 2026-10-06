@@ -1,3 +1,4 @@
+import { preparePortrait, generatePortrait, servePortrait, portraitGallery, appendPortraitAcknowledgment } from '../lib/character-image.js';
 import crypto from "node:crypto";
 import { executeUnifiedAction, getActionState, getResearchState } from "./action-engine.js";
 
@@ -515,6 +516,12 @@ export default async function handler(req, res) {
 
   try {
 
+    if (req.method === "GET" && req.query?.image) return await servePortrait(req, res);
+    if (req.method === "POST" && req.body?.operation === "generate_image") {
+      try { return res.status(200).json({ image: await generatePortrait(req.body.requestId) }); }
+      catch (error) { return res.status(409).json({ error: error.message }); }
+    }
+
     if (req.method === "GET") {
       if (!process.env.KV_REST_API_URL || !process.env.KV_REST_API_TOKEN) {
         return res.status(500).json({ error: "Redis-Konfiguration fehlt." });
@@ -524,7 +531,7 @@ export default async function handler(req, res) {
         .filter(item => item && ["user","assistant"].includes(item.role) && typeof item.content === "string")
         .slice(-MAX_HISTORY_MESSAGES);
       res.setHeader("Cache-Control","no-store");
-      return res.status(200).json({ history });
+      return res.status(200).json({ history, images: await portraitGallery() });
     }
 
     const { message, image, history: clientHistory } =
@@ -580,6 +587,17 @@ export default async function handler(req, res) {
 
     }
 
+
+    try {
+      const imageRequest = await preparePortrait(message, req.body?.referenceImageId);
+      if (imageRequest) {
+        const reply = "Gib mir einen kleinen Moment.";
+        await appendPortraitAcknowledgment(message, reply);
+        return res.status(200).json({ reply, mood: "neutral", imageRequest, taskAction: { ok:true, action:"none" } });
+      }
+    } catch (error) {
+      return res.status(200).json({ reply:error.message, taskAction:{ok:true,action:"none"} });
+    }
 
     /* ========================================
        GEDÄCHTNIS LADEN

@@ -340,7 +340,7 @@ async function syncConversationFromServer({ silent = false } = {}) {
     ).slice(-MAX_STORED_MESSAGES);
 
     const signature = historySignature(serverHistory);
-    if (signature === lastServerHistorySignature) return true;
+    if (signature === lastServerHistorySignature) { window.SofiaImages?.restore(data.images); return true; }
 
     lastServerHistorySignature = signature;
     conversationHistory = serverHistory;
@@ -352,6 +352,7 @@ async function syncConversationFromServer({ silent = false } = {}) {
         addMessage(item.content, item.role === 'user' ? 'user' : 'sofia')
       );
       if (pendingCalendarAction) addCalendarDownload(pendingCalendarAction);
+      window.SofiaImages?.restore(data.images);
       scrollChatToLatest('auto');
     }
 
@@ -532,7 +533,8 @@ async function askSofia(userMessage, imageDataUrl = null) {
         body: JSON.stringify({
           message: userMessage,
           history: historyForAPI,
-          image: imageDataUrl
+          image: imageDataUrl,
+          referenceImageId: window.SofiaImages?.referenceId
         })
       });
 
@@ -571,6 +573,7 @@ async function askSofia(userMessage, imageDataUrl = null) {
 
     saveMemory();
 
+    if (data.imageRequest) void window.SofiaImages?.generate(data.imageRequest);
     applyMood(data.mood);
 
     addMessage(

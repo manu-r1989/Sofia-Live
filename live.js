@@ -102,7 +102,7 @@
           const response = await fetch("/api/live-context", {
             method: "POST", credentials: "same-origin", cache: "no-store",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ message }), signal: controller.signal
+            body: JSON.stringify({ message, referenceImageId:window.SofiaImages?.referenceId }), signal: controller.signal
           });
           if (!response.ok) throw new Error("Live Kontext HTTP " + response.status);
           return await response.json();
@@ -132,6 +132,7 @@
     // when the context request completes later. Keep the mic open until here.
     if (!current()) return;
     window.SofiaActionFeedback?.show(contextFailed ? { ok: false, status: "execution_failed" } : contextData.taskAction);
+    if (contextData.imageRequest) void window.SofiaImages?.generate(contextData.imageRequest);
     if (contextData.calendarAction) openCalendarImport(contextData.calendarAction);
     if (contextData.taskAction?.action === "create" &&
         (contextData.taskAction.task?.remindAt || contextData.taskAction.task?.dueAt)) {

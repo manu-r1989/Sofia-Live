@@ -1,0 +1,89 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+const source = await readFile(new URL('../lib/character-image.js',import.meta.url),'utf8');
+const api = await import('data:text/javascript;base64,' + Buffer.from(source).toString('base64'));
+const prefix='sofia:main:portrait:';
+let db, plan, calls, imageCalls, failImage, failRedis;
+const savedFetch=globalThis.fetch;
+const envKeys=['KV_REST_API_URL','KV_REST_API_TOKEN','OPENAI_API_KEY'];
+const env=Object.fromEntries(envKeys.map(k=>[k,process.env[k]]));
+function reset(){db=new Map();plan={action:'new',outfit:'Blue sweater',scene:'Selfie outdoors',caption:'Mein Selfie'};calls=[];imageCalls=[];failImage=false;failRedis=false;process.env.KV_REST_API_URL='https://redis.test';process.env.KV_REST_API_TOKEN='test';process.env.OPENAI_API_KEY='test';}
+const response = (data,ok=true)=>({ok,json:async()=>data});
+globalThis.fetch=async(url,options)=>{
+ const body=JSON.parse(options.body);calls.push(String(url));
+ if(url==='https://redis.test'){
+  if(failRedis) return response({},false);
+  const [op,key,value,...rest]=body;
+  if(op==='GET')return response({result:db.get(key)||null});
+  if(op==='SET'){if(rest.includes('NX')&&db.has(key))return response({result:null});db.set(key,value);return response({result:'OK'});}
+  if(op==='DEL'){db.delete(key);return response({result:1});}
+  if(op==='EVAL'){const lock=body[3],id=body[4];if(db.get(lock)===id)db.delete(lock);return response({result:1});}
+  throw Error('Unexpected Redis '+op);
+ }
+ if(String(url).endsWith('/chat/completions')) return response({choices:[{message:{content:JSON.stringify(plan)}}]});
+ if(String(url).endsWith('/images/edits')){imageCalls.push(body);return response({data:[{b64_json:'/9j/AA=='}]},!failImage);}
+ throw Error('Unexpected URL');
+};
+test.after(()=>{globalThis.fetch=savedFetch;for(const k of envKeys)if(env[k]===undefined)delete process.env[k];else process.env[k]=env[k];});
+test('Berlin date and time periods include summer and winter offsets',()=>{
+ assert.equal(api.portraitPeriod(new Date('2026-10-06T22:30:00Z')),'2026-10-07:night');
+ assert.equal(api.portraitPeriod(new Date('2026-12-06T10:30:00Z')),'2026-12-06:day');
+});
+test('ordinary conversation skips every network and classifier call',async()=>{reset();assert.equal(await api.preparePortrait('Wie geht es dir?'),null);assert.equal(calls.length,0);});
+test('same period preserves outfit, new day permits variety, explicit outfit changes apply',async()=>{
+ reset();db.set(prefix+'state',JSON.stringify({period:'2026-10-06:day',outfit:'Red jacket'}));
+ let r=await api.preparePortrait('Ein Selfie bitte',null,new Date('2026-10-06T12:00Z'));
+ assert.equal(JSON.parse(db.get(prefix+'request:'+r.id)).outfit,'Red jacket');
+ r=await api.preparePortrait('Ein Selfie bitte',null,new Date('2026-10-07T12:00Z'));
+ assert.equal(JSON.parse(db.get(prefix+'request:'+r.id)).outfit,'Blue sweater');
+ plan.changeOutfit=true;r=await api.preparePortrait('Selfie mit neuem Outfit',null,new Date('2026-10-06T12:00Z'));
+ assert.equal(JSON.parse(db.get(prefix+'request:'+r.id)).outfit,'Blue sweater');
+});
+test('variant keeps selected outfit across dates and uses master first plus source second',async()=>{
+ reset();const old='11111111-1111-4111-8111-111111111111';
+ db.set(prefix+'image:'+old,JSON.stringify({id:old,outfit:'Green dress',base64:'/9j/AA==',scene:'Mirror selfie'}));
+ plan.action='variant';
+ const r=await api.preparePortrait('Das Outfit in anderem Licht',old,new Date('2026-10-07T12:00Z'));
+ assert.equal(JSON.parse(db.get(prefix+'request:'+r.id)).outfit,'Green dress');
+ const image=await api.generatePortrait(r.id);
+ assert.equal(image.url,'/api/chat?image='+r.id);
+ assert.equal(imageCalls[0].images.length,2);
+ const master=await readFile(new URL('../sofia-avatar.PNG',import.meta.url));
+ assert.equal(imageCalls[0].images[0].image_url,'data:image/png;base64,'+master.toString('base64'));
+ assert.equal(imageCalls[0].images[1].image_url,'data:image/jpeg;base64,/9j/AA==');
+ assert.equal((await api.portraitGallery()).length,1);
+});
+test('overlapping generation and completed retry issue only one paid provider request',async()=>{
+ reset();const r=await api.preparePortrait('Selfie');
+ const results=await Promise.allSettled([api.generatePortrait(r.id),api.generatePortrait(r.id)]);
+ assert.equal(results.filter(x=>x.status==='fulfilled').length,1);
+ const again=await api.generatePortrait(r.id);assert.equal(again.id,r.id);assert.equal(imageCalls.length,1);
+});
+test('failed or uncertain generation is not replayed and does not publish or change outfit',async()=>{
+ reset();const r=await api.preparePortrait('Selfie');failImage=true;
+ await assert.rejects(api.generatePortrait(r.id));
+ await assert.rejects(api.generatePortrait(r.id),/bereits gestartet/);
+ assert.equal(imageCalls.length,1);assert.deepEqual(await api.portraitGallery(),[]);assert.equal(db.get(prefix+'state'),undefined);
+});
+test('descriptive questions are no-op, missing source and mixed actions require clarification',async()=>{
+ reset();plan.action='none';assert.equal(await api.preparePortrait('Wie gefällt dir das Outfit?'),null);
+ plan.action='variant';await assert.rejects(api.preparePortrait('Outfit in anderem Licht'),/zuerst ein Bild/);
+ plan.action='mixed';await assert.rejects(api.preparePortrait('Selfie und erinnere mich morgen'),/getrennt/);
+});
+test('image delivery is private JPEG with download attachment and validated IDs',async()=>{
+ reset();const r=await api.preparePortrait('Selfie');await api.generatePortrait(r.id);
+ const headers={};let bytes,status;
+ const res={setHeader:(k,v)=>headers[k]=v,status(n){status=n;return this;},send(b){bytes=b;},json(){}};
+ await api.servePortrait({query:{image:r.id,download:'1'}},res);
+ assert.equal(status,200);assert.equal(headers['Cache-Control'],'private, no-store');assert.match(headers['Content-Disposition'],/^attachment/);assert.equal(headers['Content-Type'],'image/jpeg');assert.ok(Buffer.isBuffer(bytes));
+ await api.servePortrait({query:{image:'../../secret'}},res);assert.equal(status,400);
+});
+test('UI integration loads shared renderer before app and does not alter avatar assets',async()=>{
+ const root=new URL('../',import.meta.url);const index=await readFile(new URL('index.html',root),'utf8');
+ assert.ok(index.indexOf('sofia-images.js?v=4210i1')<index.indexOf('app.js?v=4210i1'));
+ const chat=await readFile(new URL('api/chat.js',root),'utf8');
+ assert.ok(chat.indexOf('!safeEqual(')<chat.indexOf('await servePortrait'));
+ const ui=await readFile(new URL('sofia-images.js',root),'utf8');assert.match(ui,/dialog.showModal/);assert.match(ui,/download=1/);assert.doesNotMatch(ui,/spinner|generating-status/);
+ const live=await readFile(new URL('live.js',root),'utf8');assert.match(live,/contextData.imageRequest.*SofiaImages/);
+});
