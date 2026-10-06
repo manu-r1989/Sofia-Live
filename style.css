@@ -783,3 +783,17 @@
 @media (orientation:landscape) and (min-width:851px){
   .chatRestore{right:28px;bottom:28px}
 }
+
+
+/* V4.17 task reminder opt-in */
+.taskNotificationOptIn button {
+  appearance: none;
+  border: 1px solid rgba(255,255,255,.18);
+  border-radius: 999px;
+  padding: 9px 13px;
+  background: rgba(255,255,255,.08);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.taskNotificationOptIn button:disabled { opacity: .65; cursor: default; }
