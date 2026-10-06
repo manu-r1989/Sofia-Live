@@ -238,6 +238,56 @@ Antworte ausschließlich als JSON: {"indexes":[0,1]}. Maximal ${limit} Indizes.`
 }
 
 
+async function extractCalendarActionFallback(message, referenceTime) {
+  const text = String(message || "").trim();
+  if (!text || !/(erinner|kalender|termin|eintrag|trag\s+.*\s+ein)/i.test(text)) return null;
+
+  try {
+    const response = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: "gpt-5.6",
+        instructions: `Extrahiere ausschließlich eine ausdrücklich gewünschte Kalender-Erinnerung oder einen Kalendereintrag.
+Referenzzeit und Zeitzone sind Europe/Berlin. Relative Angaben wie heute, morgen oder Freitag müssen anhand der mitgegebenen Referenzzeit aufgelöst werden.
+Wenn Datum oder Uhrzeit wesentlich fehlt oder unklar ist, antworte exakt mit {"calendar_action":null}.
+Sonst antworte ausschließlich als JSON:
+{"calendar_action":{"title":"kurzer Titel","start":"YYYY-MM-DDTHH:MM:SS","duration_minutes":15,"alarm_minutes":0,"notes":""}}
+Keine Markdown-Zäune und keinen zusätzlichen Text.`,
+        input: `Referenzzeit Europe/Berlin: ${referenceTime}\nNutzer: ${text}`,
+        max_output_tokens: 180
+      })
+    });
+    if (!response.ok) return null;
+    const data = await response.json();
+    const raw = data.output?.flatMap(item => item.content || [])?.find(item => item.type === "output_text")?.text || "";
+    const parsed = JSON.parse(raw);
+    const action = parsed?.calendar_action;
+    if (!action || typeof action !== "object") return null;
+
+    const title = typeof action.title === "string" ? action.title.trim().slice(0, 160) : "";
+    const start = typeof action.start === "string" ? action.start.trim() : "";
+    if (!title || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?$/.test(start)) return null;
+
+    const duration = Number(action.duration_minutes);
+    const alarm = Number(action.alarm_minutes);
+    return {
+      title,
+      start,
+      duration_minutes: Number.isFinite(duration) ? Math.min(1440, Math.max(5, Math.round(duration))) : 15,
+      alarm_minutes: Number.isFinite(alarm) ? Math.min(10080, Math.max(0, Math.round(alarm))) : 0,
+      notes: typeof action.notes === "string" ? action.notes.trim().slice(0, 500) : ""
+    };
+  } catch (error) {
+    console.warn("Kalender-Fallback-Extraktion fehlgeschlagen:", error?.message || error);
+    return null;
+  }
+}
+
+
 function applyMemoryAction(
   memories,
   memoryAction
@@ -1576,6 +1626,10 @@ Kein Markdown außerhalb des JSON-Objekts.
           notes: typeof parsed.calendar_action.notes === "string" ? parsed.calendar_action.notes.trim().slice(0, 500) : ""
         };
       }
+    }
+
+    if (!calendarAction) {
+      calendarAction = await extractCalendarActionFallback(message, hamburgNow);
     }
 
     const validMemoryActions = [
