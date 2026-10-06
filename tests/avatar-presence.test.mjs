@@ -63,6 +63,17 @@ test('missing avatar is harmless', () => {
   assert.equal(harness({ missing: true }).styles.length, 0);
 });
 
+test('posture profiles are limited to active state and reset under reduced motion', () => {
+  const h = harness(), css = h.styles[0].textContent;
+  for (const state of ['listening', 'thinking', 'speaking']) {
+    assert.ok(css.includes('[data-presence-state="' + state + '"][data-presence-motion="active"]'));
+  }
+  assert.match(css, /rotate: -.18deg; translate: 0 -.5px; scale: 1.001/);
+  assert.match(css, /rotate: .12deg; translate: 0 .4px; scale: 1/);
+  assert.match(css, /rotate: 0deg; translate: 0 0; scale: 1/);
+  assert.match(css, /translate: none !important; scale: none !important/);
+});
+
 test('presence observes listening and speaking without changing engine state or layers', () => {
   const h = harness();
   assert.equal(h.observers.length, 1);

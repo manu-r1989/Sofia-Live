@@ -1,4 +1,4 @@
-/* V4.19.2 — visual presence observing the stable avatar engine. */
+/* V4.19.3 — state-based visual posture observing the stable avatar engine. */
 (() => {
   "use strict";
   function init() {
@@ -12,16 +12,26 @@
         animation: sofiaPresenceBreath 9.6s ease-in-out infinite;
         animation-play-state: paused;
         rotate: 0deg;
-        transition: rotate 1.2s ease-in-out;
+        translate: 0 0;
+        scale: 1;
+        transition: rotate 1.2s ease-in-out, translate 1.2s ease-in-out, scale 1.2s ease-in-out;
       }
       #sofiaAvatar[data-presence-motion="active"] { animation-play-state: running; }
-      #sofiaAvatar[data-presence-state="listening"][data-presence-motion="active"] { rotate: -.18deg; }
+      #sofiaAvatar[data-presence-state="listening"][data-presence-motion="active"] {
+        rotate: -.18deg; translate: 0 -.5px; scale: 1.001;
+      }
+      #sofiaAvatar[data-presence-state="thinking"][data-presence-motion="active"] {
+        rotate: .12deg; translate: 0 .4px; scale: 1;
+      }
+      #sofiaAvatar[data-presence-state="speaking"][data-presence-motion="active"] {
+        rotate: 0deg; translate: 0 0; scale: 1;
+      }
       @keyframes sofiaPresenceBreath {
         0%, 100% { transform: scale(1.008) translateY(0); }
         50% { transform: scale(1.012) translateY(-1px); }
       }
       @media (prefers-reduced-motion: reduce) {
-        #sofiaAvatar[data-presence-motion] { animation: none !important; transform: none; rotate: none !important; transition: none !important; }
+        #sofiaAvatar[data-presence-motion] { animation: none !important; transform: none; rotate: none !important; translate: none !important; scale: none !important; transition: none !important; }
       }
     `;
     document.head.appendChild(style);
