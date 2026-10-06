@@ -1,3 +1,5 @@
+import { addCalendarDays, nextRecurringDates } from "./task-dates.js";
+
 const TASKS_KEY = "sofia:main:tasks";
 
 async function redis(command) {
@@ -105,9 +107,7 @@ export async function executeTaskAction(message, referenceTime, options = {}) {
     if (scope === "today") result = result.filter(t => String(t.dueAt || "").slice(0, 10) === today);
     if (scope === "overdue") result = result.filter(t => t.dueAt && String(t.dueAt) < ref);
     if (scope === "week") {
-      const end = new Date(ref);
-      end.setDate(end.getDate() + 7);
-      const endText = `${end.getFullYear()}-${String(end.getMonth()+1).padStart(2,"0")}-${String(end.getDate()).padStart(2,"0")}T${String(end.getHours()).padStart(2,"0")}:${String(end.getMinutes()).padStart(2,"0")}:${String(end.getSeconds()).padStart(2,"0")}`;
+      const endText = addCalendarDays(ref, 7);
       result = result.filter(t => t.dueAt && String(t.dueAt) >= ref && String(t.dueAt) <= endText);
     }
     result = result.sort((a, b) => {
@@ -176,26 +176,11 @@ export async function executeTaskAction(message, referenceTime, options = {}) {
   }
 
   if (action === "complete") {
-    const recurrence = tasks[index].recurrence;
-    if (recurrence && tasks[index].dueAt) {
-      const next = new Date(tasks[index].dueAt);
-      const previousDue = new Date(tasks[index].dueAt);
-      const previousReminder = tasks[index].remindAt ? new Date(tasks[index].remindAt) : null;
-      if (recurrence === "daily") next.setDate(next.getDate() + 1);
-      else if (recurrence === "weekly") next.setDate(next.getDate() + 7);
-      else if (recurrence === "monthly") next.setMonth(next.getMonth() + 1);
-      else next.setTime(NaN);
-      if (!Number.isNaN(next.getTime())) {
-        const localStamp = date => `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}-${String(date.getDate()).padStart(2,"0")}T${String(date.getHours()).padStart(2,"0")}:${String(date.getMinutes()).padStart(2,"0")}:${String(date.getSeconds()).padStart(2,"0")}`;
-        const nextDue = localStamp(next);
-        let nextReminder = null;
-        if (previousReminder && !Number.isNaN(previousReminder.getTime())) {
-          nextReminder = localStamp(new Date(next.getTime() + (previousReminder.getTime() - previousDue.getTime())));
-        }
-        tasks[index] = { ...tasks[index], dueAt: nextDue, remindAt: nextReminder, updatedAt: now, completedAt: null, status: "open" };
-        await saveTasks(tasks);
-        return { ok: true, action: "complete_recurring", task: tasks[index], nextDueAt: nextDue };
-      }
+    const next = nextRecurringDates(tasks[index]);
+    if (next) {
+      tasks[index] = { ...tasks[index], ...next, updatedAt: now, completedAt: null, status: "open" };
+      await saveTasks(tasks);
+      return { ok: true, action: "complete_recurring", task: tasks[index], nextDueAt: next.dueAt };
     }
     tasks[index] = { ...tasks[index], status: "completed", completedAt: now, updatedAt: now };
   } else if (action === "delete") {

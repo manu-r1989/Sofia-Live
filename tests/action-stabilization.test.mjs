@@ -6,12 +6,14 @@ import { readFile } from 'node:fs/promises';
 // No credentials or services are used: all HTTP calls are intercepted.
 const root = new URL('../', import.meta.url);
 const moduleUrl = source => `data:text/javascript;base64,${Buffer.from(source).toString('base64')}`;
-const taskUrl = moduleUrl(await readFile(new URL('api/task-action.js', root), 'utf8'));
+const datesUrl = moduleUrl(await readFile(new URL('api/task-dates.js', root), 'utf8'));
+const { addCalendarDays, nextRecurringDates } = await import(datesUrl);
+const taskUrl = moduleUrl((await readFile(new URL('api/task-action.js', root), 'utf8')).replace('./task-dates.js', datesUrl));
 const engineUrl = moduleUrl((await readFile(new URL('api/action-engine.js', root), 'utf8')).replace('./task-action.js', taskUrl));
 const { executeUnifiedAction, withTaskMutationLock } = await import(engineUrl);
 const endpoints = {};
 for (const name of ['chat', 'live-context', 'tasks']) {
-  endpoints[name] = (await import(moduleUrl((await readFile(new URL(`api/${name}.js`, root), 'utf8')).replace('./action-engine.js', engineUrl)))).default;
+  endpoints[name] = (await import(moduleUrl((await readFile(new URL(`api/${name}.js`, root), 'utf8')).replace('./action-engine.js', engineUrl).replace('./task-dates.js', datesUrl)))).default;
 }
 const TASKS = 'sofia:main:tasks';
 const STATE = 'sofia:main:action-state';
@@ -343,6 +345,56 @@ test('task without a due date asks for clarification without calendar fallback',
   const result = await endpoint('live-context', 'Die in den Kalender');
   assert.equal(result.taskAction.status, 'missing_due_at'); assert.equal(result.calendarAction, null);
   assert.equal(calendarCalls, 0); assert.match(result.context, /Datum und Uhrzeit/);
+});
+
+for (const zone of ['UTC', 'Europe/Berlin', 'America/New_York', 'Asia/Tokyo']) {
+  test(`task calendar arithmetic is independent of server zone ${zone}`, () => {
+    const previousTZ = process.env.TZ;
+    try {
+      process.env.TZ = zone;
+      assert.deepEqual(nextRecurringDates({ dueAt: '2026-03-28T09:00:00', remindAt: '2026-03-27T09:00:00', recurrence: 'daily' }),
+        { dueAt: '2026-03-29T09:00:00', remindAt: '2026-03-28T09:00:00' });
+      assert.equal(addCalendarDays('2026-03-22 02:30:00', 7), '2026-03-29T02:30:00');
+      assert.equal(nextRecurringDates({ dueAt: '2026-10-24T09:00', recurrence: 'weekly' }).dueAt, '2026-10-31T09:00:00');
+      assert.equal(nextRecurringDates({ dueAt: '2026-01-31T09:00:00', recurrence: 'monthly' }).dueAt, '2026-02-28T09:00:00');
+      assert.equal(nextRecurringDates({ dueAt: '2028-01-31T09:00:00', recurrence: 'monthly' }).dueAt, '2028-02-29T09:00:00');
+      assert.equal(nextRecurringDates({ dueAt: '2026-12-31T09:00:00', recurrence: 'monthly' }).dueAt, '2027-01-31T09:00:00');
+    } finally { if (previousTZ === undefined) delete process.env.TZ; else process.env.TZ = previousTZ; }
+  });
+}
+
+test('monthly completion uses the same valid next date through actions and Tasks API', async () => {
+  const task = { ...fixture('a'), recurrence: 'monthly', dueAt: '2026-01-31T09:00:00', remindAt: '2026-01-31T08:30:00' };
+  reset([task], 'a'); parsed = { action: 'complete', id: 'a' };
+  const action = await run('Die ist erledigt');
+  reset([task], 'a');
+  const ui = await endpoint('tasks', '', { body: { action: 'complete', id: 'a' } });
+  for (const result of [action.taskAction, ui]) {
+    assert.equal(result.task.dueAt, '2026-02-28T09:00:00');
+    assert.equal(result.task.remindAt, '2026-02-28T08:30:00');
+    assert.equal(result.task.status, 'open');
+  }
+});
+
+test('week query ends after seven calendar days even across the DST gap', async () => {
+  const previousTZ = process.env.TZ;
+  try {
+    process.env.TZ = 'Europe/Berlin';
+    reset([
+      { ...fixture('a'), dueAt: '2026-03-29T02:00:00' },
+      { ...fixture('b'), dueAt: '2026-03-29T03:00:00' }
+    ]);
+    parsed = { action: 'list', scope: 'week' };
+    const result = await run('Welche Aufgaben stehen diese Woche an?', 'text', '2026-03-22 02:30:00');
+    assert.deepEqual(result.taskAction.tasks.map(task => task.id), ['a']);
+  } finally { if (previousTZ === undefined) delete process.env.TZ; else process.env.TZ = previousTZ; }
+});
+
+test('calendar arithmetic rejects rollover dates and unsupported recurrence', () => {
+  assert.equal(addCalendarDays('2026-02-30T09:00:00', 7), null);
+  assert.equal(addCalendarDays('2026-10-06T24:00:00', 7), null);
+  assert.equal(nextRecurringDates({ dueAt: '2026-02-30T09:00:00', recurrence: 'daily' }), null);
+  assert.equal(nextRecurringDates({ dueAt: '2026-10-06T09:00:00', recurrence: 'unknown' }), null);
 });
 
 test.after(() => {
