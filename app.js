@@ -471,6 +471,8 @@ async function speak(text) {
 
 async function askSofia(userMessage, imageDataUrl = null) {
   if (isResponding) return;
+  window.SofiaActionFeedback?.clear();
+  let actionResultReceived = false;
 
   isResponding = true;
 
@@ -555,6 +557,9 @@ async function askSofia(userMessage, imageDataUrl = null) {
       );
     }
 
+    actionResultReceived = true;
+    window.SofiaActionFeedback?.show(data.taskAction);
+
     const reply =
       data.reply ||
       'Hm. Da ist gerade etwas schiefgelaufen.';
@@ -614,6 +619,8 @@ async function askSofia(userMessage, imageDataUrl = null) {
       'Sofia API Fehler:',
       error
     );
+
+    if (!actionResultReceived) window.SofiaActionFeedback?.show({ ok: false, status: 'execution_failed' });
 
     const errorMessage =
       'Okay… meine Verbindung ist gerade weg. Versuch es noch einmal. 🙄';

@@ -7,10 +7,10 @@ const source = await readFile(new URL('../live.js', import.meta.url), 'utf8');
 const turn = source.slice(source.indexOf('  let pendingUserText ='), source.indexOf('  let pendingAssistantText ='));
 const handler = source.slice(source.indexOf('  async function handleRealtimeEvent('), source.indexOf('  /* ========================================\n     STOP LIVE'));
 function harness(fetchImpl = async () => ({ ok: true, json: async () => ({ context: 'Task erfolgreich erstellt.' }) })) {
-  const timers = new Map(), sent = [], gates = [], stopped = [];
+  const timers = new Map(), sent = [], gates = [], stopped = [], feedback = [];
   let next = 0;
   const context = vm.createContext({
-    window: { setTimeout: (fn, delay) => { timers.set(++next, { fn, delay }); return next; }, SofiaAvatar: { listen() {}, think() {} } },
+    window: { SofiaActionFeedback: {show: result=>feedback.push(result),clear:()=>feedback.push("clear")}, setTimeout: (fn, delay) => { timers.set(++next, { fn, delay }); return next; }, SofiaAvatar: { listen() {}, think() {} } },
     clearTimeout: id => timers.delete(id), fetch: fetchImpl, console, AbortController,
     setPresence() {}, setThought() {}, openCalendarImport() {}, app: null,
     stopLive: () => { stopped.push(true); context.cancel(); },
@@ -23,7 +23,7 @@ function harness(fetchImpl = async () => ({ ok: true, json: async () => ({ conte
     liveSessionInstructions='Du bist Sofia. Antworte auf Deutsch. Behalte deine Persönlichkeit.';
     globalThis.event=handleRealtimeEvent;
     globalThis.cancel=()=>{cancelPendingLiveResponse();liveActive=false;};`, Object.assign(context, { send: x => sent.push(JSON.parse(x)) }));
-  return { sent, gates, timers, stopped, event: context.event, cancel: context.cancel,
+  return { sent, gates, timers, stopped, feedback, event: context.event, cancel: context.cancel,
     run: async (elapsed = 1500) => { const entries = [...timers.entries()].filter(([, timer]) => timer.delay <= elapsed); entries.forEach(([id]) => timers.delete(id)); entries.forEach(([, timer]) => timer.fn()); for (let i=0;i<20;i++) await Promise.resolve(); } };
 }
 const start = id => ({ type: 'input_audio_buffer.speech_started', item_id: id });
@@ -110,4 +110,11 @@ test('timeout after resumed speech does not interrupt the new utterance', async 
   await h.event(stop('a')); await h.event(transcript('a','Hallo')); await h.run();
   await h.event(start('b')); await h.run(20000);
   assert.equal(h.sent.length,0); assert.equal(h.gates.length,0);
+});
+
+test('Live displays the actual task result without a second action request', async()=>{
+  const result={ok:true,action:'create',task:{title:'Test'}};let requests=0;
+  const h=harness(async()=>{requests++;return {ok:true,json:async()=>({taskAction:result,context:'Gespeichert'})};});
+  await h.event(start('a'));await h.event(stop('a'));await h.event(transcript('a','Aufgabe erstellen'));await h.run();
+  assert.equal(requests,1);assert.equal(h.sent.length,1);assert.equal(h.feedback[0],'clear');assert.equal(h.feedback.at(-1),result);
 });

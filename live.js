@@ -131,6 +131,7 @@
     // A resumed utterance or stopped session invalidates this response, even
     // when the context request completes later. Keep the mic open until here.
     if (!current()) return;
+    window.SofiaActionFeedback?.show(contextFailed ? { ok: false, status: "execution_failed" } : contextData.taskAction);
     if (contextData.calendarAction) openCalendarImport(contextData.calendarAction);
     if (contextData.taskAction?.action === "create" &&
         (contextData.taskAction.task?.remindAt || contextData.taskAction.task?.dueAt)) {
@@ -970,6 +971,7 @@
       userSpeaking = false;
       latestSpeechItemId = null;
       transcribedSpeechItems.clear();
+      window.SofiaActionFeedback?.clear();
       liveSessionInstructions = typeof tokenData.instructions === "string"
         ? tokenData.instructions : "Du bist Sofia. Antworte auf Deutsch, sofern der Nutzer nicht ausdrücklich eine andere Sprache verlangt.";
 
@@ -1368,6 +1370,7 @@
       case
         "input_audio_buffer.speech_started":
         if (responseLocked || assistantResponding || Date.now() < ignoreInputUntil) break;
+        window.SofiaActionFeedback?.clear();
         userSpeaking = true;
         latestSpeechItemId = event.item_id || null;
         cancelPendingLiveResponse();
