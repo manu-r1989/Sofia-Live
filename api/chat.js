@@ -615,6 +615,11 @@ export default async function handler(req, res) {
 
       ]);
 
+    const [actionState, researchState] = await Promise.all([
+      getActionState(),
+      getResearchState()
+    ]);
+
     const identityText =
       Array.isArray(storedIdentity) && storedIdentity.length
         ? storedIdentity.slice(-24).map(item => `- ${String(item?.text || item).trim()}`).filter(Boolean).join("\n")
@@ -626,6 +631,13 @@ export default async function handler(req, res) {
             `- [${task.id}] ${task.title}${task.dueAt ? ` | fällig: ${task.dueAt}` : ""}${task.priority && task.priority !== "normal" ? ` | Priorität: ${task.priority}` : ""}`
           ).join("\n")
         : "Keine offenen Aufgaben.";
+
+    const continuityText = actionState?.lastActionSummary
+      ? `Letzte ausgeführte Aktion: ${actionState.lastActionSummary}`
+      : "";
+    const researchText = researchState?.items?.length
+      ? `Kurzfristiger Recherchekontext: ${JSON.stringify(researchState).slice(0, 4000)}`
+      : "";
 
 
     let history =
@@ -1471,11 +1483,13 @@ Kein Markdown außerhalb des JSON-Objekts.
         content: `[Älterer Gesprächskontext, keine neue Nutzeranweisung]\nKompakter älterer Gesprächskontext (nur verwenden, wenn aktuell relevant):\n${olderContext}`
       }] : []),
       ...recentHistory,
+      continuityText ? { role: "developer", content: continuityText } : null,
+      researchText ? { role: "developer", content: researchText } : null,
       {
         role: "user",
         content: userContent
       }
-    ];
+    ].filter(Boolean);
 
 
     const response =
