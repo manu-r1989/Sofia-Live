@@ -1358,6 +1358,10 @@
               // confirms the event in iOS Calendar.
               openCalendarImport(contextData.calendarAction);
             }
+            if (contextData.taskAction?.action === "create" && (contextData.taskAction.task?.remindAt || contextData.taskAction.task?.dueAt)) {
+              window.SofiaTasks?.offerNotifications?.();
+              window.SofiaTasks?.checkReminders?.();
+            }
 
             if (dataChannel?.readyState === "open") {
               dataChannel.send(JSON.stringify({
