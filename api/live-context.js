@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { executeTaskAction } from "./task-action.js";
+import { executeUnifiedAction } from "./action-engine.js";
 
 const MEMORY_KEY = "sofia:main:longterm";
 const TASKS_KEY = "sofia:main:tasks";
@@ -89,7 +89,7 @@ export default async function handler(req, res) {
   try {
     let taskAction = { ok: true, action: "none" };
     try {
-      taskAction = await executeTaskAction(message, hamburgNow);
+      taskAction = (await executeUnifiedAction(message, hamburgNow, { mode: "live" })).taskAction;
     } catch (taskError) {
       console.warn("Live task action:", taskError?.message || taskError);
     }
