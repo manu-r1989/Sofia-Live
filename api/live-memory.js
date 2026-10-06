@@ -339,7 +339,8 @@ export default async function handler(
 
   const {
     userText,
-    assistantText
+    assistantText,
+    imageRequestId
   } = req.body || {};
 
   if (
@@ -708,6 +709,7 @@ ${cleanUser}
     if (cleanAssistant) {
       history.push({
         role: "assistant",
+        ...(typeof imageRequestId === "string" && /^[a-f0-9-]{36}$/.test(imageRequestId) ? { imageRequestId } : {}),
         content: cleanAssistant
       });
     }
@@ -890,3 +892,4 @@ async function redisPipeline(
 
   return data;
 }
+

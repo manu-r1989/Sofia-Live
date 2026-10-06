@@ -1,4 +1,4 @@
-import { preparePortrait, generatePortrait, servePortrait, portraitGallery, appendPortraitAcknowledgment } from '../lib/character-image.js';
+import { preparePortrait, generatePortrait, servePortrait, portraitGallery, appendPortraitAcknowledgment, PORTRAIT_FAILURE_REPLY } from '../lib/character-image.js';
 import crypto from "node:crypto";
 import { executeUnifiedAction, getActionState, getResearchState } from "./action-engine.js";
 
@@ -519,7 +519,7 @@ export default async function handler(req, res) {
     if (req.method === "GET" && req.query?.image) return await servePortrait(req, res);
     if (req.method === "POST" && req.body?.operation === "generate_image") {
       try { return res.status(200).json({ image: await generatePortrait(req.body.requestId) }); }
-      catch (error) { return res.status(409).json({ error: error.message }); }
+      catch (error) { return res.status(409).json({ error: PORTRAIT_FAILURE_REPLY }); }
     }
 
     if (req.method === "GET") {
@@ -592,7 +592,7 @@ export default async function handler(req, res) {
       const imageRequest = await preparePortrait(message, req.body?.referenceImageId);
       if (imageRequest) {
         const reply = "Gib mir einen kleinen Moment.";
-        await appendPortraitAcknowledgment(message, reply);
+        await appendPortraitAcknowledgment(message, reply, imageRequest.id);
         return res.status(200).json({ reply, mood: "neutral", imageRequest, taskAction: { ok:true, action:"none" } });
       }
     } catch (error) {

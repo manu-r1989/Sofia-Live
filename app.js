@@ -105,7 +105,7 @@ function scrollChatToLatest(behavior = 'auto') {
   });
 }
 
-function addMessage(text, who = 'sofia') {
+function addMessage(text, who = 'sofia', imageRequestId = null) {
   if (!messages) return;
 
   const div = document.createElement('div');
@@ -115,7 +115,12 @@ function addMessage(text, who = 'sofia') {
 
   messages.appendChild(div);
 
+  if (imageRequestId) {
+    div.dataset.portraitRequestId = imageRequestId;
+    window.SofiaImages?.anchor(imageRequestId, div);
+  }
   scrollChatToLatest('smooth');
+  return div;
 }
 
 // API calendar timestamps without an offset are Europe/Berlin wall time.
@@ -349,7 +354,7 @@ async function syncConversationFromServer({ silent = false } = {}) {
     if (messages) {
       messages.innerHTML = '';
       conversationHistory.forEach(item =>
-        addMessage(item.content, item.role === 'user' ? 'user' : 'sofia')
+        addMessage(item.content, item.role === 'user' ? 'user' : 'sofia', item.imageRequestId)
       );
       if (pendingCalendarAction) addCalendarDownload(pendingCalendarAction);
       window.SofiaImages?.restore(data.images);
@@ -396,7 +401,8 @@ function restoreConversation() {
       item.content,
       item.role === 'user'
         ? 'user'
-        : 'sofia'
+        : 'sofia',
+      item.imageRequestId
     );
   });
 
@@ -568,18 +574,20 @@ async function askSofia(userMessage, imageDataUrl = null) {
 
     conversationHistory.push({
       role: 'assistant',
-      content: reply
+      content: reply,
+      ...(data.imageRequest ? { imageRequestId:data.imageRequest.id } : {})
     });
 
     saveMemory();
 
-    if (data.imageRequest) void window.SofiaImages?.generate(data.imageRequest);
     applyMood(data.mood);
 
     addMessage(
       reply,
-      'sofia'
+      'sofia',
+      data.imageRequest?.id
     );
+    if (data.imageRequest) void window.SofiaImages?.generate(data.imageRequest);
 
     if (thought) {
       thought.textContent = reply;

@@ -61,6 +61,7 @@
   ======================================== */
 
   let pendingUserText = "";
+  let pendingImageRequestId = null;
   let liveSessionInstructions = "";
   let userSpeaking = false;
   let userTurnRevision = 0;
@@ -132,7 +133,10 @@
     // when the context request completes later. Keep the mic open until here.
     if (!current()) return;
     window.SofiaActionFeedback?.show(contextFailed ? { ok: false, status: "execution_failed" } : contextData.taskAction);
-    if (contextData.imageRequest) void window.SofiaImages?.generate(contextData.imageRequest);
+    if (contextData.imageRequest) {
+      pendingImageRequestId = contextData.imageRequest.id;
+      void window.SofiaImages?.generate(contextData.imageRequest);
+    }
     if (contextData.calendarAction) openCalendarImport(contextData.calendarAction);
     if (contextData.taskAction?.action === "create" &&
         (contextData.taskAction.task?.remindAt || contextData.taskAction.task?.dueAt)) {
@@ -508,7 +512,8 @@
 
   function queueLiveMemory(
     userText,
-    assistantText
+    assistantText,
+    imageRequestId = null
   ) {
 
     const cleanUser =
@@ -541,7 +546,8 @@
           () =>
             saveLiveMemory(
               cleanUser,
-              cleanAssistant
+              cleanAssistant,
+              imageRequestId
             )
         )
         .catch(error => {
@@ -564,7 +570,8 @@
 
   async function saveLiveMemory(
     userText,
-    assistantText
+    assistantText,
+    imageRequestId = null
   ) {
 
     const response =
@@ -588,7 +595,8 @@
           body:
             JSON.stringify({
               userText,
-              assistantText
+              assistantText,
+              imageRequestId
             })
         }
       );
@@ -681,7 +689,8 @@
     const persistence =
       queueLiveMemory(
         userText,
-        assistantText
+        assistantText,
+        pendingImageRequestId
       );
 
     window.SofiaLiveHistoryReady =
@@ -700,12 +709,14 @@
 
     mirrorTurnToLocalChat(
       userText,
-      assistantText
+      assistantText,
+      pendingImageRequestId
     );
 
 
     pendingUserText =
       "";
+    pendingImageRequestId = null;
 
 
     pendingAssistantText =
@@ -720,7 +731,8 @@
 
   function mirrorTurnToLocalChat(
     userText,
-    assistantText
+    assistantText,
+    imageRequestId = null
   ) {
 
     try {
@@ -783,7 +795,8 @@
             "assistant",
 
           content:
-            assistantText
+            assistantText,
+          ...(imageRequestId ? {imageRequestId} : {})
         });
 
       }
@@ -867,6 +880,7 @@
 
     pendingUserText =
       "";
+    pendingImageRequestId = null;
 
 
     pendingAssistantText =

@@ -1,12 +1,57 @@
 (() => {
   const active = new Map();
+  const pending = new Set();
+  const failureReply = 'Ich bin gerade nicht in der passenden Umgebung für ein Foto. Frag mich gern gleich noch einmal.';
   let referenceId = null;
+  const valid = id => typeof id === 'string' && /^[a-f0-9-]{36}$/.test(id);
+  function slotFor(id) {
+    if (!valid(id)) return null;
+    let slot = document.getElementById('portrait-slot-' + id);
+    if (!slot) {
+      slot = document.createElement('div'); slot.id='portrait-slot-' + id; slot.hidden=true;
+      document.getElementById('messages')?.append(slot);
+    }
+    return slot;
+  }
+  function anchor(id, node) {
+    const slot=slotFor(id);
+    if (slot && node?.parentNode) node.parentNode.insertBefore(slot,node.nextSibling);
+  }
+  function locate(event) {
+    const messages=document.getElementById('messages');
+    if (!messages) return null;
+    const slot=slotFor(event.id);
+    let node=messages.querySelector(`[data-portrait-request-id="${event.anchorId || event.id}"]`);
+    if (!node && event.requestMessage) {
+      const users=[...messages.querySelectorAll('.msg.user')];
+      node=users.reverse().find(x=>x.textContent === event.requestMessage);
+      if (node?.nextSibling?.classList?.contains('sofia')) node=node.nextSibling;
+    }
+    if (node) anchor(event.id,node);
+    else if (!pending.has(event.id)) {
+      // Truncated history: retained older photographs belong BEFORE newer turns.
+      let older=document.getElementById('portrait-older');
+      if (!older) { older=document.createElement('div'); older.id='portrait-older'; messages.insertBefore(older,messages.firstChild); }
+      older.append(slot);
+    }
+    return slot;
+  }
   function show(image) {
-    if (!image || !/^[a-f0-9-]{36}$/.test(image.id)) return;
-    const messages = document.getElementById('messages');
-    if (!messages || document.getElementById('portrait-' + image.id)) return;
+    if (!image || !valid(image.id)) return;
+    const messages=document.getElementById('messages');
+    if (!messages) return;
+    const slot=locate(image);
+    if (!slot) return;
+    const existing=document.getElementById('portrait-' + image.id);
+    if (existing && (existing.dataset.portraitStatus !== 'failed' || image.status === 'failed')) return;
+    existing?.remove();
+    if (image.status === 'failed') {
+      const notice=document.createElement('div'); notice.id='portrait-' + image.id;
+      notice.className='msg sofia'; notice.dataset.portraitStatus='failed'; notice.textContent=failureReply;
+      slot.append(notice); slot.hidden=false; return;
+    }
     const figure = document.createElement('figure');
-    figure.className = 'msg sofia'; figure.id = 'portrait-' + image.id;
+    figure.className = 'msg sofia'; figure.dataset.portraitStatus='done'; figure.id = 'portrait-' + image.id;
     figure.style.margin = '8px 0';
     const button = document.createElement('button'); button.type = 'button';
     button.style.cssText = 'border:0;background:transparent;padding:0;cursor:pointer';
@@ -29,24 +74,37 @@
       dialog.addEventListener('close',()=>dialog.remove(),{once:true});
       dialog.showModal(); close.focus();
     };
-    figure.append(button,caption); messages.append(figure);
-    messages.scrollTop = messages.scrollHeight;
+    figure.append(button,caption); slot.append(figure); slot.hidden=false;
   }
   window.SofiaImages = {
+    anchor,
     get referenceId() { return referenceId; },
-    restore(images) { if (Array.isArray(images)) { images.forEach(show); if (!referenceId && images.length) referenceId=images.at(-1).id; } },
+    restore(events) {
+      if (!Array.isArray(events)) return;
+      // Associate legacy photographs with their old acknowledgments where possible.
+      const old=events.filter(x=>!x.anchorId && valid(x.id));
+      const acknowledgments=[...document.getElementById('messages')?.querySelectorAll('.msg.sofia') || []]
+        .filter(x=>x.textContent === 'Gib mir einen kleinen Moment.' && !x.dataset.portraitRequestId).slice(-old.length);
+      old.forEach((image,index)=>{const node=acknowledgments[index];if(node)node.dataset.portraitRequestId=image.id;});
+      events.forEach(show);
+      const successful=events.filter(x=>x.status !== 'failed' && valid(x.id));
+      if (!referenceId && successful.length) referenceId=successful.at(-1).id;
+    },
     generate(request) {
-      if (!request?.id) return Promise.resolve();
+      if (!valid(request?.id)) return Promise.resolve();
       if (active.has(request.id)) return active.get(request.id);
+      pending.add(request.id);
+      slotFor(request.id); // Reserve the original turn without showing progress UI.
       const job = (async () => {
         try {
           const response = await fetch('/api/chat',{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json'},body:JSON.stringify({operation:'generate_image',requestId:request.id})});
           const data = await response.json();
-          if (!response.ok) throw new Error(data.error || 'Das Bild konnte gerade nicht erstellt werden.');
+          if (!response.ok) throw new Error('portrait_failed');
           show(data.image); referenceId=data.image.id;
-        } catch (error) {
-          const message=document.createElement('div'); message.className='msg sofia'; message.textContent=error.message;
-          document.getElementById('messages')?.append(message);
+        } catch {
+          show({...request,anchorId:request.id,status:'failed'});
+        } finally {
+          pending.delete(request.id);
         }
       })();
       active.set(request.id,job); return job;

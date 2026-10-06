@@ -5,24 +5,26 @@ import crypto from 'node:crypto';
 const source = await readFile(new URL('../lib/character-image.js',import.meta.url),'utf8');
 const api = await import('data:text/javascript;base64,' + Buffer.from(source).toString('base64'));
 const prefix='sofia:main:portrait:';
-let db, plan, calls, imageCalls, failImage, failRedis;
+let db, plan, calls, imageCalls, failImage, failRedis, plannerInputs;
 const savedFetch=globalThis.fetch;
 const envKeys=['KV_REST_API_URL','KV_REST_API_TOKEN','OPENAI_API_KEY','SOFIA_PASSWORD'];
 const env=Object.fromEntries(envKeys.map(k=>[k,process.env[k]]));
-function reset(){db=new Map();plan={action:'new',outfit:'Blue sweater',scene:'Selfie outdoors',caption:'Mein Selfie'};calls=[];imageCalls=[];failImage=false;failRedis=false;process.env.KV_REST_API_URL='https://redis.test';process.env.KV_REST_API_TOKEN='test';process.env.OPENAI_API_KEY='test';}
+function reset(){db=new Map();plan={action:'new',outfit:'Blue sweater',scene:'Selfie outdoors',caption:'Mein Selfie'};calls=[];imageCalls=[];plannerInputs=[];failImage=false;failRedis=false;process.env.KV_REST_API_URL='https://redis.test';process.env.KV_REST_API_TOKEN='test';process.env.OPENAI_API_KEY='test';}
 const response = (data,ok=true)=>({ok,json:async()=>data});
 globalThis.fetch=async(url,options)=>{
  const body=JSON.parse(options.body);calls.push(String(url));
+ if(url==='https://redis.test/pipeline') { for(const [op,key,value] of body) { assert.equal(op,'SET'); db.set(key,value); } return response(body.map(()=>({result:'OK'}))); }
+ if(String(url).endsWith('/responses')) return response({output_text:JSON.stringify({action:'none'})});
  if(url==='https://redis.test'){
   if(failRedis) return response({},false);
   const [op,key,value,...rest]=body;
   if(op==='GET')return response({result:db.get(key)||null});
   if(op==='SET'){if(rest.includes('NX')&&db.has(key))return response({result:null});db.set(key,value);return response({result:'OK'});}
   if(op==='DEL'){db.delete(key);return response({result:1});}
-  if(op==='EVAL'){const lock=body[3],id=body[4];if(db.get(lock)===id)db.delete(lock);return response({result:1});}
+  if(op==='EVAL'){const lock=body[3],id=body[4]; if(lock === 'sofia:main:history') { const history=JSON.parse(db.get(lock)||'[]'); history.push({role:'user',content:body[4]},{role:'assistant',content:body[5],imageRequestId:body[6]});db.set(lock,JSON.stringify(history.slice(-40))); } else if(db.get(lock)===id)db.delete(lock);return response({result:1});}
   throw Error('Unexpected Redis '+op);
  }
- if(String(url).endsWith('/chat/completions')) return response({choices:[{message:{content:JSON.stringify(plan)}}]});
+ if(String(url).endsWith('/chat/completions')) { plannerInputs.push(JSON.parse(body.messages[1].content)); return response({choices:[{message:{content:JSON.stringify(plan)}}]}); }
  if(String(url).endsWith('/images/edits')){imageCalls.push(body);return response({data:[{b64_json:'/9j/AA=='}]},!failImage);}
  throw Error('Unexpected URL');
 };
@@ -65,7 +67,7 @@ test('failed or uncertain generation is not replayed and does not publish or cha
  reset();const r=await api.preparePortrait('Selfie');failImage=true;
  await assert.rejects(api.generatePortrait(r.id));
  await assert.rejects(api.generatePortrait(r.id),/bereits gestartet/);
- assert.equal(imageCalls.length,1);assert.deepEqual(await api.portraitGallery(),[]);assert.equal(db.get(prefix+'state'),undefined);
+ assert.equal(imageCalls.length,1);const notices=await api.portraitGallery();assert.equal(notices.length,1);assert.equal(notices[0].status,'failed');assert.equal(notices[0].message,api.PORTRAIT_FAILURE_REPLY);assert.equal(db.get(prefix+'state'),undefined);
 });
 test('descriptive questions are no-op, missing source and mixed actions require clarification',async()=>{
  reset();plan.action='none';assert.equal(await api.preparePortrait('Wie gefällt dir das Outfit?'),null);
@@ -82,11 +84,11 @@ test('image delivery is private JPEG with download attachment and validated IDs'
 });
 test('UI integration loads shared renderer before app and does not alter avatar assets',async()=>{
  const root=new URL('../',import.meta.url);const index=await readFile(new URL('index.html',root),'utf8');
- assert.ok(index.indexOf('sofia-images.js?v=4210i1')<index.indexOf('app.js?v=4210i1'));
+ assert.ok(index.indexOf('sofia-images.js?v=4212i1')<index.indexOf('app.js?v=4212i1'));
  const chat=await readFile(new URL('api/chat.js',root),'utf8');
  assert.ok(chat.indexOf('!safeEqual(')<chat.indexOf('await servePortrait'));
  const ui=await readFile(new URL('sofia-images.js',root),'utf8');assert.match(ui,/dialog.showModal/);assert.match(ui,/download=1/);assert.doesNotMatch(ui,/spinner|generating-status/);
- const live=await readFile(new URL('live.js',root),'utf8');assert.match(live,/contextData.imageRequest.*SofiaImages/);
+ const live=await readFile(new URL('live.js',root),'utf8');assert.match(live,/contextData.imageRequest[\s\S]*?SofiaImages/);
 });
 
 test('explicit selfie commands survive a classifier no-op instead of reaching a camera refusal',async()=>{
@@ -141,4 +143,34 @@ test('authenticated Text and Live return image jobs even if the planner says non
   assert.equal(job.caption,'Ein Bild von mir.');
  }
  assert.equal(imageCalls.length,0,'provider runs only from the separate generation request');
+});
+
+test('new request after failure has a fresh ID and no failure or moderation context',async()=>{
+ reset();const failed=await api.preparePortrait('Ein Selfie bitte');failImage=true;
+ await assert.rejects(api.generatePortrait(failed.id));
+ failImage=false;
+ const fresh=await api.preparePortrait('Ein Selfie bitte');assert.notEqual(fresh.id,failed.id);
+ const input=plannerInputs.at(-1);assert.deepEqual(Object.keys(input).sort(),['currentOutfit','message','period','reference']);
+ assert.doesNotMatch(JSON.stringify(input),/failed|moderation|Umgebung/);
+ const image=await api.generatePortrait(fresh.id);assert.equal(image.id,fresh.id);assert.equal(imageCalls.length,2);
+ assert.doesNotMatch(imageCalls[1].prompt,/failed|moderation|Umgebung/);
+ assert.equal(image.anchorId,fresh.id);assert.equal(image.requestMessage,'Ein Selfie bitte');
+});
+test('acknowledgment persists its image anchor and failed notice stays outside conversation history',async()=>{
+ reset();const r=await api.preparePortrait('Selfie');
+ await api.appendPortraitAcknowledgment('Selfie','Gib mir einen kleinen Moment.',r.id);
+ failImage=true;await assert.rejects(api.generatePortrait(r.id));
+ const history=JSON.parse(db.get('sofia:main:history'));assert.equal(history[1].imageRequestId,r.id);
+ assert.equal(history.length,2);assert.doesNotMatch(JSON.stringify(history),/Umgebung|failed|moderation/);
+});
+test('Live memory stores the image anchor on the acknowledgment without saving failure context',async()=>{
+ reset();process.env.SOFIA_PASSWORD='test-only';
+ const code=await readFile(new URL('../api/live-memory.js',import.meta.url),'utf8');
+ const handler=(await import('data:text/javascript;base64,'+Buffer.from(code).toString('base64'))).default;
+ const session=crypto.createHmac('sha256','test-only').update('sofia-authorized-session-v1').digest('hex');
+ const id='11111111-1111-4111-8111-111111111111';let status;
+ const res={setHeader(){},status(n){status=n;return this;},json(d){return d;}};
+ await handler({method:'POST',headers:{cookie:'sofia_session='+session},body:{userText:'Selfie bitte',assistantText:'Gib mir einen kleinen Moment.',imageRequestId:id}},res);
+ assert.equal(status,200);assert.equal(JSON.parse(db.get('sofia:main:history'))[1].imageRequestId,id);
+ assert.deepEqual(JSON.parse(db.get('sofia:main:longterm')),[]);
 });
