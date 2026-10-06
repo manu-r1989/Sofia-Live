@@ -1,4 +1,4 @@
-import { addCalendarDays, nextRecurringDates, normalizeTaskDate, validateTaskPatch } from "./task-dates.js";
+import { addCalendarDays, nextRecurringDates, normalizeTaskDate, validateTaskPatch } from "../lib/task-dates.js";
 
 const TASKS_KEY = "sofia:main:tasks";
 

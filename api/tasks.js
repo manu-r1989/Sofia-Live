@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { nextRecurringDates, normalizeTaskDate, validateTaskPatch } from "./task-dates.js";
+import { nextRecurringDates, normalizeTaskDate, validateTaskPatch } from "../lib/task-dates.js";
 import { withTaskMutationLock } from "./action-engine.js";
 
 const TASKS_KEY = "sofia:main:tasks";

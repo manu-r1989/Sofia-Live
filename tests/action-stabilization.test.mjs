@@ -6,14 +6,14 @@ import { readFile } from 'node:fs/promises';
 // No credentials or services are used: all HTTP calls are intercepted.
 const root = new URL('../', import.meta.url);
 const moduleUrl = source => `data:text/javascript;base64,${Buffer.from(source).toString('base64')}`;
-const datesUrl = moduleUrl(await readFile(new URL('api/task-dates.js', root), 'utf8'));
+const datesUrl = moduleUrl(await readFile(new URL('lib/task-dates.js', root), 'utf8'));
 const { addCalendarDays, nextRecurringDates } = await import(datesUrl);
-const taskUrl = moduleUrl((await readFile(new URL('api/task-action.js', root), 'utf8')).replace('./task-dates.js', datesUrl));
+const taskUrl = moduleUrl((await readFile(new URL('api/task-action.js', root), 'utf8')).replace('../lib/task-dates.js', datesUrl));
 const engineUrl = moduleUrl((await readFile(new URL('api/action-engine.js', root), 'utf8')).replace('./task-action.js', taskUrl));
 const { executeUnifiedAction, withTaskMutationLock } = await import(engineUrl);
 const endpoints = {};
 for (const name of ['chat', 'live-context', 'tasks']) {
-  endpoints[name] = (await import(moduleUrl((await readFile(new URL(`api/${name}.js`, root), 'utf8')).replace('./action-engine.js', engineUrl).replace('./task-dates.js', datesUrl)))).default;
+  endpoints[name] = (await import(moduleUrl((await readFile(new URL(`api/${name}.js`, root), 'utf8')).replace('./action-engine.js', engineUrl).replace('../lib/task-dates.js', datesUrl)))).default;
 }
 const TASKS = 'sofia:main:tasks';
 const STATE = 'sofia:main:action-state';
