@@ -93,12 +93,22 @@ export async function executeTaskAction(message, referenceTime) {
   if (action === "create") {
     const title = String(parsed?.task?.title || "").trim().slice(0, 200);
     if (!title) return { ok: true, action: "none" };
+    const dueAt = normalizeDate(parsed.task.dueAt);
+    const remindAt = normalizeDate(parsed.task.remindAt);
+    const duplicate = tasks.find(t =>
+      t.status === "open" &&
+      String(t.title || "").toLocaleLowerCase("de-DE") === title.toLocaleLowerCase("de-DE") &&
+      String(t.dueAt || "") === String(dueAt || "") &&
+      Date.now() - Date.parse(t.createdAt || 0) < 120000
+    );
+    if (duplicate) return { ok: true, action: "create_existing", task: duplicate };
+
     const task = {
       id: `task_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
       title,
       status: "open",
-      dueAt: normalizeDate(parsed.task.dueAt),
-      remindAt: normalizeDate(parsed.task.remindAt),
+      dueAt,
+      remindAt,
       recurrence: parsed.task.recurrence || null,
       priority: ["low","normal","high"].includes(parsed.task.priority) ? parsed.task.priority : "normal",
       notes: String(parsed.task.notes || "").trim().slice(0, 1000),
