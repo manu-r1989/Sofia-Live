@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 const HISTORY_KEY = "sofia:main:history";
 const MEMORY_KEY = "sofia:main:longterm";
 const IDENTITY_KEY = "sofia:main:identity";
+const TASKS_KEY = "sofia:main:tasks";
 
 const MAX_HISTORY_MESSAGES = 40;
 const MAX_LONGTERM_MEMORIES = 80;
@@ -586,7 +587,8 @@ export default async function handler(req, res) {
     const [
       storedHistory,
       storedMemories,
-      storedIdentity
+      storedIdentity,
+      storedTasks
     ] =
       await Promise.all([
 
@@ -603,6 +605,11 @@ export default async function handler(req, res) {
         redisGetJSON(
           IDENTITY_KEY,
           []
+        ),
+
+        redisGetJSON(
+          TASKS_KEY,
+          []
         )
 
       ]);
@@ -611,6 +618,13 @@ export default async function handler(req, res) {
       Array.isArray(storedIdentity) && storedIdentity.length
         ? storedIdentity.slice(-24).map(item => `- ${String(item?.text || item).trim()}`).filter(Boolean).join("\n")
         : "Noch keine persistenten eigenen Positionen gespeichert.";
+
+    const taskText =
+      Array.isArray(storedTasks) && storedTasks.some(task => task?.status === "open")
+        ? storedTasks.filter(task => task?.status === "open").slice(-30).map(task =>
+            `- [${task.id}] ${task.title}${task.dueAt ? ` | fällig: ${task.dueAt}` : ""}${task.priority && task.priority !== "normal" ? ` | Priorität: ${task.priority}` : ""}`
+          ).join("\n")
+        : "Keine offenen Aufgaben.";
 
 
     let history =
@@ -1430,7 +1444,7 @@ Kein Markdown außerhalb des JSON-Objekts.
       hour: "2-digit", minute: "2-digit", second: "2-digit",
       hour12: false
     }).format(now);
-    const calendarReference = `[Systemkontext: aktuelle Referenzzeit Europe/Berlin: ${hamburgNow}. Nur zur Auflösung relativer Datums-/Zeitangaben verwenden.]\n`;
+    const calendarReference = `[Systemkontext: aktuelle Referenzzeit Europe/Berlin: ${hamburgNow}. Nur zur Auflösung relativer Datums-/Zeitangaben verwenden.]\n[Offene Aufgaben aus der Task Engine:\n${taskText}\n]\n`;
 
     const userContent = imageDataUrl
       ? [
