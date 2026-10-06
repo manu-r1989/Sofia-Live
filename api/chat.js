@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { executeTaskAction } from "./task-action.js";
 
 const HISTORY_KEY = "sofia:main:history";
 const MEMORY_KEY = "sofia:main:longterm";
@@ -1646,6 +1647,13 @@ Kein Markdown außerhalb des JSON-Objekts.
       calendarAction = await extractCalendarActionFallback(message, hamburgNow);
     }
 
+    let taskAction = { ok: true, action: "none" };
+    try {
+      taskAction = await executeTaskAction(message.trim(), hamburgNow);
+    } catch (taskError) {
+      console.warn("Task action:", taskError?.message || taskError);
+    }
+
     const validMemoryActions = [
       "none",
       "add",
@@ -1814,6 +1822,8 @@ Kein Markdown außerhalb des JSON-Objekts.
       mood,
 
       calendarAction,
+
+      taskAction,
 
       memoryMessages:
         history.length,
