@@ -199,7 +199,22 @@ export default async function handler(req, res) {
     } catch (error) {
       console.warn("Live memory context:", error?.message || error);
     }
+    const taskActionContext = (() => {
+      if (!taskAction) return "";
+      if (taskAction.ok === false && taskAction.status === "ambiguous") return "TASK-AKTION: Die gewünschte Aufgabe war nicht eindeutig. Frage kurz, welche Aufgabe gemeint ist.";
+      if (taskAction.action === "create" && taskAction.task?.title) return `TASK-AKTION ERFOLGREICH: Aufgabe „${taskAction.task.title}“ wurde gespeichert. Bestätige das knapp.`;
+      if (taskAction.action === "complete" && taskAction.task?.title) return `TASK-AKTION ERFOLGREICH: Aufgabe „${taskAction.task.title}“ wurde erledigt. Bestätige das knapp.`;
+      if (taskAction.action === "delete" && taskAction.task?.title) return `TASK-AKTION ERFOLGREICH: Aufgabe „${taskAction.task.title}“ wurde gelöscht. Bestätige das knapp.`;
+      if (taskAction.action === "update" && taskAction.task?.title) return `TASK-AKTION ERFOLGREICH: Aufgabe „${taskAction.task.title}“ wurde aktualisiert. Bestätige das knapp.`;
+      if (taskAction.action === "list") {
+        const list = Array.isArray(taskAction.tasks) ? taskAction.tasks.slice(0, 8).map(task => task.title).join("; ") : "";
+        return list ? `TASK-LISTE: ${list}. Beantworte die Aufgabenfrage anhand dieser Liste.` : "TASK-LISTE: Keine offenen Aufgaben.";
+      }
+      return "";
+    })();
+
     const context = [
+      taskActionContext,
       memoryContext ? `Relevante Erinnerungen:\n${memoryContext}` : "",
       taskContext ? `Offene Aufgaben aus der Task Engine:\n${taskContext}` : "",
       webContext ? `Aktuelle externe Informationen:\n${webContext}` : ""
