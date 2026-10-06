@@ -49,14 +49,38 @@ export default async function handler(req,res) {
   if(!process.env.KV_REST_API_URL||!process.env.KV_REST_API_TOKEN)return res.status(500).json({error:"Redis-Konfiguration fehlt."});
   try {
     let tasks=await loadTasks();
-    if(req.method==="GET"){const status=String(req.query?.status||"open");return res.status(200).json({tasks:status==="all"?tasks:tasks.filter(t=>t.status===status)});}
+    if(req.method==="GET"){
+      const status=String(req.query?.status||"open");
+      const filtered=(status==="all"?tasks:tasks.filter(t=>t.status===status)).slice().sort((a,b)=>{
+        const rank={high:0,normal:1,low:2},pa=rank[a.priority]??1,pb=rank[b.priority]??1;
+        if(pa!==pb)return pa-pb;
+        if(a.dueAt&&b.dueAt)return String(a.dueAt).localeCompare(String(b.dueAt));
+        if(a.dueAt)return -1;if(b.dueAt)return 1;return String(a.createdAt||"").localeCompare(String(b.createdAt||""));
+      });
+      return res.status(200).json({tasks:filtered});
+    }
     if(req.method!=="POST")return res.status(405).json({error:"Method not allowed"});
     const action=String(req.body?.action||"").trim();
     if(action==="create"){const task=normalizeTask(req.body?.task);if(!task)return res.status(400).json({error:"Titel fehlt."});tasks.push(task);await saveTasks(tasks);return res.status(200).json({ok:true,task});}
     const id=String(req.body?.id||"").trim(), index=tasks.findIndex(t=>t.id===id);
     if(index<0)return res.status(404).json({error:"Aufgabe nicht gefunden."});
     if(action==="update"){const task=normalizeTask(req.body?.task,tasks[index]);if(!task)return res.status(400).json({error:"Ungültige Aufgabe."});tasks[index]=task;await saveTasks(tasks);return res.status(200).json({ok:true,task});}
-    if(action==="complete"){tasks[index]=normalizeTask({status:"completed"},tasks[index]);await saveTasks(tasks);return res.status(200).json({ok:true,task:tasks[index]});}
+    if(action==="complete"){
+      const recurrence=tasks[index].recurrence;
+      if(recurrence&&tasks[index].dueAt){
+        const next=new Date(tasks[index].dueAt);
+        if(recurrence==="daily")next.setDate(next.getDate()+1);
+        else if(recurrence==="weekly")next.setDate(next.getDate()+7);
+        else if(recurrence==="monthly")next.setMonth(next.getMonth()+1);
+        else next.setTime(NaN);
+        if(!Number.isNaN(next.getTime())){
+          const nextDue=next.toISOString().slice(0,19);
+          tasks[index]=normalizeTask({status:"open",dueAt:nextDue,remindAt:tasks[index].remindAt?nextDue:null},tasks[index]);
+          await saveTasks(tasks);return res.status(200).json({ok:true,recurring:true,task:tasks[index]});
+        }
+      }
+      tasks[index]=normalizeTask({status:"completed"},tasks[index]);await saveTasks(tasks);return res.status(200).json({ok:true,task:tasks[index]});
+    }
     if(action==="delete"){const [task]=tasks.splice(index,1);await saveTasks(tasks);return res.status(200).json({ok:true,task});}
     return res.status(400).json({error:"Unbekannte Aktion."});
   } catch(error){console.error("Tasks API:",error);return res.status(500).json({error:"Task-Fehler."});}
