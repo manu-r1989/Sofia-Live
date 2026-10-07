@@ -46,3 +46,39 @@ test('a rebuilt history keeps the same visible message at the same offset while 
  ctx.window.SofiaChatViewport.restore(snapshot);
  assert.equal(messages.scrollTop,680);assert.equal(frames.size,0);
 });
+
+
+test('offline reconciliation performs no requests and never automatically resends an uncertain turn',async()=>{
+ const sync=app.slice(app.indexOf('async function syncConversationFromServer'),app.indexOf('function startConversationSync'));
+ let calls=0;const ctx=vm.createContext({isResponding:false,historySyncInFlight:false,navigator:{onLine:false},fetch:()=>calls++});
+ vm.runInContext(sync,ctx);assert.equal(await ctx.syncConversationFromServer(),false);assert.equal(calls,0);
+});
+test('server history cannot erase an unconfirmed local user turn',async()=>{
+ const sync=app.slice(app.indexOf('async function syncConversationFromServer'),app.indexOf('function startConversationSync'));
+ let saves=0;const local=[{role:'user',content:'Erstelle Aufgabe TEST',delivery:'unconfirmed'}];
+ const ctx=vm.createContext({isResponding:false,historySyncInFlight:false,conversationHistory:local,messages:null,MAX_STORED_MESSAGES:100,
+ window:{},fetch:async()=>({ok:true,status:200,json:async()=>({history:[{role:'assistant',content:'old'}],images:[]})}),updateSofiaLocation(){},saveMemory:()=>saves++});
+ vm.runInContext(sync,ctx);assert.equal(await ctx.syncConversationFromServer({silent:true}),false);assert.equal(saves,0);assert.equal(ctx.conversationHistory[0].content,'Erstelle Aufgabe TEST');
+});
+
+test('a rejected parallel test call is waiting, while an unknown action outcome stays uncertain',()=>{
+ const helper=app.slice(app.indexOf('function chatFailureFeedback('),app.indexOf('async function askSofia('));
+ const ctx=vm.createContext({});vm.runInContext(helper,ctx);
+ const busy=ctx.chatFailureFeedback(429,'test_busy',true,false);assert.equal(busy.uncertainAction,false);assert.equal(busy.statusLabel,'Bitte kurz warten');
+ const lost=ctx.chatFailureFeedback(undefined,undefined,true,false);assert.equal(lost.uncertainAction,true);assert.match(lost.message,/Aufgabenstand/);
+ assert.equal(ctx.chatFailureFeedback(500,'chat_provider_failed',true,true).uncertainAction,false);
+});
+
+test('a persisted text receipt clears transport markers so older confirmed turns cannot freeze later history sync',()=>{
+ const helper=app.slice(app.indexOf('function confirmLocalHistory('),app.indexOf('function chatFailureFeedback('));const ctx=vm.createContext({});vm.runInContext(helper,ctx);
+ const history=[{role:'user',content:'older',delivery:'unconfirmed'},{role:'assistant',content:'later'}];
+ const confirmed=ctx.confirmLocalHistory(history,{memoryMessages:2});assert.equal(confirmed[0].delivery,undefined);assert.equal(confirmed[0].content,'older');assert.equal(history[0].delivery,'unconfirmed');
+ assert.equal(ctx.confirmLocalHistory(history,{imageRequest:{id:'photo'}}),history);
+});
+
+test('local reload preserves unconfirmed delivery markers until a persisted receipt',()=>{
+ const helper=app.slice(app.indexOf('function loadMemory()'),app.indexOf('function saveMemory('));
+ const ctx=vm.createContext({MEMORY_KEY:'test',MAX_STORED_MESSAGES:100,console,localStorage:{getItem:()=>JSON.stringify([{role:'user',content:'pending',delivery:'unconfirmed'}])}});
+ vm.runInContext(helper,ctx);assert.equal(ctx.loadMemory()[0].delivery,'unconfirmed');
+});
+

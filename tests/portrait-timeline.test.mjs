@@ -117,3 +117,22 @@ test('mixed action photo removes moment suffix while retaining actual task recei
  const h=harness();const ack=h.message('Als Aufgabe gespeichert: „Bericht“. Gib mir einen kleinen Moment.','sofia',id);
  h.api.restore([image(id)]);assert.equal(ack.textContent,'Als Aufgabe gespeichert: „Bericht“.');assert.equal(ack.hidden,false);
 });
+
+
+test('lost generation response recovers a saved photo by GET without generating again',async()=>{
+ let posts=0,reads=0;
+ const h=harness(async(url,opts)=>{if(opts.method==='POST'){posts++;throw new Error('lost response');}reads++;return {ok:true,json:async()=>({images:[image(id)]})};});
+ h.message('Gib mir einen kleinen Moment.','sofia',id);
+ await h.api.generate({id});await h.api.generate({id});
+ assert.equal(posts,1);assert.equal(reads,1);assert.equal(h.document.getElementById('portrait-'+id).dataset.portraitStatus,'done');
+});
+test('opening an older photo during generation keeps that selected reference',async()=>{
+ let complete;
+ const h=harness(async(url,opts)=>opts?.method==='POST'?new Promise(resolve=>complete=resolve):preparedPhoto());
+ h.api.restore([image(id2)]);
+ const job=h.api.generate({id});
+ h.document.getElementById('portrait-'+id2).children[0].onclick();
+ complete({ok:true,json:async()=>({image:image(id)})});await job;
+ assert.equal(h.api.referenceId,id2);
+});
+

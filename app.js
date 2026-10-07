@@ -56,7 +56,7 @@ function loadMemory() {
       item &&
       ['user', 'assistant'].includes(item.role) &&
       typeof item.content === 'string'
-    );
+    ).slice(-MAX_STORED_MESSAGES);
 
     console.log(
       `Sofia Memory: ${cleaned.length} Nachrichten geladen.`
@@ -369,7 +369,7 @@ function historySignature(history) {
 }
 
 async function syncConversationFromServer({ silent = false } = {}) {
-  if (isResponding || historySyncInFlight) return false;
+  if (isResponding || historySyncInFlight || (typeof navigator!=='undefined' && navigator.onLine===false)) return false;
   historySyncInFlight = true;
 
   try {
@@ -396,8 +396,10 @@ async function syncConversationFromServer({ silent = false } = {}) {
       item &&
       (item.role === 'user' || item.role === 'assistant') &&
       typeof item.content === 'string'
-    ).slice(-MAX_STORED_MESSAGES);
+    ).map(({role,content,imageRequestId})=>({role,content,...(imageRequestId?{imageRequestId}:{})})).slice(-MAX_STORED_MESSAGES);
 
+    const localPending=(typeof conversationHistory!=='undefined'?conversationHistory:[]).filter(x=>x.delivery==='unconfirmed');
+    if(localPending.length && !localPending.every(x=>serverHistory.some((s,i)=>s.role==='user'&&s.content===x.content&&serverHistory[i+1]?.role==='assistant'))){window.SofiaImages?.restore(data.images);return false;}
     const signature = historySignature(serverHistory);
     if (signature === lastServerHistorySignature) { window.SofiaImages?.restore(data.images); return true; }
 
@@ -435,7 +437,7 @@ function startConversationSync() {
     if (document.visibilityState === 'visible' && !isResponding) {
       syncConversationFromServer({ silent: true });
     }
-  }, 4000);
+  }, 15000);
 }
 
 document.addEventListener('visibilitychange', () => {
@@ -447,6 +449,10 @@ document.addEventListener('visibilitychange', () => {
 window.addEventListener('focus', () => {
   syncConversationFromServer({ silent: true });
 });
+
+// Recovery reads shared state only; never resends a turn or starts Live.
+window.addEventListener('online', () => { syncConversationFromServer({silent:true}); });
+window.addEventListener('pageshow', () => { syncConversationFromServer({silent:true}); });
 
 function restoreConversation() {
   if (
@@ -536,8 +542,21 @@ async function speak(text) {
    SOFIA API
 ========================= */
 
+function confirmLocalHistory(history,data) {
+  // A persisted Text receipt acknowledges the supplied history, not an old task outcome.
+  if(!Number.isInteger(data?.memoryMessages))return history;
+  return history.map(({delivery,...turn})=>turn);
+}
+
+function chatFailureFeedback(status,code,actionPossible,resultReceived) {
+  const busy=status===429 && code==='test_busy';
+  const uncertainAction=!busy && actionPossible && !resultReceived;
+  return {uncertainAction,statusLabel:status===429?(busy?'Bitte kurz warten':'Nutzungspause'):'Verbindungsfehler',message:busy?'Einen kleinen Moment, es läuft noch eine Anfrage. Bitte warte kurz.':status===429?'Ich brauche gerade eine kurze Pause. Bitte versuche es später noch einmal.':uncertainAction?'Die Verbindung ist gerade unterbrochen. Bitte prüfe zuerst den Aufgabenstand, bevor du die Aktion wiederholst.':'Meine Verbindung ist gerade unterbrochen. Sobald sie wieder da ist, können wir weiterreden.'};
+}
+
 async function askSofia(userMessage, imageDataUrl = null) {
   if (isResponding) return;
+  if(typeof navigator!=='undefined' && navigator.onLine===false){addMessage('Ich bin gerade offline. Deine Nachricht wird nicht automatisch gesendet.');return;}
   window.SofiaActionFeedback?.clear();
   let actionResultReceived = false;
 
@@ -596,6 +615,7 @@ async function askSofia(userMessage, imageDataUrl = null) {
             'application/json'
         },
 
+        signal:typeof AbortSignal!=='undefined' && typeof AbortSignal.timeout==='function'?AbortSignal.timeout(90000):undefined,
         body: JSON.stringify({
           message: userMessage,
           history: historyForAPI,
@@ -620,9 +640,8 @@ async function askSofia(userMessage, imageDataUrl = null) {
       await response.json();
 
     if (!response.ok) {
-      throw new Error(
-        'Sofia konnte nicht antworten.'
-      );
+      if(data.taskAction){actionResultReceived=true;window.SofiaActionFeedback?.show(data.taskAction);}
+      const error=new Error('Sofia konnte nicht antworten.');error.status=response.status;error.code=response.status===429 && /^Ein Testaufruf läuft bereits/.test(data.error||'')?'test_busy':data.code;throw error;
     }
 
     updateSofiaLocation(data.life);
@@ -633,6 +652,7 @@ async function askSofia(userMessage, imageDataUrl = null) {
       data.reply ||
       'Hm. Da ist gerade etwas schiefgelaufen.';
 
+    conversationHistory=confirmLocalHistory(conversationHistory,data);
     conversationHistory.push({
       role: 'assistant',
       content: reply,
@@ -687,18 +707,15 @@ async function askSofia(userMessage, imageDataUrl = null) {
     speak(reply);
 
   } catch (error) {
-    console.error(
-      'Sofia API Fehler:',
-      error
-    );
+    console.warn('Sofia API Fehler',{code:error?.name==='TimeoutError'?'request_timeout':'request_failed',...(Number.isInteger(error?.status)?{status:error.status}:{})});
 
-    const actionPossible = /aufgabe|erinner|termin|kalender|erledig|lösch|verschieb|priorität|(?:ändere|änder|mach das|nochmal)/i.test(userMessage);
-    if (!actionResultReceived && actionPossible) window.SofiaActionFeedback?.show({ ok: false, status: 'execution_failed' });
+    const pendingTurn=conversationHistory.at(-1);
+    if(pendingTurn?.role==='user'){pendingTurn.delivery='unconfirmed';saveMemory();}
+    const actionPossible = /aufgabe|erinner|termin|kalender|erledig|lösch|verschieb|priorität|\b(?:ändere|änder|mach das|nochmal)\b/i.test(userMessage);
+    const failure=chatFailureFeedback(error?.status,error?.code,actionPossible,actionResultReceived);
+    if (failure.uncertainAction) window.SofiaActionFeedback?.show({ ok: false, status: 'execution_failed' });
 
-    const errorMessage =
-      !actionResultReceived && actionPossible
-        ? 'Die Verbindung ist gerade unterbrochen. Bitte prüfe zuerst den Aufgabenstand, bevor du die Aktion wiederholst.'
-        : 'Meine Verbindung ist gerade unterbrochen. Sobald sie wieder da ist, können wir weiterreden.';
+    const errorMessage = failure.message;
 
     addMessage(
       errorMessage,
@@ -711,8 +728,7 @@ async function askSofia(userMessage, imageDataUrl = null) {
     }
 
     if (mode) {
-      mode.textContent =
-        'Verbindungsfehler';
+      mode.textContent = failure.statusLabel;
     }
 
   } finally {
@@ -740,6 +756,7 @@ function submitChatMessage(event) {
   const value = input.value.trim();
   if (!value && !pendingCameraImage) return false;
 
+  if(typeof navigator!=='undefined' && navigator.onLine===false){addMessage('Ich bin gerade offline. Dein Entwurf bleibt im Textfeld und wird nicht automatisch gesendet.');return false;}
   const messageText = value || 'Was siehst du auf diesem Foto?';
   const imageForRequest = pendingCameraImage;
 
@@ -1997,5 +2014,6 @@ syncConversationFromServer().then(ok => {
 console.log(
   `Sofia V3.9 gestartet. Lokaler Chat: ${conversationHistory.length} Nachrichten.`
 );
+
 
 
