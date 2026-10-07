@@ -1,8 +1,8 @@
 /* =========================================================
-   SOFIA V4.27.10 — SERVICE WORKER
+   SOFIA V4.28.0 Test — SERVICE WORKER
    ========================================================= */
 
-const CACHE = "sofia-live-v42710";
+const CACHE = "sofia-live-v4280test";
 
 
 const ASSETS = [
@@ -11,13 +11,13 @@ const ASSETS = [
 
   "./index.html",
 
-  "./style.css?v=42710",
+  "./style.css?v=4280test",
 
-  "./action-feedback.js?v=42710",
-  "./sofia-images.js?v=42710",
-  "./app.js?v=42710",
+  "./action-feedback.js?v=4280test",
+  "./sofia-images.js?v=4280test",
+  "./app.js?v=4280test",
 
-  "./live.js?v=42710",
+  "./live.js?v=4280test",
 
   "./sofia-avatar.js?v=4192c1",
 

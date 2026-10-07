@@ -1,3 +1,4 @@
+import { testModeRequested, publicTestMode, guardTestRequest } from "../lib/environment.js";
 import crypto from "node:crypto";
 
 function makeSession(password) {
@@ -26,6 +27,8 @@ export default async function handler(req, res) {
       error: "Method not allowed"
     });
   }
+
+  if(testModeRequested())return res.status(publicTestMode()?200:503).json({ok:publicTestMode(),testMode:true});
 
   const configuredPassword =
     process.env.SOFIA_PASSWORD;

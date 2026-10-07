@@ -1,8 +1,9 @@
+import { dataPrefix, testModeRequested, publicTestMode, guardTestRequest } from "../lib/environment.js";
 import crypto from "node:crypto";
 
-const MEMORY_KEY = "sofia:main:longterm";
-const HISTORY_KEY = "sofia:main:history";
-const IDENTITY_KEY = "sofia:main:identity";
+const MEMORY_KEY = dataPrefix() + 'longterm';
+const HISTORY_KEY = dataPrefix() + 'history';
+const IDENTITY_KEY = dataPrefix() + 'identity';
 
 function makeExpectedSession(password) {
   return crypto
@@ -46,6 +47,7 @@ function safeEqual(a, b) {
 }
 
 function isAuthorized(req) {
+  if(testModeRequested())return publicTestMode();
   const password =
     process.env.SOFIA_PASSWORD;
 
@@ -144,6 +146,7 @@ export default async function handler(
       error: "Nicht autorisiert."
     });
   }
+  if(!await guardTestRequest(req,res,"realtime"))return;
 
   if (
     !process.env.OPENAI_API_KEY ||
@@ -579,7 +582,7 @@ ${historyText}
       crypto
         .createHash("sha256")
         .update(
-          `sofia-private-user:${process.env.SOFIA_PASSWORD}`
+          testModeRequested() ? `sofia-test-user:${dataPrefix()}` : `sofia-private-user:${process.env.SOFIA_PASSWORD}`
         )
         .digest("hex");
 

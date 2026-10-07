@@ -1,8 +1,9 @@
+import { dataPrefix, testModeRequested, publicTestMode, guardTestRequest } from "../lib/environment.js";
 import crypto from "node:crypto";
 import { nextRecurringDates, normalizeTaskDate, validateTaskPatch } from "../lib/task-dates.js";
 import { withTaskMutationLock } from "./action-engine.js";
 
-const TASKS_KEY = "sofia:main:tasks";
+const TASKS_KEY = dataPrefix() + 'tasks';
 const MAX_TASKS = 250;
 
 function cookie(req, name) {
@@ -13,6 +14,7 @@ function cookie(req, name) {
   return "";
 }
 function authorized(req) {
+  if(testModeRequested())return publicTestMode();
   const password = process.env.SOFIA_PASSWORD;
   if (!password) return false;
   const got = cookie(req, "sofia_session");
@@ -49,6 +51,8 @@ function normalizeTask(input, existing=null) {
 export default async function handler(req,res) {
   res.setHeader("Cache-Control","no-store");
   if(!authorized(req))return res.status(401).json({error:"Nicht autorisiert."});
+  if(!await guardTestRequest(req,res,"chat"))return;
+
   if(!process.env.KV_REST_API_URL||!process.env.KV_REST_API_TOKEN)return res.status(500).json({error:"Redis-Konfiguration fehlt."});
   try {
     if(req.method==="GET"){

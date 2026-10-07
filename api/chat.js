@@ -1,11 +1,12 @@
+import { dataPrefix, testModeRequested, publicTestMode, guardTestRequest } from "../lib/environment.js";
 import { taskReceipt, hamburgReferenceTime, portraitPreparationReply, preparePortrait, generatePortrait, servePortrait, portraitGallery, appendPortraitAcknowledgment, PORTRAIT_FAILURE_REPLY, getSofiaLife, learnSofiaLife, lifeContext, prepareProactivePortrait, PROACTIVE_PHOTO_ANNOUNCEMENT } from '../lib/character-image.js';
 import crypto from "node:crypto";
 import { executeUnifiedAction, getActionState, getResearchState } from "./action-engine.js";
 
-const HISTORY_KEY = "sofia:main:history";
-const MEMORY_KEY = "sofia:main:longterm";
-const IDENTITY_KEY = "sofia:main:identity";
-const TASKS_KEY = "sofia:main:tasks";
+const HISTORY_KEY = dataPrefix() + 'history';
+const MEMORY_KEY = dataPrefix() + 'longterm';
+const IDENTITY_KEY = dataPrefix() + 'identity';
+const TASKS_KEY = dataPrefix() + 'tasks';
 
 const MAX_HISTORY_MESSAGES = 40;
 const MAX_LONGTERM_MEMORIES = 80;
@@ -468,6 +469,7 @@ export default async function handler(req, res) {
      AUTHENTIFIZIERUNG
   ======================================== */
 
+  if (!testModeRequested()) {
   if (!process.env.SOFIA_PASSWORD) {
 
     console.error(
@@ -509,6 +511,9 @@ export default async function handler(req, res) {
 
   }
 
+
+  }
+  if(!await guardTestRequest(req,res,"chat"))return;
 
   /* ========================================
      HAUPTLOGIK

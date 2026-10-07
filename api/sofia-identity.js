@@ -1,6 +1,7 @@
+import { dataPrefix, testModeRequested, publicTestMode, guardTestRequest } from "../lib/environment.js";
 import crypto from "node:crypto";
 
-const KEY = "sofia:main:identity";
+const KEY = dataPrefix() + 'identity';
 const MAX_ITEMS = 24;
 
 function getCookie(req, name) {
@@ -11,6 +12,7 @@ function getCookie(req, name) {
   return "";
 }
 function authorized(req) {
+  if(testModeRequested())return publicTestMode();
   const password = process.env.SOFIA_PASSWORD;
   if (!password) return false;
   const a = Buffer.from(getCookie(req, "sofia_session"));
@@ -33,6 +35,8 @@ async function getItems() {
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
   if (!authorized(req)) return res.status(401).json({ error: "Nicht autorisiert." });
+  if(!await guardTestRequest(req,res,"identity"))return;
+
   try {
     if (req.method === "GET") {
       const items = await getItems();

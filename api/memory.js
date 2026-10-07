@@ -1,7 +1,8 @@
+import { dataPrefix, testModeRequested, publicTestMode, guardTestRequest } from "../lib/environment.js";
 import crypto from "node:crypto";
 import { getSofiaLife, editCharacterState } from '../lib/character-image.js';
 
-const MEMORY_KEY = "sofia:main:longterm";
+const MEMORY_KEY = dataPrefix() + 'longterm';
 
 
 /* ========================================
@@ -60,6 +61,7 @@ function safeEqual(a, b) {
 
 
 function isAuthorized(req) {
+  if(testModeRequested())return publicTestMode();
   if (!process.env.SOFIA_PASSWORD) {
     return false;
   }
@@ -128,6 +130,7 @@ export default async function handler(req, res) {
       error: "Nicht autorisiert."
     });
   }
+  if(!await guardTestRequest(req,res,"memory"))return;
 
 
   if (

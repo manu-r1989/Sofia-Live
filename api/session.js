@@ -1,3 +1,4 @@
+import { testModeRequested, publicTestMode, guardTestRequest, resetTestData } from "../lib/environment.js";
 import crypto from "node:crypto";
 
 function makeExpectedSession(password) {
@@ -47,6 +48,15 @@ export default async function handler(req, res) {
     "no-store, no-cache, must-revalidate"
   );
 
+  if(testModeRequested()) {
+    if(!publicTestMode())return res.status(503).json({authenticated:false,error:'Testkonfiguration unvollständig.'});
+    if(req.method==='POST' && req.body?.operation==='reset_test') {
+      if(!await guardTestRequest(req,res,'reset'))return;
+      try{return res.status(200).json({ok:true,deleted:await resetTestData()});}catch{return res.status(409).json({error:'Testdaten konnten nicht zurückgesetzt werden.'});}
+    }
+    if(req.method!=='GET')return res.status(405).json({error:'Method not allowed'});
+    return res.status(200).json({authenticated:true,testMode:true,paidEnabled:process.env.SOFIA_TEST_ALLOW_PAID==='true'});
+  }
   if (req.method !== "GET") {
     return res.status(405).json({
       error: "Method not allowed"

@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readFile} from 'node:fs/promises';
+import {readFile as nativeReadFile} from 'node:fs/promises';
+const environmentSource=await nativeReadFile(new URL('../lib/environment.js',import.meta.url),'utf8');
+const environmentUrl='data:text/javascript;base64,'+Buffer.from(environmentSource).toString('base64');
+async function readFile(...args){const value=await nativeReadFile(...args);return typeof value==='string'?value.replaceAll('../lib/environment.js',environmentUrl):value;}
 import crypto from 'node:crypto';
 const source = await readFile(new URL('../lib/character-image.js',import.meta.url),'utf8');
 const api = await import('data:text/javascript;base64,' + Buffer.from(source).toString('base64'));
@@ -113,7 +116,7 @@ test('image delivery is private JPEG with download attachment and validated IDs'
 });
 test('UI integration loads shared renderer before app and does not alter avatar assets',async()=>{
  const root=new URL('../',import.meta.url);const index=await readFile(new URL('index.html',root),'utf8');
- assert.ok(index.indexOf('sofia-images.js?v=42710')<index.indexOf('app.js?v=42710'));
+ assert.ok(index.indexOf('sofia-images.js?v=4280test')<index.indexOf('app.js?v=4280test'));
  const chat=await readFile(new URL('api/chat.js',root),'utf8');
  assert.ok(chat.indexOf('!safeEqual(')<chat.indexOf('await servePortrait'));
  const ui=await readFile(new URL('sofia-images.js',root),'utf8');assert.match(ui,/dialog.showModal/);assert.match(ui,/link.download=/);assert.doesNotMatch(ui,/spinner|generating-status/);

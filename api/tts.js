@@ -1,11 +1,15 @@
+import { testModeRequested, publicTestMode, guardTestRequest } from "../lib/environment.js";
 import crypto from "node:crypto";
 const COOKIE_NAME="sofia_session",SESSION_VALUE="sofia-authorized-session-v1";
 function expectedSession(p){return crypto.createHmac("sha256",p).update(SESSION_VALUE).digest("hex");}
 function cookieValue(req,n){for(const p of(req.headers.cookie||"").split(";")){const[k,...r]=p.trim().split("=");if(k===n)return decodeURIComponent(r.join("="));}return"";}
-function authorized(req){const p=process.env.SOFIA_PASSWORD;if(!p)return false;const a=cookieValue(req,COOKIE_NAME),e=expectedSession(p);return !!a&&a.length===e.length&&crypto.timingSafeEqual(Buffer.from(a),Buffer.from(e));}
+function authorized(req){
+  if(testModeRequested())return publicTestMode();const p=process.env.SOFIA_PASSWORD;if(!p)return false;const a=cookieValue(req,COOKIE_NAME),e=expectedSession(p);return !!a&&a.length===e.length&&crypto.timingSafeEqual(Buffer.from(a),Buffer.from(e));}
 export default async function handler(req,res){
  if(req.method!=="POST")return res.status(405).json({error:"Method not allowed."});
  if(!authorized(req))return res.status(401).json({error:"Unauthorized."});
+  if(!await guardTestRequest(req,res,"tts"))return;
+
  const text=typeof req.body?.text==="string"?req.body.text.trim():"";
  if(!text||text.length>4096)return res.status(400).json({error:"Invalid text."});
  if(!process.env.OPENAI_API_KEY)return res.status(500).json({error:"OPENAI_API_KEY missing."});

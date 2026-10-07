@@ -1,8 +1,9 @@
+import { dataPrefix, testModeRequested, publicTestMode, guardTestRequest } from "../lib/environment.js";
 import { learnSofiaLife, getSofiaLife } from '../lib/character-image.js';
 import crypto from "node:crypto";
 
-const HISTORY_KEY = "sofia:main:history";
-const MEMORY_KEY = "sofia:main:longterm";
+const HISTORY_KEY = dataPrefix() + 'history';
+const MEMORY_KEY = dataPrefix() + 'longterm';
 
 const MAX_HISTORY_MESSAGES = 40;
 const MAX_LONGTERM_MEMORIES = 80;
@@ -72,6 +73,7 @@ function safeEqual(a, b) {
 
 
 function isAuthorized(req) {
+  if(testModeRequested())return publicTestMode();
   const password =
     process.env.SOFIA_PASSWORD;
 
@@ -326,6 +328,7 @@ export default async function handler(
       error: "Nicht autorisiert."
     });
   }
+  if(!await guardTestRequest(req,res,"memory"))return;
 
   if (
     !process.env.OPENAI_API_KEY ||

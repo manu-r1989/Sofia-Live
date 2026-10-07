@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readFile} from 'node:fs/promises';
+import {readFile as nativeReadFile} from 'node:fs/promises';
+const environmentSource=await nativeReadFile(new URL('../lib/environment.js',import.meta.url),'utf8');
+const environmentUrl='data:text/javascript;base64,'+Buffer.from(environmentSource).toString('base64');
+async function readFile(...args){const value=await nativeReadFile(...args);return typeof value==='string'?value.replaceAll('../lib/environment.js',environmentUrl):value;}
 import crypto from 'node:crypto';
 import vm from 'node:vm';
 const root=new URL('../',import.meta.url),source=await readFile(new URL('live.js',root),'utf8');
