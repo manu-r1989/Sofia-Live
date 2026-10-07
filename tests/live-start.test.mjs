@@ -21,13 +21,13 @@ test('provider limits return safe actionable code without raw provider message',
  const r=await endpoint({ok:false,status:429,json:async()=>({error:{code:'rate_limit_exceeded',message:'private provider details'}})});assert.equal(r.status,429);assert.equal(r.payload.code,'realtime_limit');assert.doesNotMatch(JSON.stringify(r.payload),/private provider/);
 });
 function startHarness(stage){const modes=[],thoughts=[],presences=[];let stops=0;
- const c=vm.createContext({console:{error(){}},window:{SofiaAvatar:{think(){}},location:{reload(){}}},localStorage:{getItem:()=>null},setLiveButtonState(){},setMode:x=>modes.push(x),setThought:x=>thoughts.push(x),setPresence:(s,x)=>presences.push(x),stopLive:()=>{stops++;modes.push('bereit');presences.push('bereit');},cancelPendingLiveResponse(){},fetch:async()=>stage==='session'?{status:429,ok:false,json:async()=>({code:'realtime_limit'})}:{status:200,ok:true,json:async()=>({value:'test-only'})},navigator:{mediaDevices:{getUserMedia:async()=>{throw Object.assign(new Error(),{name:'NotAllowedError'});}}}});
+ const c=vm.createContext({console:{error(){}},window:{SofiaAvatar:{think(){}},location:{reload(){}}},localStorage:{getItem:()=>null},setLiveButtonState(){},setMode:x=>modes.push(x),setThought:x=>thoughts.push(x),setPresence:(s,x)=>{presences.push(x);if(x)modes.push(x);},stopLive:()=>{stops++;modes.push('bereit');presences.push('bereit');},cancelPendingLiveResponse(){},fetch:async()=>stage==='session'?{status:429,ok:false,json:async()=>({code:'realtime_limit'})}:{status:200,ok:true,json:async()=>({value:'test-only'})},navigator:{mediaDevices:{getUserMedia:async()=>{throw Object.assign(new Error(),{name:'NotAllowedError'});}}}});
  const start=source.slice(source.indexOf('  function liveStartFailure'),source.indexOf('  async function handleRealtimeEvent'));
  vm.runInContext(`let liveActive=false,connecting=false,pendingUserText='',pendingImageRequestId=null,pendingLifeRevision=null,pendingAssistantText='',userSpeaking=false,latestSpeechItemId=null,liveSessionInstructions='',localStream=null;const transcribedSpeechItems=new Set();${start};globalThis.start=startLive;`,c);
  return {run:c.start,modes,thoughts,presences,stops:()=>stops};
 }
 test('session failure stays visible after cleanup instead of returning silently to ready',async()=>{
- const h=startHarness('session');await h.run();assert.equal(h.stops(),1);assert.equal(h.modes.at(-1),'Live-Start fehlgeschlagen');assert.match(h.thoughts.at(-1),/Nutzungslimit/);assert.equal(h.presences.at(-1),'Live-Start fehlgeschlagen');
+ const h=startHarness('session');await h.run();assert.equal(h.stops(),1);assert.match(h.modes.at(-1),/Live-Start fehlgeschlagen:.*Nutzungslimit/);assert.match(h.thoughts.at(-1),/Nutzungslimit/);assert.match(h.presences.at(-1),/Nutzungslimit.*HTTP 429/);
 });
 test('microphone permission failure identifies the permission and allows another start',async()=>{
  const h=startHarness('microphone');await h.run();assert.match(h.thoughts.at(-1),/Mikrofonzugriff/);await h.run();assert.equal(h.stops(),2);

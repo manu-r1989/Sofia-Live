@@ -931,7 +931,7 @@
       ?.think();
 
 
-    let startStage="session";
+    let startStage="session",startHttpStatus=null;
     try {
 
       /* ====================================
@@ -996,6 +996,7 @@
       }
 
 
+      startHttpStatus=tokenResponse.status;
       const tokenData =
         await tokenResponse.json();
 
@@ -1330,6 +1331,7 @@
         );
 
 
+      startHttpStatus=sdpResponse.status;
       if (!sdpResponse.ok) {
 
         const errorText =
@@ -1363,9 +1365,11 @@
 
       console.error("Sofia Live Startfehler:",{stage:startStage,name:error?.name,code:error?.code,status:error?.status});
       stopLive(false);
-      setThought(liveStartFailure(error,startStage));
-      setMode("Live-Start fehlgeschlagen");
-      setPresence("idle","Live-Start fehlgeschlagen");
+      const detail=liveStartFailure(error,startStage);
+      const http=startStage!=="microphone" && startHttpStatus>=400?" (HTTP "+startHttpStatus+")":"";
+      setThought(detail);
+      // The portrait thought bubble is hidden in the current UI; use the chat status.
+      setPresence("idle","Live-Start fehlgeschlagen: "+detail+http);
 
 
     } finally {
