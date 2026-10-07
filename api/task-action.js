@@ -55,19 +55,20 @@ complete, delete und update nur wenn eine bestehende Aufgabe eindeutig gemeint i
 list bei Fragen nach Aufgaben oder danach, was ansteht. Setze scope passend: today für heute, week für diese/nächsten 7 Tage, overdue für überfällige Aufgaben, sonst all.\ncalendar_export wenn eine bestehende Aufgabe ausdrücklich in den Kalender übernommen werden soll; verwende deren exakte id.
 Explizite neue Kalendereinträge ohne Aufgabenabsicht sind none, weil sie separat verarbeitet werden.
 Bei update enthält task ausschließlich ausdrücklich zu ändernde Felder. Unveränderte Felder vollständig weglassen; keine Standardwerte einsetzen. null nur bei ausdrücklich gewünschtem Entfernen von dueAt, remindAt oder recurrence. Leere notes nur bei ausdrücklich gewünschtem Löschen der Notizen. Ein reiner Termin-Follow-up darf Priorität, Notizen und Wiederholung nicht ändern.
-Relative Zeiten anhand der Referenzzeit Europe/Berlin auflösen. recurrence nur als null, "daily", "weekly" oder "monthly" ausgeben.
+Relative Zeiten anhand der Referenzzeit Europe/Berlin auflösen. dueAt und remindAt müssen Hamburger Ortszeit im Format YYYY-MM-DDTHH:mm:ss ohne Zeitzonen-Suffix sein, zum Beispiel 2026-10-08T10:00:00. Niemals Z, +02:00, +01:00 oder UTC-Konvertierung verwenden. Ohne Termin null ausgeben. recurrence nur als null, "daily", "weekly" oder "monthly" ausgeben.
 Das folgende task-Beispiel gilt für create; bei update ist task ein sparsames Objekt nur mit geänderten Feldern.
 Antworte ausschließlich als JSON:
 {"action":"none|create|update|complete|delete|list|calendar_export","id":null,"task":{"title":"","dueAt":null,"remindAt":null,"priority":"normal","notes":"","recurrence":null},"status":"open","scope":"all|today|week|overdue"}`,
       input: `Referenzzeit: ${referenceTime}\nZuletzt relevante Aufgabe: ${recentTaskId || "(keine)"}\nNutzer: ${message}\n\nAufgaben:\n${catalog}`,
-      max_output_tokens: 260
+      max_output_tokens: 1200
     })
   });
-  if (!response.ok) throw new Error("Task classifier request failed");
+  if (!response.ok) {const error=new Error("Task classifier request failed");error.code="task_provider_failed";error.providerStatus=response.status;throw error;}
   const data = await response.json();
+  if(data.status === "incomplete") {const error=new Error("Task classifier output incomplete");error.code="task_classifier_incomplete";throw error;}
   const text = data.output?.flatMap(x => x.content || [])?.find(x => x.type === "output_text")?.text || "";
   let parsed;
-  try { parsed = JSON.parse(text); } catch { throw new Error("Invalid task classifier JSON"); }
+  try { parsed = JSON.parse(text); } catch { const error=new Error("Invalid task classifier JSON");error.code="task_classifier_invalid_json";throw error; }
   if (!parsed || !["none", "create", "update", "complete", "delete", "list", "calendar_export"].includes(parsed.action)) {
     throw new Error("Invalid task classifier action");
   }

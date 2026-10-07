@@ -1760,7 +1760,7 @@ Kein Markdown außerhalb des JSON-Objekts.
 
 
     let calendarAction = null;
-    if (parsed.calendar_action && typeof parsed.calendar_action === "object") {
+    if (taskAction?.ok && taskAction.action === "none" && parsed.calendar_action && typeof parsed.calendar_action === "object") {
       const title = typeof parsed.calendar_action.title === "string" ? parsed.calendar_action.title.trim().slice(0, 160) : "";
       const start = typeof parsed.calendar_action.start === "string" ? parsed.calendar_action.start.trim() : "";
       const duration = Number(parsed.calendar_action.duration_minutes);
@@ -1776,7 +1776,7 @@ Kein Markdown außerhalb des JSON-Objekts.
       }
     }
 
-    if (!calendarAction) {
+    if (!calendarAction && taskAction?.ok && taskAction.action === "none") {
       calendarAction = await extractCalendarActionFallback(message, hamburgNow);
     }
 
