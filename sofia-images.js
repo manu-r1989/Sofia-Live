@@ -78,9 +78,39 @@
       const full = document.createElement('img'); full.src = url; full.alt = img.alt;
       full.style.cssText = 'display:block;max-width:85vw;max-height:75vh;object-fit:contain';
       const close = document.createElement('button'); close.textContent = 'Schließen'; close.type='button'; close.onclick=()=>dialog.close();
-      const download = document.createElement('a'); download.textContent='Herunterladen'; download.href=url + '&download=1'; download.download='sofia-' + image.id + '.jpg'; download.style.cssText='color:inherit;margin-left:16px';
-      dialog.append(full,close,download); document.body.append(dialog);
-      dialog.addEventListener('close',()=>dialog.remove(),{once:true});
+      const mobile=typeof navigator!=='undefined' && (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent||'') || (/Mac/i.test(navigator.userAgent||'') && navigator.maxTouchPoints>1));
+      const download=document.createElement('button');download.type='button';download.textContent=mobile?'Bild speichern / teilen':'Herunterladen';download.style.cssText='margin-left:16px';download.disabled=true;
+      const status=document.createElement('p');status.setAttribute('role','status');status.style.cssText='font-size:13px;margin-bottom:0';status.textContent='Bild wird zum Speichern vorbereitet.';
+      let blob=null,file=null,objectUrl=null,closed=false;
+      // Prepare before the click: iOS share requires an immediate user gesture.
+      async function prepareDownload() {
+        download.disabled=true;status.textContent='Bild wird zum Speichern vorbereitet.';
+        try {
+          const response=await fetch(url,{credentials:'same-origin',cache:'no-store'});
+          if(!response.ok)throw new Error('download_failed');
+          blob=await response.blob();if(!blob.size || !/^image\/jpeg(?:;|$)/i.test(blob.type))throw new Error('download_invalid');
+          if(closed)return;
+          if(typeof File!=='undefined')file=new File([blob],'sofia-'+image.id+'.jpg',{type:'image/jpeg'});
+          download.disabled=false;status.textContent='';
+        } catch {blob=null;file=null;if(!closed){download.disabled=false;status.textContent='Bild konnte nicht vorbereitet werden. Bitte noch einmal versuchen.';}}
+      }
+      download.onclick=async()=>{
+        if(!blob){await prepareDownload();return;}
+        download.disabled=true;
+        try {
+          if(mobile && file && typeof navigator.share==='function' && typeof navigator.canShare==='function' && navigator.canShare({files:[file]})) {
+            await navigator.share({files:[file]});status.textContent='';
+          } else {
+            if(mobile){status.textContent='Teilen wird hier nicht unterstützt. Halte das Bild gedrückt und wähle „In Fotos sichern“.';return;}
+            objectUrl ||= URL.createObjectURL(blob);
+            const link=document.createElement('a');link.href=objectUrl;link.download='sofia-'+image.id+'.jpg';document.body.append(link);link.click();link.remove();status.textContent='';
+          }
+        } catch(error) {status.textContent=error?.name==='AbortError'?'':'Speichern oder Teilen ist gerade nicht möglich. Bitte erneut versuchen.';}
+        finally {download.disabled=false;}
+      };
+      dialog.append(full,close,download,status); document.body.append(dialog);
+      dialog.addEventListener('close',()=>{closed=true;if(objectUrl)URL.revokeObjectURL(objectUrl);dialog.remove();},{once:true});
+      prepareDownload();
       dialog.showModal(); close.focus();
     };
     figure.append(button); slot.append(figure); slot.hidden=false;
