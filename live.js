@@ -874,6 +874,20 @@
      START LIVE
   ======================================== */
 
+  function liveStartFailure(error,stage) {
+    if(error?.code==='realtime_limit')return 'Live ist momentan durch das Nutzungslimit begrenzt. Bitte später erneut versuchen.';
+    if(error?.code==='realtime_access')return 'Der Live-Dienst ist momentan nicht freigeschaltet.';
+    if(error?.code==='realtime_timeout' || ['TimeoutError','AbortError'].includes(error?.name))return 'Der Live-Start hat zu lange gedauert. Bitte erneut versuchen.';
+    if(stage==='microphone') {
+      if(error?.name==='NotAllowedError' || error?.name==='SecurityError')return 'Bitte erlaube den Mikrofonzugriff für Sofia in den Browser-Einstellungen.';
+      if(error?.name==='NotFoundError')return 'Es wurde kein verfügbares Mikrofon gefunden.';
+      if(error?.name==='NotReadableError')return 'Das Mikrofon ist momentan nicht verfügbar. Prüfe andere Apps und versuche es erneut.';
+      return 'Das Mikrofon konnte nicht gestartet werden.';
+    }
+    if(stage==='webrtc')return 'Die Live-Verbindung konnte nicht aufgebaut werden. Bitte Verbindung prüfen und erneut versuchen.';
+    return 'Die Live-Session konnte nicht gestartet werden. Bitte erneut versuchen.';
+  }
+
   async function startLive() {
 
     if (
@@ -917,6 +931,7 @@
       ?.think();
 
 
+    let startStage="session";
     try {
 
       /* ====================================
@@ -929,6 +944,8 @@
           {
             method:
               "POST",
+
+            signal:typeof AbortSignal!=="undefined" && typeof AbortSignal.timeout==="function"?AbortSignal.timeout(30000):undefined,
 
             credentials:
               "same-origin",
@@ -985,10 +1002,7 @@
 
       if (!tokenResponse.ok) {
 
-        throw new Error(
-          tokenData.error ||
-          "Realtime-Token fehlt."
-        );
+        throw Object.assign(new Error("Realtime-Session nicht verfügbar."),{code:tokenData.code,status:tokenResponse.status});
 
       }
 
@@ -1018,6 +1032,7 @@
          MICROPHONE
       ==================================== */
 
+      startStage="microphone";
       localStream =
         await navigator
           .mediaDevices
@@ -1056,6 +1071,7 @@
          WEBRTC
       ==================================== */
 
+      startStage="webrtc";
       peerConnection =
         new RTCPeerConnection();
 
@@ -1345,27 +1361,11 @@
 
     } catch (error) {
 
-      console.error(
-        "Sofia Live Fehler:",
-        error
-      );
-
-
-      setThought(
-        "Live Voice konnte gerade nicht gestartet werden."
-      );
-
-
-      setMode(
-        "bereit"
-      );
-
-
-      window.SofiaAvatar
-        ?.idle();
-
-
+      console.error("Sofia Live Startfehler:",{stage:startStage,name:error?.name,code:error?.code,status:error?.status});
       stopLive(false);
+      setThought(liveStartFailure(error,startStage));
+      setMode("Live-Start fehlgeschlagen");
+      setPresence("idle","Live-Start fehlgeschlagen");
 
 
     } finally {

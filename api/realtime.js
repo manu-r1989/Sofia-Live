@@ -90,6 +90,8 @@ async function redisGetJSON(
             "application/json"
         },
 
+        signal: AbortSignal.timeout(5000),
+
         body: JSON.stringify([
           "GET",
           key
@@ -155,12 +157,15 @@ export default async function handler(
   }
 
   try {
-    const [storedMemories, storedHistory, storedIdentity] =
-      await Promise.all([
-        redisGetJSON(MEMORY_KEY, []),
-        redisGetJSON(HISTORY_KEY, []),
-        redisGetJSON(IDENTITY_KEY, [])
-      ]);
+    // Optional context must not prevent microphone/session startup.
+    const contextResults=await Promise.allSettled([
+      redisGetJSON(MEMORY_KEY, []),redisGetJSON(HISTORY_KEY, []),redisGetJSON(IDENTITY_KEY, [])
+    ]);
+    const [storedMemories,storedHistory,storedIdentity]=contextResults.map((result,index)=>{
+      if(result.status==='fulfilled')return result.value;
+      console.warn('Realtime optional context unavailable',{part:['memory','history','identity'][index]});
+      return [];
+    });
 
     const identityText = Array.isArray(storedIdentity) && storedIdentity.length
       ? storedIdentity.slice(-24).map(item => `- ${String(item?.text || item).trim()}`).filter(Boolean).join("\n")
@@ -595,6 +600,8 @@ ${historyText}
               safetyIdentifier
           },
 
+          signal: AbortSignal.timeout(20000),
+
           body: JSON.stringify({
             session: {
               type: "realtime",
@@ -635,17 +642,13 @@ ${historyText}
       await openAIResponse.json();
 
     if (!openAIResponse.ok) {
-      console.error(
-        "OpenAI Realtime:",
-        data
-      );
+      console.error('Realtime session rejected',{status:openAIResponse.status,code:/^[a-z0-9_]{1,80}$/i.test(data?.error?.code||'')?data.error.code:'provider_error'});
 
       return res
         .status(openAIResponse.status)
         .json({
-          error:
-            data?.error?.message ||
-            "Realtime-Session konnte nicht erstellt werden."
+          code:openAIResponse.status===429?"realtime_limit":openAIResponse.status===401||openAIResponse.status===403?"realtime_access":"realtime_provider",
+          error:"Realtime-Session konnte nicht erstellt werden."
         });
     }
 
@@ -657,12 +660,12 @@ ${historyText}
   } catch (error) {
     console.error(
       "Sofia Realtime:",
-      error
+      {name:error?.name || "Error"}
     );
 
     return res.status(500).json({
-      error:
-        "Live Voice konnte nicht gestartet werden."
+      code:["TimeoutError","AbortError"].includes(error?.name)?"realtime_timeout":"realtime_unavailable",
+      error:"Live Voice konnte nicht gestartet werden."
     });
   }
 }
