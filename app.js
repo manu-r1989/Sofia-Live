@@ -396,7 +396,7 @@ async function syncConversationFromServer({ silent = false } = {}) {
       item &&
       (item.role === 'user' || item.role === 'assistant') &&
       typeof item.content === 'string'
-    ).slice(-MAX_STORED_MESSAGES);
+    ).map(({role,content,imageRequestId})=>({role,content,...(imageRequestId?{imageRequestId}:{})})).slice(-MAX_STORED_MESSAGES);
 
     const localPending=(typeof conversationHistory!=='undefined'?conversationHistory:[]).filter(x=>x.delivery==='unconfirmed');
     if(localPending.length && !localPending.every(x=>serverHistory.some((s,i)=>s.role==='user'&&s.content===x.content&&serverHistory[i+1]?.role==='assistant'))){window.SofiaImages?.restore(data.images);return false;}
@@ -542,6 +542,12 @@ async function speak(text) {
    SOFIA API
 ========================= */
 
+function confirmLocalHistory(history,data) {
+  // A persisted Text receipt acknowledges the supplied history, not an old task outcome.
+  if(!Number.isInteger(data?.memoryMessages))return history;
+  return history.map(({delivery,...turn})=>turn);
+}
+
 function chatFailureFeedback(status,code,actionPossible,resultReceived) {
   const busy=status===429 && code==='test_busy';
   const uncertainAction=!busy && actionPossible && !resultReceived;
@@ -646,6 +652,7 @@ async function askSofia(userMessage, imageDataUrl = null) {
       data.reply ||
       'Hm. Da ist gerade etwas schiefgelaufen.';
 
+    conversationHistory=confirmLocalHistory(conversationHistory,data);
     conversationHistory.push({
       role: 'assistant',
       content: reply,
