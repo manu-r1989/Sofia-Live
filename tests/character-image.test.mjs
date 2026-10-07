@@ -284,3 +284,17 @@ test('photo acknowledgment becomes the current dialogue reference without storin
  const life=await api.getSofiaLife();assert.equal(life.dialogue.lastUser,'Ein Selfie bitte');assert.equal(life.dialogue.topics.length,1);assert.doesNotMatch(JSON.stringify(life.dialogue),/moderation|failed/);
 });
 
+
+test('new portrait poses vary head, gaze and expression without changing identity',()=>{
+ const first=api.photoPose(null,false,'entspannt'),second=api.photoPose({photoPose:first},false,'entspannt'),third=api.photoPose({photoPose:second},false,'entspannt');
+ assert.notEqual(first.head,second.head);assert.notEqual(second.head,third.head);assert.notEqual(first.expression,second.expression);assert.notEqual(second.gaze,third.gaze);
+ assert.equal(api.photoPose({photoPose:first},true),first);assert.equal(api.photoPose({},true),null);assert.doesNotMatch(JSON.stringify(api.photoPose(null,false,'ernst')),/smile/);
+});
+test('new selfie prompt changes pose while master remains first and profile is persisted',async()=>{
+ reset();const r=await api.preparePortrait('Ein Selfie bitte');await api.generatePortrait(r.id);assert.match(imageCalls[0].prompt,/IDENTITY reference, not a pose or expression template/);assert.match(imageCalls[0].prompt,/NEW PHOTO POSE/);
+ const saved=JSON.parse(db.get(prefix+'image:'+r.id));assert.equal(saved.photoPose.head,'head upright, no copied tilt');assert.equal(imageCalls[0].images.length,1);
+});
+test('lighting-only variant preserves photo pose and has no new pose instruction',async()=>{
+ reset();const old='11111111-1111-4111-8111-111111111111',pose=api.photoPose(null,false,'entspannt');db.set(prefix+'image:'+old,JSON.stringify({id:old,createdAt:new Date().toISOString(),outfit:'Blue sweater',base64:'/9j/AA==',scene:'Café',photoPose:pose}));plan={action:'variant',scene:'Andere Beleuchtung'};const r=await api.preparePortrait('Dasselbe Foto in anderem Licht',old);await api.generatePortrait(r.id);
+ assert.deepEqual(JSON.parse(db.get(prefix+'request:'+r.id)).photoPose,pose);assert.doesNotMatch(imageCalls[0].prompt,/NEW PHOTO POSE/);assert.match(imageCalls[0].prompt,/Preserve the earlier head orientation, gaze and expression/);assert.equal(imageCalls[0].images.length,2);
+});
