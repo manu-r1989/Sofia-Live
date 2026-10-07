@@ -1,8 +1,8 @@
 /* =========================================================
-   SOFIA V4.33.1 Test — SERVICE WORKER
+   SOFIA V4.33.7 Test — SERVICE WORKER
    ========================================================= */
 
-const CACHE = "sofia-live-v4331test7";
+const CACHE = "sofia-live-v4337test1";
 
 
 const ASSETS = [
@@ -11,14 +11,14 @@ const ASSETS = [
 
   "./index.html",
 
-  "./style.css?v=4331test7",
+  "./style.css?v=4337test1",
 
-  "./action-feedback.js?v=4331test3",
-  "./sofia-images.js?v=4331test3",
-  "./sofia-social.js?v=4331test7",
-  "./app.js?v=4331test3",
+  "./action-feedback.js?v=4337test1",
+  "./sofia-images.js?v=4337test1",
+  "./sofia-social.js?v=4337test1",
+  "./app.js?v=4337test1",
 
-  "./live.js?v=4331test3",
+  "./live.js?v=4337test1",
 
   "./sofia-avatar.js?v=4192c1",
 
@@ -306,7 +306,7 @@ self.addEventListener('push',event=>{
 self.addEventListener('notificationclick',event=>{
  event.notification.close();event.waitUntil((async()=>{
   const windows=await self.clients.matchAll({type:'window',includeUncontrolled:true});
-  for(const client of windows){if(new URL(client.url).origin===self.location.origin){await client.focus();return;}}
+  for(const client of windows){if(new URL(client.url).origin===self.location.origin){await client.focus();client.postMessage({type:'sofia-chat-open'});return;}}
   await self.clients.openWindow('/');
  })());
 });

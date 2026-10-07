@@ -35,7 +35,9 @@ globalThis.fetch=async(u,o)=>{
  else if(op==='EVAL'){
   const target=a[3];result=1;
   if(k.includes('sofia-life-cas')){if((db.get(target)||'')===a[4])db.set(target,a[5]);else result=0;}
-  if(k.includes('sofia-contact-budget')){const s=JSON.parse(db.get(target)||'{"count":0,"last":0}'),limit=Math.min(s.limit??Number(a[5]),Number(a[6])),now=Number(a[4]);if(s.count>=limit||now-s.last<7200000)result=0;else db.set(target,JSON.stringify({count:s.count+1,last:now,limit}));}
+  if(k.includes('b.read=math.max')){const b=JSON.parse(db.get(target)||'{"sequence":0,"read":0,"items":[]}');b.read=Math.max(b.read,Math.min(b.sequence,Number(a[4])));db.set(target,JSON.stringify(b));result=b.read;}
+  if(k.includes('sofia-photo-favorite')){const list=JSON.parse(db.get(target)||'[]');for(const x of list)if(x.id===a[4])x.favorite=a[5]==='1';db.set(target,JSON.stringify(list));}
+  if(k.includes('sofia-contact-budget')){const s=JSON.parse(db.get(target)||'{"count":0,"last":0}'),baseLimit=s.baseLimit??s.limit??Number(a[5]),base=Math.min(baseLimit,Number(a[6])),limit=a[8]==='more'?Math.min(9,base+2):a[8]==='less'?Math.max(0,base-2):base,now=Number(a[4]);if(s.count>=limit||now-s.last<7200000)result=0;else db.set(target,JSON.stringify({count:s.count+1,last:now,limit,baseLimit}));}
   if(k.includes('sofia-social-deliver')){const expected=a[5];if((db.get(target)||'[]')!==expected)result=0;else{const inboxKey=a[4],b=JSON.parse(db.get(inboxKey)||'{"sequence":0,"read":0,"items":[]}'),item=JSON.parse(a[6]);b.sequence++;item.sequence=b.sequence;b.items.push(item);const h=JSON.parse(expected);h.push({role:'assistant',content:item.text,contactId:item.id});db.set(target,JSON.stringify(h));db.set(inboxKey,JSON.stringify(b));result=b.sequence;}}
  }
  return {ok:true,json:async()=>({result})};
@@ -74,4 +76,38 @@ test('push always displays a generic notification, and notification click never 
 
 test('legacy Redis empty tables do not break gallery or inbox reads',async()=>{
  reset();for(const key of ['gallery','jobs','notices'])db.set(prefix+key,'{}');assert.deepEqual(await photo.portraitGallery(base),[]);db.set(prefix+'contact-inbox',JSON.stringify({sequence:0,read:0,items:{}}));assert.equal((await api.socialState()).contacts.length,0);
+});
+
+test('temporary preference expires at Hamburg midnight, never changes permanent level',async()=>{
+ reset();db.set(prefix+'contact-prefs',JSON.stringify({level:'natural',photos:true}));db.set(prefix+'contact-today',JSON.stringify({day:'2026-10-07',mode:'less'}));
+ assert.equal((await photo.contactPreferences(base)).today,'less');assert.equal((await photo.contactPreferences(new Date('2026-10-07T22:00Z'))).today,'normal');assert.equal((await photo.contactPreferences(base)).level,'natural');
+});
+test('temporary more raises fixed budget at most two, less never resets used slots',async()=>{
+ reset();db.set(prefix+'contact-day:2026-10-07',JSON.stringify({count:4,last:+base-7200000,limit:4}));db.set(prefix+'contact-today',JSON.stringify({day:'2026-10-07',mode:'more'}));assert.equal(await photo.reserveDailyContact('extra',base),true);assert.equal(JSON.parse(db.get(prefix+'contact-day:2026-10-07')).limit,6);
+ db.set(prefix+'contact-today',JSON.stringify({day:'2026-10-07',mode:'less'}));assert.equal(await photo.reserveDailyContact('less',new Date(+base+7200000)),false);assert.equal(JSON.parse(db.get(prefix+'contact-day:2026-10-07')).count,5);
+});
+test('device overview does not disclose subscriptions or authentication keys',()=>{
+ const devices=api.publicDevices([{endpoint:'https://web.push.apple.com/private',keys:{auth:'private-auth'},label:'Mac',status:'expired'}]);assert.equal(devices[0].status,'expired');assert.match(devices[0].id,/^[a-f0-9]{24}$/);assert.doesNotMatch(JSON.stringify(devices),/apple.com|private|auth|endpoint/);
+});
+test('proactive threads exclude closed, dismissed, expired, recently asked and unanswered contacts',()=>{
+ const thread=(topic,extra={})=>({topic,text:topic,status:'open',expiresAt:new Date(+base+86400000).toISOString(),...extra});const life={dialogue:{closedTopics:['closed']},threads:[thread('closed'),thread('dismissed',{status:'dismissed'}),thread('expired',{expiresAt:new Date(+base-1).toISOString()}),thread('recent',{lastAskedAt:base.toISOString()}),thread('unanswered'),thread('eligible')]};
+ assert.deepEqual(api.contactThreads(life,{items:[{threadTopic:'unanswered',createdAt:base.toISOString()}]},base),[{topic:'eligible',text:'eligible'}]);
+});
+test('photo invitations avoid recent repeats and use environment wording',()=>{
+ const first=api.photoInvitation('environment',[],()=>0),second=api.photoInvitation('environment',[first],()=>0);assert.notEqual(first,second);assert.doesNotMatch(first,/Selfie|von mir/);
+});
+test('notification click refreshes already open client without opening a duplicate',async()=>{
+ const handlers={},messages=[],opened=[];const self={location:{origin:'https://sofia.test'},clients:{matchAll:async()=>[{url:'https://sofia.test/',focus:async()=>{},postMessage:x=>messages.push(x)}],openWindow:u=>opened.push(u)},addEventListener:(n,f)=>handlers[n]=f};vm.runInNewContext(await readFile(new URL('../sw.js',import.meta.url),'utf8'),{self,URL});let work;handlers.notificationclick({notification:{close(){}},waitUntil:p=>work=p});await work;assert.equal(messages[0].type,'sofia-chat-open');assert.equal(opened.length,0);
+});
+
+async function settingsCall(body){let status,data;await handler({method:'POST',query:{},body,headers:{host:'sofia.test',origin:'https://sofia.test',cookie:'sofia_session='+crypto.createHmac('sha256','test').update('sofia-authorized-session-v1').digest('hex')}},{setHeader(){},status(n){status=n;return this;},json(d){data=d;return this;}});return {status,data};}
+test('two devices share a monotonic bounded read cursor, stale device cannot unread a contact',async()=>{
+ reset();db.set(prefix+'contact-inbox',JSON.stringify({sequence:4,read:0,items:[]}));assert.equal((await settingsCall({operation:'read',sequence:3})).data.read,3);assert.equal((await settingsCall({operation:'read',sequence:1})).data.read,3);assert.equal((await settingsCall({operation:'read',sequence:999})).data.read,4);assert.equal((await api.socialState()).unread,0);
+});
+test('favorite changes preserve original creation and expiry; expired picture returns 410',async()=>{
+ reset();const id='11111111-1111-4111-8111-111111111111',createdAt=new Date().toISOString(),expiresMs=Date.now()+30*86400000;db.set(prefix+'gallery',JSON.stringify([{id,createdAt,expiresMs}]));assert.equal((await settingsCall({operation:'favorite',imageId:id,favorite:true})).status,200);const saved=JSON.parse(db.get(prefix+'gallery'))[0];assert.equal(saved.favorite,true);assert.equal(saved.createdAt,createdAt);assert.equal(saved.expiresMs,expiresMs);
+ db.set(prefix+'gallery',JSON.stringify([{...saved,createdAt:'2020-01-01T00:00Z'}]));assert.equal((await settingsCall({operation:'favorite',imageId:id,favorite:true})).status,410);
+});
+test('temporary feedback is isolated from permanent preferences and rejects unknown values',async()=>{
+ reset();db.set(prefix+'contact-prefs',JSON.stringify({level:'natural',photos:true}));assert.equal((await settingsCall({operation:'today',mode:'more'})).status,200);assert.equal(JSON.parse(db.get(prefix+'contact-prefs')).level,'natural');assert.equal(JSON.parse(db.get(prefix+'contact-today')).mode,'more');assert.equal((await settingsCall({operation:'today',mode:'always'})).status,400);
 });

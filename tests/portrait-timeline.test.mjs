@@ -12,6 +12,7 @@ function harness(fetchImpl,extras={}) {
   get classList(){return {contains:c=>this.className.split(' ').includes(c)};}
   get firstChild(){return this.children[0]||null;}
   get nextSibling(){const a=this.parentNode?.children;return a?.[a.indexOf(this)+1]||null;}
+  replaceChildren(...nodes){for(const child of this.children)child.parentNode=null;this.children=[];this.ownText='';this.append(...nodes);}
   append(...nodes){for(const n of nodes)this.insertBefore(n,null);}
   insertBefore(n,b){if(n===b)return n;if(n.parentNode)n.parentNode.children.splice(n.parentNode.children.indexOf(n),1);n.parentNode=this;const i=b?this.children.indexOf(b):this.children.length;if(i<0)throw Error('Missing insertion point');this.children.splice(i,0,n);return n;}
   setAttribute(k,v){this[k]=v;}addEventListener(name,fn){this.events||={};this.events[name]=fn;}focus(){}showModal(){}close(){this.events?.close?.();}click(){this.clicked=true;}
@@ -143,5 +144,12 @@ test('archived thumbnail is replaced in place and its link opens the exact galle
  assert.deepEqual(h.messages.children,[ack,h.document.getElementById('portrait-slot-'+id),later]);marker.onclick();assert.ok(h.document.getElementById('sofia-gallery'));assert.equal(h.api.referenceId,id);
 });
 test('expired photograph has no thumbnail and is excluded from gallery references',()=>{
- const h=harness();h.api.restore([{...image(id),status:'expired',createdAt:'2026-01-01T00:00Z'}]);assert.equal(h.document.getElementById('portrait-'+id).textContent,'Bild nicht mehr verfügbar');assert.equal(h.api.referenceId,null);h.api.openGallery();assert.match(h.document.getElementById('sofia-gallery').textContent,/Noch keine Fotos/);
+ const h=harness();h.api.restore([{...image(id),status:'expired',createdAt:'2026-01-01T00:00Z'}]);assert.equal(h.document.getElementById('portrait-'+id).textContent,'Bild nicht mehr verfügbar');assert.equal(h.api.referenceId,null);h.api.openGallery();assert.match(h.document.getElementById('sofia-gallery').textContent,/Keine Fotos für diese Auswahl/);
+});
+
+test('gallery combines date, kind and favorites without losing direct reference access',()=>{
+ const h=harness();const createdAt=new Date().toISOString();h.api.restore([{...image(id),createdAt,kind:'selfie',favorite:true},{...image(id2),createdAt,kind:'environment',favorite:false}]);h.api.openGallery();const gallery=h.document.getElementById('sofia-gallery'),filter=gallery.all().find(n=>n['aria-label']==='Galerie nach Bildart filtern');filter.value='environment';filter.onchange();assert.equal(gallery.all().filter(n=>n.dataset.galleryPhotoId).length,1);const favorite=gallery.all().find(n=>n.textContent==='Nur Favoriten');favorite.onclick();assert.equal(gallery.all().filter(n=>n.dataset.galleryPhotoId).length,0);h.api.openGallery(id);assert.equal(h.api.referenceId,id);
+});
+test('favorite persists through server request and is immediately filterable',async()=>{
+ const calls=[];const h=harness(async(u,o)=>{calls.push(JSON.parse(o.body));return {ok:true};});h.api.restore([{...image(id),createdAt:new Date().toISOString(),kind:'selfie'}]);h.api.openGallery();const gallery=h.document.getElementById('sofia-gallery'),button=gallery.all().find(n=>n.tag==='button'&&n.textContent==='☆ Favorit');await button.onclick();assert.equal(calls[0].operation,'favorite');assert.equal(calls[0].imageId,id);assert.equal(calls[0].favorite,true);gallery.all().find(n=>n.textContent==='Nur Favoriten').onclick();assert.equal(gallery.all().filter(n=>n.dataset.galleryPhotoId).length,1);
 });
