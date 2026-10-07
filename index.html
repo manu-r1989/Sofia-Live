@@ -60,7 +60,7 @@
 
   <link
     rel="stylesheet"
-    href="./style.css?v=4331test6"
+    href="./style.css?v=4331test7"
   >
 </head>
 
@@ -733,7 +733,7 @@
 
   <script src="./action-feedback.js?v=4331test3"></script>
   <script src="./sofia-images.js?v=4331test3"></script>
-  <script src="./sofia-social.js?v=4331test6"></script>
+  <script src="./sofia-social.js?v=4331test7"></script>
   <script src="./app.js?v=4331test3"></script>
 
   <script src="./sofia-avatar.js?v=4192c1"></script>
@@ -747,59 +747,14 @@
   <script src="./live.js?v=4331test3"></script>
 
 
-  <!-- =====================================
-       ALTE SERVICE WORKER ENTFERNEN
-  ====================================== -->
-
+  <!-- Service Worker for offline assets and opt-in Web Push. -->
   <script>
-
-    if (
-      "serviceWorker"
-      in navigator
-    ) {
-
-      window.addEventListener(
-        "load",
-        async () => {
-
-          try {
-
-            const registrations =
-              await navigator
-                .serviceWorker
-                .getRegistrations();
-
-
-            for (
-              const registration
-              of registrations
-            ) {
-
-              await registration
-                .unregister();
-
-            }
-
-
-            console.log(
-              "Alte Sofia Service Worker entfernt."
-            );
-
-
-          } catch (error) {
-
-            console.error(
-              "Service Worker cleanup:",
-              error
-            );
-
-          }
-
-        }
-      );
-
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js', { updateViaCache:'none' })
+          .catch(() => console.warn('Sofia Service Worker konnte nicht gestartet werden.'));
+      });
     }
-
   </script>
 
   <!-- Vercel auto-deploy integration test -->

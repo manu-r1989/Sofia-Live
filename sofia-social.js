@@ -35,9 +35,9 @@
    const sub=registration?.pushManager?await within(registration.pushManager.getSubscription()):null;
    status.textContent=typeof Notification!=='undefined'&&Notification.permission==='denied'?'Mitteilungen sind im Browser blockiert. Bitte erlaube sie in den Website-Einstellungen.':sub&&Notification.permission==='granted'?'Mitteilungen auf diesem Gerät eingerichtet.':'Mitteilungen auf diesem Gerät noch nicht aktiviert.';
    if(!state.backgroundConfigured)status.textContent+=' Hintergrundversand ist noch nicht eingerichtet. Bei geöffneter App kann Sofia sich bereits melden.';
-  }catch(e){status.textContent=e.message;save.disabled=true;push.disabled=true;}
+  }catch(e){status.textContent=e.message;push.disabled=true;}
   push.disabled=!registration?.pushManager;disable.disabled=!registration?.pushManager;
-  if(!registration?.pushManager||typeof Notification==='undefined'){push.disabled=true;disable.disabled=true;status.textContent+=' Mitteilungen werden in diesem Browser nicht unterstützt. Auf dem iPhone Sofia vom Home-Bildschirm öffnen.';}
+  if(!registration?.pushManager||typeof Notification==='undefined'){push.disabled=true;disable.disabled=true;status.textContent+=' Mitteilungen sind derzeit nicht verfügbar. Auf dem iPhone Sofia vom Home-Bildschirm öffnen.';}
   save.onclick=async()=>{save.disabled=true;try{state=await request('preferences',{preferences:{level:select.value,photos:photos.checked}});status.textContent='Gespeichert.';renderBadge();}catch(e){status.textContent=e.message;}finally{save.disabled=false;}};
   push.onclick=async()=>{
    push.disabled=true;push.textContent='Aktivierung läuft …';status.textContent='Bitte bestätige die Mitteilungsfreigabe deines Browsers.';try{
