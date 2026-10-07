@@ -154,7 +154,7 @@ function restoreChatViewport(snapshot) {
 }
 window.SofiaChatViewport = { capture:captureChatViewport, restore:restoreChatViewport };
 
-function addMessage(text, who = 'sofia', imageRequestId = null, contactId = null) {
+function addMessage(text, who = 'sofia', imageRequestId = null, contactId = null, createdAt = new Date().toISOString()) {
   if (!messages) return;
 
   const div = document.createElement('div');
@@ -169,6 +169,7 @@ function addMessage(text, who = 'sofia', imageRequestId = null, contactId = null
     div.dataset.portraitRequestId = imageRequestId;
     window.SofiaImages?.anchor(imageRequestId, div);
   }
+  window.SofiaTimeline?.decorate(div,createdAt);
   scrollChatToLatest('smooth');
   return div;
 }
@@ -397,7 +398,7 @@ async function syncConversationFromServer({ silent = false } = {}) {
       item &&
       (item.role === 'user' || item.role === 'assistant') &&
       typeof item.content === 'string'
-    ).map(({role,content,imageRequestId,contactId})=>({role,content,...(imageRequestId?{imageRequestId}:{}),...(contactId?{contactId}:{})})).slice(-MAX_STORED_MESSAGES);
+    ).map(({role,content,imageRequestId,contactId,createdAt})=>({role,content,...(imageRequestId?{imageRequestId}:{}),...(contactId?{contactId}:{}),...(createdAt?{createdAt}:{})})).slice(-MAX_STORED_MESSAGES);
 
     const localPending=(typeof conversationHistory!=='undefined'?conversationHistory:[]).filter(x=>x.delivery==='unconfirmed');
     if(localPending.length && !localPending.every(x=>serverHistory.some((s,i)=>s.role==='user'&&s.content===x.content&&serverHistory[i+1]?.role==='assistant'))){window.SofiaImages?.restore(data.images);return false;}
@@ -415,7 +416,7 @@ async function syncConversationFromServer({ silent = false } = {}) {
       try {
       messages.innerHTML = '';
       conversationHistory.forEach(item =>
-        addMessage(item.content, item.role === 'user' ? 'user' : 'sofia', item.imageRequestId, item.contactId)
+        addMessage(item.content, item.role === 'user' ? 'user' : 'sofia', item.imageRequestId, item.contactId,item.createdAt||null)
       );
       if (pendingCalendarAction) addCalendarDownload(pendingCalendarAction);
       window.SofiaImages?.restore(data.images);
@@ -472,7 +473,7 @@ function restoreConversation() {
       item.role === 'user'
         ? 'user'
         : 'sofia',
-      item.imageRequestId
+      item.imageRequestId,item.contactId,item.createdAt||null
     );
   });
 
@@ -591,6 +592,7 @@ async function askSofia(userMessage, imageDataUrl = null) {
 
   conversationHistory.push({
     role: 'user',
+    createdAt: new Date().toISOString(),
     content: userMessage
   });
 
@@ -659,6 +661,7 @@ async function askSofia(userMessage, imageDataUrl = null) {
     conversationHistory=confirmLocalHistory(conversationHistory,data);
     conversationHistory.push({
       role: 'assistant',
+      createdAt: data.createdAt || new Date().toISOString(),
       content: reply,
       ...(data.imageRequest ? { imageRequestId:data.imageRequest.id } : {})
     });
@@ -670,7 +673,7 @@ async function askSofia(userMessage, imageDataUrl = null) {
     addMessage(
       reply,
       'sofia',
-      data.imageRequest?.id
+      data.imageRequest?.id,null,data.createdAt || new Date().toISOString()
     );
     if (data.imageRequest) void window.SofiaImages?.generate(data.imageRequest);
 

@@ -28,6 +28,23 @@ function harness(fetchImpl,extras={}) {
  return {body,messages,document,api:window.SofiaImages,message};
 }
 const image=(id)=>({id,anchorId:id,caption:'Sofia',url:'/api/chat?image='+id});
+test('gallery closes from both its top and bottom buttons',()=>{
+ const h=harness();h.api.openGallery();let gallery=h.document.getElementById('sofia-gallery');let buttons=gallery.children.filter(x=>x.tag==='button'&&x.textContent==='Schließen');assert.equal(buttons.length,2);assert.equal(gallery.children[1],buttons[0]);assert.equal(gallery.children.at(-1),buttons[1]);buttons[0].onclick();assert.equal(h.document.getElementById('sofia-gallery'),null);
+ h.api.openGallery();gallery=h.document.getElementById('sofia-gallery');gallery.children.at(-1).onclick();assert.equal(h.document.getElementById('sofia-gallery'),null);
+});
+test('gallery swipe changes adjacent photos in current filtered order with safe boundaries',()=>{
+ const h=harness(async()=>preparedPhoto());const at=new Date().toISOString();h.api.restore([{...image(id),createdAt:at,kind:'selfie'},{...image(id2),createdAt:at,kind:'selfie'}]);h.api.openGallery(id2);
+ const full=h.document.getElementById('sofia-photo-'+id2).children[0];
+ const swipe=(dx,dy=0)=>{full.events.touchstart({touches:[{identifier:1,clientX:100,clientY:100}]});full.events.touchend({touches:[],changedTouches:[{identifier:1,clientX:100+dx,clientY:100+dy}]});};
+ swipe(-90);assert.equal(h.api.referenceId,id);assert.ok(h.document.getElementById('sofia-photo-'+id));swipe(90);assert.equal(h.api.referenceId,id2);swipe(90);assert.equal(h.api.referenceId,id2);swipe(-70,100);assert.equal(h.api.referenceId,id2);
+ const filter=h.document.getElementById('sofia-gallery').all().find(x=>x['aria-label']==='Galerie nach Bildart filtern');filter.value='environment';filter.onchange();swipe(-90);assert.equal(h.api.referenceId,id2);
+});
+test('rapid gallery navigation never prepares or downloads the previous photo under the new filename',async()=>{
+ const waiting=[];const h=harness(()=>new Promise(resolve=>waiting.push(resolve)),{URL:{createObjectURL:()=> 'blob:current',revokeObjectURL(){}}});const at=new Date().toISOString();h.api.restore([{...image(id),createdAt:at},{...image(id2),createdAt:at}]);h.api.openGallery(id2);
+ const dialog=h.document.getElementById('sofia-photo-'+id2);dialog.all().find(x=>x['aria-label']==='Nächstes Foto').onclick();
+ waiting[1](preparedPhoto());await new Promise(r=>setImmediate(r));waiting[0](preparedPhoto());await new Promise(r=>setImmediate(r));
+ const download=dialog.all().find(x=>x.textContent==='Herunterladen');await download.onclick();assert.equal(h.api.referenceId,id);assert.ok(dialog.id.endsWith(id));
+});
 test('photo progress lives in status line while acknowledgment stays hidden',async()=>{
  let resolve;const h=harness(()=>new Promise(r=>resolve=r)),ack=h.message('Gib mir einen kleinen Moment.','sofia',id);
  assert.equal(ack.hidden,true);const job=h.api.generate({id});assert.equal(h.document.getElementById('mode').textContent,'nimmt ein Foto auf');assert.equal(h.api.isGenerating,true);
