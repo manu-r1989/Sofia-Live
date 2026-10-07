@@ -340,10 +340,21 @@ test('new portrait poses vary head, gaze and expression without changing identit
 });
 test('new selfie prompt changes pose while master remains first and profile is persisted',async()=>{
  reset();const r=await api.preparePortrait('Ein Selfie bitte');await api.generatePortrait(r.id);assert.match(imageCalls[0].prompt,/IDENTITY reference, not a pose or expression template/);assert.match(imageCalls[0].prompt,/NEW PHOTO POSE/);
- const saved=JSON.parse(db.get(prefix+'image:'+r.id));assert.equal(saved.photoPose.head,'head upright, no copied tilt');assert.equal(imageCalls[0].images.length,1);
+ const saved=JSON.parse(db.get(prefix+'image:'+r.id));assert.match(saved.photoPose.head,/25 degrees toward her left/);assert.match(imageCalls[0].prompt,/BODY POSTURE:/);assert.match(imageCalls[0].prompt,/Head, shoulders and torso must move independently/);assert.equal(imageCalls[0].images.length,1);
 });
 test('lighting-only variant preserves photo pose and has no new pose instruction',async()=>{
  reset();const old='11111111-1111-4111-8111-111111111111',pose=api.photoPose(null,false,'entspannt');db.set(prefix+'image:'+old,JSON.stringify({id:old,createdAt:new Date().toISOString(),outfit:'Blue sweater',base64:'/9j/AA==',scene:'Café',photoPose:pose}));plan={action:'variant',scene:'Andere Beleuchtung'};const r=await api.preparePortrait('Dasselbe Foto in anderem Licht',old);await api.generatePortrait(r.id);
  assert.deepEqual(JSON.parse(db.get(prefix+'request:'+r.id)).photoPose,pose);assert.doesNotMatch(imageCalls[0].prompt,/NEW PHOTO POSE/);assert.match(imageCalls[0].prompt,/Preserve the earlier head orientation, gaze and expression/);assert.equal(imageCalls[0].images.length,2);
 });
 
+
+test('new poses visibly vary phone position and preserve resting body context',()=>{
+ const poses=[];let previous=null;for(let i=0;i<4;i++){const p=api.photoPose(previous);poses.push(p);previous={photoPose:p};}
+ assert.equal(new Set(poses.map(p=>p.camera)).size,4);assert.equal(new Set(poses.map(p=>p.head)).size,4);
+ for(const p of poses){assert.match(api.photoBodyPose({location:'zu Hause im Bett',activity:'im Bett liegen'},p),/bed.*never standing/);assert.match(api.photoBodyPose({location:'im Café'},p),/seated/);assert.match(api.photoBodyPose({location:'auf dem Sofa'},p),/sofa/);}
+});
+test('bed selfie generation sends a reclining body pose and keeps the canonical reference',async()=>{
+ reset();const now=new Date();const life=api.defaultSofiaLife(now);life.location='zu Hause im Bett';life.activity='im Bett liegen';db.set(prefix+'life',JSON.stringify(life));
+ const r=await api.preparePortrait('Ein Selfie bitte',null,now);await api.generatePortrait(r.id);
+ assert.match(imageCalls[0].prompt,/BODY POSTURE: lying.*bed/);assert.match(imageCalls[0].prompt,/never standing/);assert.match(imageCalls[0].prompt,/master only to identify the same woman/);assert.equal(imageCalls[0].images.length,1);
+});
