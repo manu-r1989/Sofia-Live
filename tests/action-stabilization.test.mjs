@@ -479,3 +479,12 @@ test('provider failure exposes only status and a fixed diagnostic without provid
  reset();const normal=globalThis.fetch;globalThis.fetch=async(url,options)=>{const body=JSON.parse(options.body);if(body.instructions?.includes('strikter Task-Action-Parser'))return {ok:false,status:403,json:async()=>({error:'sensitive provider content'})};return normal(url,options);};
  try{const r=await run('Erinnere mich morgen an TEST');assert.equal(r.taskAction.code,'task_provider_failed');assert.equal(r.taskAction.providerStatus,403);assert.doesNotMatch(JSON.stringify(r),/sensitive/);assert.equal(writes,0);}finally{globalThis.fetch=normal;}
 });
+
+test('reminder parser explicitly requests Berlin wall time without UTC or offset suffix',async()=>{
+ reset();let instructions='';classifierHook=async body=>{instructions=body.instructions;};parsed={action:'create',task:{title:'TEST timezone',dueAt:'2026-10-08T10:00:00',remindAt:'2026-10-08T10:00:00',recurrence:null}};
+ const r=await run('Erinnere mich morgen um 10 Uhr an TEST timezone');assert.equal(r.taskAction.ok,true);assert.match(instructions,/YYYY-MM-DDTHH:mm:ss ohne Zeitzonen-Suffix/);assert.match(instructions,/Niemals Z, \+02:00, \+01:00 oder UTC-Konvertierung/);assert.equal(r.taskAction.task.remindAt,'2026-10-08T10:00:00');
+});
+test('wrong classifier timestamp format has a fixed diagnostic and never writes',async()=>{
+ reset();parsed={action:'create',task:{title:'TEST offset',dueAt:'2026-10-08T10:00:00+02:00',remindAt:'2026-10-08T10:00:00+02:00'}};
+ const r=await run('Erinnere mich morgen um 10 Uhr an TEST offset');assert.equal(r.taskAction.code,'task_invalid_fields');assert.equal(writes,0);
+});

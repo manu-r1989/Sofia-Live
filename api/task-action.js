@@ -56,7 +56,7 @@ complete, delete und update nur wenn eine bestehende Aufgabe eindeutig gemeint i
 list bei Fragen nach Aufgaben oder danach, was ansteht. Setze scope passend: today für heute, week für diese/nächsten 7 Tage, overdue für überfällige Aufgaben, sonst all.\ncalendar_export wenn eine bestehende Aufgabe ausdrücklich in den Kalender übernommen werden soll; verwende deren exakte id.
 Explizite neue Kalendereinträge ohne Aufgabenabsicht sind none, weil sie separat verarbeitet werden.
 Bei update enthält task ausschließlich ausdrücklich zu ändernde Felder. Unveränderte Felder vollständig weglassen; keine Standardwerte einsetzen. null nur bei ausdrücklich gewünschtem Entfernen von dueAt, remindAt oder recurrence. Leere notes nur bei ausdrücklich gewünschtem Löschen der Notizen. Ein reiner Termin-Follow-up darf Priorität, Notizen und Wiederholung nicht ändern.
-Relative Zeiten anhand der Referenzzeit Europe/Berlin auflösen. recurrence nur als null, "daily", "weekly" oder "monthly" ausgeben.
+Relative Zeiten anhand der Referenzzeit Europe/Berlin auflösen. dueAt und remindAt müssen Hamburger Ortszeit im Format YYYY-MM-DDTHH:mm:ss ohne Zeitzonen-Suffix sein, zum Beispiel 2026-10-08T10:00:00. Niemals Z, +02:00, +01:00 oder UTC-Konvertierung verwenden. Ohne Termin null ausgeben. recurrence nur als null, "daily", "weekly" oder "monthly" ausgeben.
 Das folgende task-Beispiel gilt für create; bei update ist task ein sparsames Objekt nur mit geänderten Feldern.
 Antworte ausschließlich als JSON:
 {"action":"none|create|update|complete|delete|list|calendar_export","id":null,"task":{"title":"","dueAt":null,"remindAt":null,"priority":"normal","notes":"","recurrence":null},"status":"open","scope":"all|today|week|overdue"}`,
