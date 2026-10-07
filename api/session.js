@@ -1,3 +1,4 @@
+import handleSocial from '../lib/social-handler.js';
 import { testModeRequested, publicTestMode, guardTestRequest, resetTestData } from "../lib/environment.js";
 import crypto from "node:crypto";
 
@@ -43,6 +44,7 @@ function safeEqual(a, b) {
 }
 
 export default async function handler(req, res) {
+  if(req.query?.social==='1')return handleSocial(req,res);
   res.setHeader(
     "Cache-Control",
     "no-store, no-cache, must-revalidate"
@@ -95,3 +97,4 @@ export default async function handler(req, res) {
     authenticated: true
   });
 }
+

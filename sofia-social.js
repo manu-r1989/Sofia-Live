@@ -2,7 +2,7 @@
  let state=null,reading=false,syncing=false;
  const visible=()=>document.visibilityState==='visible';
  async function request(operation,extra={}){
-  const r=await fetch('/api/social',{method:operation?'POST':'GET',credentials:'same-origin',cache:'no-store',headers:operation?{'Content-Type':'application/json'}:undefined,body:operation?JSON.stringify({operation,...extra}):undefined});
+  const r=await fetch('/api/session?social=1',{method:operation?'POST':'GET',credentials:'same-origin',cache:'no-store',headers:operation?{'Content-Type':'application/json'}:undefined,body:operation?JSON.stringify({operation,...extra}):undefined});
   const d=await r.json();if(!r.ok)throw Error(d.error||'Nicht erreichbar.');return d;
  }
  async function badge(count){try{if(count>0)await navigator.setAppBadge?.(count);else await navigator.clearAppBadge?.();}catch{}}

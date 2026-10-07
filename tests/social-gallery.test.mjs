@@ -8,7 +8,7 @@ const env=url(await readFile(new URL('../lib/environment.js',import.meta.url),'u
 const portrait=url((await readFile(new URL('../lib/character-image.js',import.meta.url),'utf8')).replace('../lib/environment.js',env));
 const social=url((await readFile(new URL('../lib/social.js',import.meta.url),'utf8')).replace('./environment.js',env).replace('./character-image.js',portrait));
 const photo=await import(portrait),api=await import(social);
-const handler=(await import(url((await readFile(new URL('../api/social.js',import.meta.url),'utf8')).replace('../lib/environment.js',env).replace('../lib/social.js',social).replace('../lib/character-image.js',portrait)))).default;
+const handler=(await import(url((await readFile(new URL('../lib/social-handler.js',import.meta.url),'utf8')).replace('./environment.js',env).replace('./social.js',social).replace('./character-image.js',portrait)))).default;
 const base=new Date('2026-10-07T08:00:00Z'),image={createdAt:base.toISOString()};
 for(const [hours,expected]of [[0,'chat'],[11.999,'chat'],[12,'archived'],[719.999,'archived'],[720,'expired'],[721,'expired']])test('photo retention at '+hours+' hours',()=>assert.equal(photo.photoAvailability(image,new Date(+base+hours*3600000)),expected));
 test('invalid creation date cannot retain a photograph indefinitely',()=>assert.equal(photo.photoAvailability({createdAt:'bad'},base),'expired'));

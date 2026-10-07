@@ -5,7 +5,11 @@ const root=new URL('../',import.meta.url);
 const source=await readFile(new URL('lib/environment.js',root),'utf8');
 const url='data:text/javascript;base64,'+Buffer.from(source).toString('base64');
 const env=await import(url);
-const session=(await import('data:text/javascript;base64,'+Buffer.from((await readFile(new URL('api/session.js',root),'utf8')).replace('../lib/environment.js',url)).toString('base64'))).default;
+const encode=s=>'data:text/javascript;base64,'+Buffer.from(s).toString('base64');
+const photoURL=encode((await readFile(new URL('lib/character-image.js',root),'utf8')).replace('../lib/environment.js',url));
+const socialURL=encode((await readFile(new URL('lib/social.js',root),'utf8')).replace('./environment.js',url).replace('./character-image.js',photoURL));
+const handlerURL=encode((await readFile(new URL('lib/social-handler.js',root),'utf8')).replace('./environment.js',url).replace('./character-image.js',photoURL).replace('./social.js',socialURL));
+const session=(await import('data:text/javascript;base64,'+Buffer.from((await readFile(new URL('api/session.js',root),'utf8')).replace('../lib/environment.js',url).replace('../lib/social-handler.js',handlerURL)).toString('base64'))).default;
 const names=['SOFIA_TEST_MODE','SOFIA_DATA_NAMESPACE','SOFIA_TEST_PROJECT_ID','VERCEL_PROJECT_ID','SOFIA_TEST_STORAGE','SOFIA_TEST_ALLOW_PAID','KV_REST_API_URL','KV_REST_API_TOKEN','SOFIA_PASSWORD'];
 const saved=Object.fromEntries(names.map(k=>[k,process.env[k]])),originalFetch=globalThis.fetch;
 test.after(()=>{globalThis.fetch=originalFetch;for(const k of names)if(saved[k]===undefined)delete process.env[k];else process.env[k]=saved[k];});
@@ -100,3 +104,4 @@ test('task listing uses only the test namespace even when production keys are pr
  const handler=(await import(await moduleUrl('api/tasks.js'))).default,r=response();await handler(req('GET'),r);assert.equal(r.code,200);assert.deepEqual(r.body.tasks.map(t=>t.id),['test']);
  assert.equal(calls.some(c=>c[0]==='GET'&&c[1]==='sofia:main:tasks'),false);
 });
+
