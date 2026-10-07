@@ -81,4 +81,3 @@ test('local reload preserves unconfirmed delivery markers until a persisted rece
  const ctx=vm.createContext({MEMORY_KEY:'test',MAX_STORED_MESSAGES:100,console,localStorage:{getItem:()=>JSON.stringify([{role:'user',content:'pending',delivery:'unconfirmed'}])}});
  vm.runInContext(helper,ctx);assert.equal(ctx.loadMemory()[0].delivery,'unconfirmed');
 });
-

@@ -154,11 +154,12 @@ function restoreChatViewport(snapshot) {
 }
 window.SofiaChatViewport = { capture:captureChatViewport, restore:restoreChatViewport };
 
-function addMessage(text, who = 'sofia', imageRequestId = null) {
+function addMessage(text, who = 'sofia', imageRequestId = null, contactId = null) {
   if (!messages) return;
 
   const div = document.createElement('div');
 
+  if(contactId)div.dataset.contactId=contactId;
   div.className = 'msg ' + who;
   div.textContent = text;
 
@@ -396,10 +397,11 @@ async function syncConversationFromServer({ silent = false } = {}) {
       item &&
       (item.role === 'user' || item.role === 'assistant') &&
       typeof item.content === 'string'
-    ).map(({role,content,imageRequestId})=>({role,content,...(imageRequestId?{imageRequestId}:{})})).slice(-MAX_STORED_MESSAGES);
+    ).map(({role,content,imageRequestId,contactId})=>({role,content,...(imageRequestId?{imageRequestId}:{}),...(contactId?{contactId}:{})})).slice(-MAX_STORED_MESSAGES);
 
     const localPending=(typeof conversationHistory!=='undefined'?conversationHistory:[]).filter(x=>x.delivery==='unconfirmed');
     if(localPending.length && !localPending.every(x=>serverHistory.some((s,i)=>s.role==='user'&&s.content===x.content&&serverHistory[i+1]?.role==='assistant'))){window.SofiaImages?.restore(data.images);return false;}
+    void window.SofiaSocial?.sync();
     const signature = historySignature(serverHistory);
     if (signature === lastServerHistorySignature) { window.SofiaImages?.restore(data.images); return true; }
 
@@ -413,12 +415,13 @@ async function syncConversationFromServer({ silent = false } = {}) {
       try {
       messages.innerHTML = '';
       conversationHistory.forEach(item =>
-        addMessage(item.content, item.role === 'user' ? 'user' : 'sofia', item.imageRequestId)
+        addMessage(item.content, item.role === 'user' ? 'user' : 'sofia', item.imageRequestId, item.contactId)
       );
       if (pendingCalendarAction) addCalendarDownload(pendingCalendarAction);
       window.SofiaImages?.restore(data.images);
       } finally { restoringChat = false; }
       restoreChatViewport(viewport);
+      void window.SofiaSocial?.sync();
     }
 
     return true;
@@ -451,6 +454,7 @@ window.addEventListener('focus', () => {
 });
 
 // Recovery reads shared state only; never resends a turn or starts Live.
+window.addEventListener('sofia-social-updated',()=>{syncConversationFromServer({silent:true});});
 window.addEventListener('online', () => { syncConversationFromServer({silent:true}); });
 window.addEventListener('pageshow', () => { syncConversationFromServer({silent:true}); });
 
@@ -671,11 +675,11 @@ async function askSofia(userMessage, imageDataUrl = null) {
     if (data.imageRequest) void window.SofiaImages?.generate(data.imageRequest);
 
     if (thought) {
-      thought.textContent = reply;
+      thought.textContent = data.imageRequest && /^Gib mir einen kleinen Moment[.!]?$/i.test(reply.trim()) ? '' : reply;
     }
 
     if (mode) {
-      mode.textContent = 'bereit';
+      mode.textContent = window.SofiaImages?.isGenerating ? 'nimmt ein Foto auf' : 'bereit';
     }
 
     if (data.taskAction?.action === 'create' && (data.taskAction.task?.remindAt || data.taskAction.task?.dueAt)) {
@@ -704,7 +708,7 @@ async function askSofia(userMessage, imageDataUrl = null) {
       }
     }
 
-    speak(reply);
+    if(!data.imageRequest || !/^Gib mir einen kleinen Moment[.!]?$/i.test(reply.trim()))speak(reply);
 
   } catch (error) {
     console.warn('Sofia API Fehler',{code:error?.name==='TimeoutError'?'request_timeout':'request_failed',...(Number.isInteger(error?.status)?{status:error.status}:{})});

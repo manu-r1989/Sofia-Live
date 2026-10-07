@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import crypto from 'node:crypto';
 const url=s=>'data:text/javascript;base64,'+Buffer.from(s).toString('base64');
-const source=(await readFile(new URL('../lib/character-image.js',import.meta.url),'utf8'));
+const envUrl=url(await readFile(new URL('../lib/environment.js',import.meta.url),'utf8'));
+const source=(await readFile(new URL('../lib/character-image.js',import.meta.url),'utf8')).replace('../lib/environment.js',envUrl);
 const api=await import(url(source));
 const now=new Date('2026-10-07T11:00:00Z');
 const fresh=(topic,extra={})=>({dialogue:{topic,topics:api.dialogueTopics(topic),at:now.toISOString(),...extra}});
@@ -69,7 +70,7 @@ test('diagnostics contain only fixed codes and status, never provider or user co
  assert.deepEqual(api.safeDiagnostic({code:'sensitive_provider_message',status:200}),{code:'request_failed'});
 });
 
-const liveCode=(await readFile(new URL('../api/live-memory.js',import.meta.url),'utf8')).replace('../lib/character-image.js',url(source));
+const liveCode=(await readFile(new URL('../api/live-memory.js',import.meta.url),'utf8')).replace('../lib/environment.js',envUrl).replace('../lib/character-image.js',url(source));
 const live=(await import(url(liveCode))).default;
 for(const failure of ['http','json'])test('Live memory classifier '+failure+' failure still saves the completed conversation without invented memory',async()=>{
  const savedFetch=globalThis.fetch,keys=['SOFIA_PASSWORD','OPENAI_API_KEY','KV_REST_API_URL','KV_REST_API_TOKEN'];
@@ -106,4 +107,3 @@ test('generic ambiguous follow-up receives a concrete clarification while a name
  assert.equal(api.conversationClarification(life,'Erledige Aufgabe TEST',now),null);
  assert.match(api.initiativeContext(life,'Warum?',now),/BEZUGSKLÄRUNG DIESES TURNS/);
 });
-

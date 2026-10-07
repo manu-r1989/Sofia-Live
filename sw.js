@@ -1,8 +1,8 @@
 /* =========================================================
-   SOFIA V4.32.7 — SERVICE WORKER
+   SOFIA V4.33.7 — SERVICE WORKER
    ========================================================= */
 
-const CACHE = "sofia-live-v4327";
+const CACHE = "sofia-live-v4337prod1";
 
 
 const ASSETS = [
@@ -11,13 +11,14 @@ const ASSETS = [
 
   "./index.html",
 
-  "./style.css?v=4327",
+  "./style.css?v=4337prod1",
 
-  "./action-feedback.js?v=4327",
-  "./sofia-images.js?v=4327",
-  "./app.js?v=4327",
+  "./action-feedback.js?v=4337prod1",
+  "./sofia-images.js?v=4337prod1",
+  "./sofia-social.js?v=4337prod1",
+  "./app.js?v=4337prod1",
 
-  "./live.js?v=4327",
+  "./live.js?v=4337prod1",
 
   "./sofia-avatar.js?v=4192c1",
 
@@ -293,3 +294,19 @@ self.addEventListener(
 
 
 
+
+self.addEventListener('push',event=>{
+ event.waitUntil((async()=>{
+  let data={};try{data=event.data?.json()||{};}catch{}
+  const unread=Number.isSafeInteger(data.unread)&&data.unread>=0?data.unread:1;
+  try{if(unread)await self.navigator?.setAppBadge?.(unread);else await self.navigator?.clearAppBadge?.();}catch{}
+  await self.registration.showNotification('Sofia',{body:'Du hast eine neue Nachricht von Sofia.',icon:'/icons/icon-192.png',badge:'/icons/icon-192.png',tag:'sofia-chat',data:{url:'/'}});
+ })());
+});
+self.addEventListener('notificationclick',event=>{
+ event.notification.close();event.waitUntil((async()=>{
+  const windows=await self.clients.matchAll({type:'window',includeUncontrolled:true});
+  for(const client of windows){if(new URL(client.url).origin===self.location.origin){await client.focus();client.postMessage({type:'sofia-chat-open'});return;}}
+  await self.clients.openWindow('/');
+ })());
+});

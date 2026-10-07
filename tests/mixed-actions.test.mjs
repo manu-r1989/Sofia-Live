@@ -1,7 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
-import {readFile} from 'node:fs/promises';
+import {readFile as nativeReadFile} from 'node:fs/promises';
+const environmentSource=await nativeReadFile(new URL('../lib/environment.js',import.meta.url),'utf8');
+const environmentUrl='data:text/javascript;base64,'+Buffer.from(environmentSource).toString('base64');
+async function readFile(...args){const value=await nativeReadFile(...args);return typeof value==='string'?value.replaceAll('../lib/environment.js',environmentUrl):value;}
 const root=new URL('../',import.meta.url),url=s=>'data:text/javascript;base64,'+Buffer.from(s).toString('base64');
 const portrait=url(await readFile(new URL('lib/character-image.js',root),'utf8'));
 const engine=url(`export async function executeUnifiedAction(message,time,options){globalThis.__mixedCalls.push({message,time,options});return {taskAction:globalThis.__mixedResult};}export async function getActionState(){return {};}export async function getResearchState(){return null;}`);

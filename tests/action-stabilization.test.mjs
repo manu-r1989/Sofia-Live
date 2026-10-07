@@ -1,7 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
-import { readFile } from 'node:fs/promises';
+import {readFile as nativeReadFile} from 'node:fs/promises';
+const environmentSource=await nativeReadFile(new URL('../lib/environment.js',import.meta.url),'utf8');
+const environmentUrl='data:text/javascript;base64,'+Buffer.from(environmentSource).toString('base64');
+async function readFile(...args){const value=await nativeReadFile(...args);return typeof value==='string'?value.replaceAll('../lib/environment.js',environmentUrl):value;}
 
 // No credentials or services are used: all HTTP calls are intercepted.
 const root = new URL('../', import.meta.url);
@@ -510,4 +513,3 @@ test('text endpoint clarifies multiple topics without asking its answer model to
  modelHook=()=>{throw new Error('Answer model must not run for local clarification');};
  const result=await endpoint('chat','Warum?');assert.match(result.reply,/Projekt.*oder.*Auto/);assert.equal(result.taskAction.action,'none');assert.equal(writes,0);
 });
-

@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readFile} from 'node:fs/promises';
+import {readFile as nativeReadFile} from 'node:fs/promises';
+const environmentSource=await nativeReadFile(new URL('../lib/environment.js',import.meta.url),'utf8');
+const environmentUrl='data:text/javascript;base64,'+Buffer.from(environmentSource).toString('base64');
+async function readFile(...args){const value=await nativeReadFile(...args);return typeof value==='string'?value.replaceAll('../lib/environment.js',environmentUrl):value;}
 import crypto from 'node:crypto';
 const source = await readFile(new URL('../lib/character-image.js',import.meta.url),'utf8');
 const api = await import('data:text/javascript;base64,' + Buffer.from(source).toString('base64'));
@@ -21,6 +24,7 @@ globalThis.fetch=async(url,options)=>{
   if(op==='GET')return response({result:db.get(key)||null});
   if(op==='SET'){if(rest.includes('NX')&&db.has(key))return response({result:null});db.set(key,value);return response({result:'OK'});}
   if(op==='DEL'){db.delete(key);return response({result:1});}
+  if(op==='EVAL' && key.includes('sofia-gallery-append')) {const target=body[3],item=JSON.parse(body[4]);db.set(target,JSON.stringify([...JSON.parse(db.get(target)||'[]').filter(x=>x.id!==item.id),item]));return response({result:1});}
   if(op==='EVAL' && key.includes('sofia-portrait-jobs')) {const target=body[3],id=body[4];let jobs=JSON.parse(db.get(target)||'[]').filter(x=>x.id!==id);if(body[5])jobs.push(JSON.parse(body[5]));db.set(target,JSON.stringify(jobs.slice(-20)));return response({result:1});}
   if(op==='EVAL' && key.includes('sofia-life-cas')) {const target=body[3];if((db.get(target)||'')!==body[4])return response({result:0});db.set(target,body[5]);return response({result:1});}
   if(op==='EVAL'){const lock=body[3],id=body[4]; if(lock === 'sofia:main:history') { const history=JSON.parse(db.get(lock)||'[]'); history.push({role:'user',content:body[4]},{role:'assistant',content:body[5],imageRequestId:body[6]});db.set(lock,JSON.stringify(history.slice(-40))); } else if(db.get(lock)===id)db.delete(lock);return response({result:1});}
@@ -36,6 +40,36 @@ test('Berlin date and time periods include summer and winter offsets',()=>{
  assert.equal(api.portraitPeriod(new Date('2026-12-06T10:30:00Z')),'2026-12-06:day');
 });
 test('ordinary conversation skips every network and classifier call',async()=>{reset();assert.equal(await api.preparePortrait('Wie geht es dir?'),null);assert.equal(calls.length,0);});
+test('seeing the just described appearance creates a real job even when planner says none',async()=>{
+ reset();const now=new Date();plan.action='none';
+ const life=api.defaultSofiaLife(now);life.dialogue={at:now.toISOString(),lastUser:'Wie siehst du aktuell aus?',lastAssistant:'Im gemütlichen Oberteil auf dem Sofa.'};db.set(prefix+'life',JSON.stringify(life));
+ const job=await api.preparePortrait('Das würd ich gern sehen',null,now);
+ assert.ok(job?.id);assert.equal(JSON.parse(db.get(prefix+'request:'+job.id)).status,'ready');
+ assert.equal(await api.preparePortrait('Das würde ich gern sehen',null,new Date(now.getTime()+601000)),null);
+});
+test('repeat after a failed photo creates a fresh job without sharing error context',async()=>{
+ reset();const now=new Date(),life=api.defaultSofiaLife(now);life.dialogue={at:now.toISOString(),lastUser:'Ich warte'};db.set(prefix+'life',JSON.stringify(life));
+ const old='11111111-1111-4111-8111-111111111111';db.set(prefix+'request:'+old,JSON.stringify({id:old,status:'failed',failureCode:'portrait_moderated'}));
+ db.set('sofia:main:history',JSON.stringify([{role:'user',content:'Mach bitte ein Selfie von dir'},{role:'assistant',content:'Gib mir einen kleinen Moment.',imageRequestId:old},{role:'user',content:'Ich warte'},{role:'assistant',content:'Es hat nicht geklappt.'}]));
+ const job=await api.preparePortrait('Nochmal',null,now);assert.ok(job?.id);assert.notEqual(job.id,old);assert.doesNotMatch(JSON.stringify(plannerInputs.at(-1)),/failed|moderated/);
+});
+test('repeat after legacy unstarted appearance request repairs the missing job',async()=>{
+ reset();const now=new Date(),life=api.defaultSofiaLife(now);life.dialogue={at:now.toISOString(),lastUser:'Warum?'};db.set(prefix+'life',JSON.stringify(life));
+ db.set('sofia:main:history',JSON.stringify([{role:'user',content:'Wie siehst du aktuell aus?'},{role:'assistant',content:'Auf dem Sofa.'},{role:'user',content:'Das würd ich gern sehen'},{role:'assistant',content:'Gib mir einen kleinen Moment.'},{role:'user',content:'Ich warte'},{role:'assistant',content:'Leider kein Bild.'},{role:'user',content:'Warum?'},{role:'assistant',content:'Kein genauer Grund.'}]));
+ assert.ok((await api.preparePortrait('noch mal',null,now))?.id);
+});
+test('repeat of unrelated conversation and stale photo context never starts a picture',async()=>{
+ reset();const now=new Date(),life=api.defaultSofiaLife(now);life.dialogue={at:now.toISOString()};db.set(prefix+'life',JSON.stringify(life));
+ db.set('sofia:main:history',JSON.stringify([{role:'user',content:'Selfie bitte'},{role:'assistant',content:'Gib mir einen kleinen Moment.'},{role:'user',content:'Erzähl mir einen Witz'},{role:'assistant',content:'Ein Witz.'}]));
+ assert.equal(await api.preparePortrait('nochmal',null,now),null);assert.equal(plannerInputs.length,0);
+ life.dialogue.at=new Date(now.getTime()-1801000).toISOString();db.set(prefix+'life',JSON.stringify(life));assert.equal(await api.preparePortrait('nochmal',null,now),null);
+});
+test('repeating a pending photo reuses its receipt rather than creating a second paid job',async()=>{
+ reset();const now=new Date(),life=api.defaultSofiaLife(now);life.dialogue={at:now.toISOString()};db.set(prefix+'life',JSON.stringify(life));
+ const old='11111111-1111-4111-8111-111111111111';db.set(prefix+'request:'+old,JSON.stringify({id:old,status:'ready',requestedAt:now.toISOString(),requestMessage:'Selfie bitte'}));
+ db.set('sofia:main:history',JSON.stringify([{role:'user',content:'Selfie bitte'},{role:'assistant',content:'Gib mir einen kleinen Moment.',imageRequestId:old}]));
+ assert.equal((await api.preparePortrait('nochmal',null,now))?.id,old);assert.equal(plannerInputs.length,0);
+});
 test('same period preserves outfit, new day permits variety, explicit outfit changes apply',async()=>{
  reset();db.set(prefix+'state',JSON.stringify({period:'2026-10-06:day',outfit:'Red jacket'}));
  let r=await api.preparePortrait('Ein Selfie bitte',null,new Date('2026-10-06T12:00Z'));
@@ -47,7 +81,7 @@ test('same period preserves outfit, new day permits variety, explicit outfit cha
 });
 test('variant keeps selected outfit across dates and uses master first plus source second',async()=>{
  reset();const old='11111111-1111-4111-8111-111111111111';
- db.set(prefix+'image:'+old,JSON.stringify({id:old,outfit:'Green dress',base64:'/9j/AA==',scene:'Mirror selfie'}));
+ db.set(prefix+'image:'+old,JSON.stringify({id:old,createdAt:new Date().toISOString(),outfit:'Green dress',base64:'/9j/AA==',scene:'Mirror selfie'}));
  plan.action='variant';
  const r=await api.preparePortrait('Das Outfit in anderem Licht',old,new Date('2026-10-07T12:00Z'));
  assert.equal(JSON.parse(db.get(prefix+'request:'+r.id)).outfit,'Green dress');
@@ -113,7 +147,7 @@ test('image delivery is private JPEG with download attachment and validated IDs'
 });
 test('UI integration loads shared renderer before app and does not alter avatar assets',async()=>{
  const root=new URL('../',import.meta.url);const index=await readFile(new URL('index.html',root),'utf8');
- assert.ok(index.indexOf('sofia-images.js?v=4327')<index.indexOf('app.js?v=4327'));
+ assert.ok(index.indexOf('sofia-images.js?v=4337prod1')<index.indexOf('app.js?v=4337prod1'));
  const chat=await readFile(new URL('api/chat.js',root),'utf8');
  assert.ok(chat.indexOf('!safeEqual(')<chat.indexOf('await servePortrait'));
  const ui=await readFile(new URL('sofia-images.js',root),'utf8');assert.match(ui,/dialog.showModal/);assert.match(ui,/link.download=/);assert.doesNotMatch(ui,/spinner|generating-status/);
@@ -232,14 +266,14 @@ test('pending job gallery survives reload and processing cannot bill again',asyn
  assert.equal((await api.portraitGallery())[0].jobStatus,'processing');
 });
 test('explicit smile variant preserves selected face source even when planner says new',async()=>{
- reset();const old='11111111-1111-4111-8111-111111111111';db.set(prefix+'image:'+old,JSON.stringify({id:old,outfit:'Green dress',base64:'/9j/AA==',scene:'Mirror selfie',kind:'mirror'}));
+ reset();const old='11111111-1111-4111-8111-111111111111';db.set(prefix+'image:'+old,JSON.stringify({id:old,createdAt:new Date().toISOString(),outfit:'Green dress',base64:'/9j/AA==',scene:'Mirror selfie',kind:'mirror'}));
  const r=await api.preparePortrait('Dasselbe mit einem Lächeln',old);
  const job=JSON.parse(db.get(prefix+'request:'+r.id));assert.equal(job.sourceId,old);assert.equal(job.kind,'mirror');assert.equal(job.outfit,'Green dress');
  assert.equal(api.photoVariantRequest('Dieses Bild ist schön'),false);
 });
 
 test('variant locks outfit against unsolicited planner edits and specifies requested dimensions',async()=>{
- reset();const old='11111111-1111-4111-8111-111111111111';db.set(prefix+'image:'+old,JSON.stringify({id:old,outfit:'Green dress',base64:'/9j/AA==',scene:'Cafe',kind:'selfie'}));plan={action:'variant',changeOutfit:true,outfit:'Red jacket',scene:'wrong new background'};
+ reset();const old='11111111-1111-4111-8111-111111111111';db.set(prefix+'image:'+old,JSON.stringify({id:old,createdAt:new Date().toISOString(),outfit:'Green dress',base64:'/9j/AA==',scene:'Cafe',kind:'selfie'}));plan={action:'variant',changeOutfit:true,outfit:'Red jacket',scene:'wrong new background'};
  const r=await api.preparePortrait('Nur das Licht ändern',old);await api.generatePortrait(r.id);
  const stored=JSON.parse(db.get(prefix+'request:'+r.id));assert.equal(stored.outfit,'Green dress');assert.deepEqual(stored.dimensions,['lighting']);assert.equal(stored.scene,'Nur das Licht ändern');assert.match(imageCalls[0].prompt,/Only change these requested dimensions: lighting/);
 });
@@ -263,7 +297,7 @@ test('confirmed last photo is shared continuity and variants ignore descriptive 
 
 test('explicit outfit variant changes clothing while keeping source and other scene dimensions',async()=>{
  reset();const old='11111111-1111-4111-8111-111111111111';
- db.set(prefix+'image:'+old,JSON.stringify({id:old,outfit:'Green dress',base64:'/9j/AA==',scene:'Café',life:{location:'Café'},snapshotStyle:'relaxed eye-level phone framing'}));
+ db.set(prefix+'image:'+old,JSON.stringify({id:old,createdAt:new Date().toISOString(),outfit:'Green dress',base64:'/9j/AA==',scene:'Café',life:{location:'Café'},snapshotStyle:'relaxed eye-level phone framing'}));
  plan.action='variant';plan.changeOutfit=false;plan.outfit='Blue sweater';
  const r=await api.preparePortrait('Dasselbe Bild mit einem anderen Outfit',old);
  const job=JSON.parse(db.get(prefix+'request:'+r.id));
@@ -278,5 +312,20 @@ test('expired explicitly selected photo never silently falls back to the latest 
 test('photo acknowledgment becomes the current dialogue reference without storing failure context',async()=>{
  reset();await api.appendPortraitAcknowledgment('Ein Selfie bitte','Gib mir einen kleinen Moment.','11111111-1111-4111-8111-111111111111');
  const life=await api.getSofiaLife();assert.equal(life.dialogue.lastUser,'Ein Selfie bitte');assert.equal(life.dialogue.topics.length,1);assert.doesNotMatch(JSON.stringify(life.dialogue),/moderation|failed/);
+});
+
+
+test('new portrait poses vary head, gaze and expression without changing identity',()=>{
+ const first=api.photoPose(null,false,'entspannt'),second=api.photoPose({photoPose:first},false,'entspannt'),third=api.photoPose({photoPose:second},false,'entspannt');
+ assert.notEqual(first.head,second.head);assert.notEqual(second.head,third.head);assert.notEqual(first.expression,second.expression);assert.notEqual(second.gaze,third.gaze);
+ assert.equal(api.photoPose({photoPose:first},true),first);assert.equal(api.photoPose({},true),null);assert.doesNotMatch(JSON.stringify(api.photoPose(null,false,'ernst')),/smile/);
+});
+test('new selfie prompt changes pose while master remains first and profile is persisted',async()=>{
+ reset();const r=await api.preparePortrait('Ein Selfie bitte');await api.generatePortrait(r.id);assert.match(imageCalls[0].prompt,/IDENTITY reference, not a pose or expression template/);assert.match(imageCalls[0].prompt,/NEW PHOTO POSE/);
+ const saved=JSON.parse(db.get(prefix+'image:'+r.id));assert.equal(saved.photoPose.head,'head upright, no copied tilt');assert.equal(imageCalls[0].images.length,1);
+});
+test('lighting-only variant preserves photo pose and has no new pose instruction',async()=>{
+ reset();const old='11111111-1111-4111-8111-111111111111',pose=api.photoPose(null,false,'entspannt');db.set(prefix+'image:'+old,JSON.stringify({id:old,createdAt:new Date().toISOString(),outfit:'Blue sweater',base64:'/9j/AA==',scene:'Café',photoPose:pose}));plan={action:'variant',scene:'Andere Beleuchtung'};const r=await api.preparePortrait('Dasselbe Foto in anderem Licht',old);await api.generatePortrait(r.id);
+ assert.deepEqual(JSON.parse(db.get(prefix+'request:'+r.id)).photoPose,pose);assert.doesNotMatch(imageCalls[0].prompt,/NEW PHOTO POSE/);assert.match(imageCalls[0].prompt,/Preserve the earlier head orientation, gaze and expression/);assert.equal(imageCalls[0].images.length,2);
 });
 

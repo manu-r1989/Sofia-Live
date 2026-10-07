@@ -12,6 +12,7 @@ function harness(fetchImpl,extras={}) {
   get classList(){return {contains:c=>this.className.split(' ').includes(c)};}
   get firstChild(){return this.children[0]||null;}
   get nextSibling(){const a=this.parentNode?.children;return a?.[a.indexOf(this)+1]||null;}
+  replaceChildren(...nodes){for(const child of this.children)child.parentNode=null;this.children=[];this.ownText='';this.append(...nodes);}
   append(...nodes){for(const n of nodes)this.insertBefore(n,null);}
   insertBefore(n,b){if(n===b)return n;if(n.parentNode)n.parentNode.children.splice(n.parentNode.children.indexOf(n),1);n.parentNode=this;const i=b?this.children.indexOf(b):this.children.length;if(i<0)throw Error('Missing insertion point');this.children.splice(i,0,n);return n;}
   setAttribute(k,v){this[k]=v;}addEventListener(name,fn){this.events||={};this.events[name]=fn;}focus(){}showModal(){}close(){this.events?.close?.();}click(){this.clicked=true;}
@@ -20,13 +21,34 @@ function harness(fetchImpl,extras={}) {
   querySelectorAll(selector){return this.all().filter(n=>selector.startsWith('[data-portrait-request-id=')?n.dataset.portraitRequestId===selector.split('"')[1]:selector.split('.').filter(Boolean).every(c=>n.classList.contains(c)));}
   querySelector(s){return this.querySelectorAll(s)[0]||null;}
  }
- const body=new Node('body'),messages=new Node('div');messages.id='messages';body.append(messages);
+ const body=new Node('body'),messages=new Node('div'),mode=new Node('small');messages.id='messages';mode.id='mode';mode.textContent='bereit';body.append(messages,mode);
  const document={body,createElement:tag=>new Node(tag),getElementById:target=>[body,...body.all()].find(n=>n.id===target)||null};
  const window={};vm.runInNewContext(source,{document,window,fetch:fetchImpl,Map,Promise,...extras});
  const message=(text,who='sofia',anchorId)=>{const n=new Node('div');n.className='msg '+who;n.textContent=text;if(anchorId)n.dataset.portraitRequestId=anchorId;messages.append(n);if(anchorId)window.SofiaImages.anchor(anchorId,n);return n;};
  return {body,messages,document,api:window.SofiaImages,message};
 }
 const image=(id)=>({id,anchorId:id,caption:'Sofia',url:'/api/chat?image='+id});
+test('photo progress lives in status line while acknowledgment stays hidden',async()=>{
+ let resolve;const h=harness(()=>new Promise(r=>resolve=r)),ack=h.message('Gib mir einen kleinen Moment.','sofia',id);
+ assert.equal(ack.hidden,true);const job=h.api.generate({id});assert.equal(h.document.getElementById('mode').textContent,'nimmt ein Foto auf');assert.equal(h.api.isGenerating,true);
+ resolve({ok:true,json:async()=>({image:image(id)})});await job;
+ assert.equal(h.api.isGenerating,false);assert.equal(h.document.getElementById('mode').textContent,'bereit');assert.ok(h.document.getElementById('portrait-'+id));
+});
+test('confirmed daily test limit automatically shows an honest failure without a follow-up',async()=>{
+ const h=harness(async(_url,options)=>options.method==='POST'?{ok:false,json:async()=>({code:'test_image_limit',error:'hidden provider detail'})}:{ok:true,json:async()=>({images:[]})});
+ h.message('Gib mir einen kleinen Moment.','sofia',id);await h.api.generate({id});
+ assert.match(h.document.getElementById('portrait-'+id).textContent,/Foto-Limit der Testversion/);assert.equal(h.document.getElementById('mode').textContent,'bereit');
+});
+test('a repeated pending receipt retains its first turn and hides both wait messages',()=>{
+ const h=harness(),first=h.message('Gib mir einen kleinen Moment.','sofia',id),slot=h.document.getElementById('portrait-slot-'+id),middle=h.message('nochmal','user'),second=h.message('Gib mir einen kleinen Moment.','sofia',id);
+ assert.deepEqual(h.messages.children,[first,slot,middle,second]);assert.equal(first.hidden,true);assert.equal(second.hidden,true);
+});
+test('uncertain response with confirmed processing job keeps photo status and polls reads only',async()=>{
+ let tick,calls=[];const h=harness(async(_url,options)=>{calls.push(options.method);return options.method==='POST'?{ok:false,json:async()=>({})}:{ok:true,json:async()=>({images:[{id,status:'pending',jobStatus:'processing'}]})};},{setInterval:fn=>{tick=fn;}});
+ h.message('Gib mir einen kleinen Moment.','sofia',id);await h.api.generate({id});assert.equal(h.document.getElementById('portrait-'+id),null);assert.equal(h.api.isGenerating,true);
+ await tick();assert.deepEqual(calls,['POST','GET','GET']);assert.equal(h.document.getElementById('mode').textContent,'nimmt ein Foto auf');
+ h.api.restore([{...image(id),status:'failed'}]);assert.equal(h.api.isGenerating,false);assert.equal(h.document.getElementById('mode').textContent,'bereit');
+});
 test('slow image completion stays at requested turn ahead of newer messages',async()=>{
  let resolve;const h=harness(()=>new Promise(r=>resolve=r));
  const ack=h.message('Gib mir einen kleinen Moment.','sofia',id);
@@ -84,9 +106,9 @@ test('successful photo hides only its moment acknowledgment, including after rel
  const h=harness();const ack=h.message('Gib mir einen kleinen Moment.','sofia',id);const content=h.message('Eine richtige Antwort.','sofia',id2);
  h.api.restore([image(id),image(id2)]);assert.equal(ack.hidden,true);assert.equal(content.hidden,false);
 });
-test('failed photo retains acknowledgment and friendly explanation',()=>{
+test('failed photo hides acknowledgment and retains friendly explanation',()=>{
  const h=harness();const ack=h.message('Gib mir einen kleinen Moment.','sofia',id);
- h.api.restore([{...image(id),status:'failed'}]);assert.equal(ack.hidden,false);
+ h.api.restore([{...image(id),status:'failed'}]);assert.equal(ack.hidden,true);
 });
 test('reload resumes ready jobs once and never restarts processing jobs',async()=>{
  let calls=0;const h=harness(async()=>{calls++;return {ok:true,json:async()=>({image:image(id)})};});
@@ -136,3 +158,19 @@ test('opening an older photo during generation keeps that selected reference',as
  assert.equal(h.api.referenceId,id2);
 });
 
+
+test('archived thumbnail is replaced in place and its link opens the exact gallery photo',()=>{
+ const h=harness(async()=>({ok:false}));const ack=h.message('Gib mir einen kleinen Moment.','sofia',id);h.api.restore([image(id)]);const later=h.message('Weiter','user');
+ h.api.restore([{...image(id),archived:true,createdAt:new Date().toISOString()}]);const marker=h.document.getElementById('portrait-'+id);assert.equal(marker.textContent,'Bild in der Galerie');assert.equal(marker.tag,'button');
+ assert.deepEqual(h.messages.children,[ack,h.document.getElementById('portrait-slot-'+id),later]);marker.onclick();assert.ok(h.document.getElementById('sofia-gallery'));assert.equal(h.api.referenceId,id);
+});
+test('expired photograph has no thumbnail and is excluded from gallery references',()=>{
+ const h=harness();h.api.restore([{...image(id),status:'expired',createdAt:'2026-01-01T00:00Z'}]);assert.equal(h.document.getElementById('portrait-'+id).textContent,'Bild nicht mehr verfügbar');assert.equal(h.api.referenceId,null);h.api.openGallery();assert.match(h.document.getElementById('sofia-gallery').textContent,/Keine Fotos für diese Auswahl/);
+});
+
+test('gallery combines date, kind and favorites without losing direct reference access',()=>{
+ const h=harness();const createdAt=new Date().toISOString();h.api.restore([{...image(id),createdAt,kind:'selfie',favorite:true},{...image(id2),createdAt,kind:'environment',favorite:false}]);h.api.openGallery();const gallery=h.document.getElementById('sofia-gallery'),filter=gallery.all().find(n=>n['aria-label']==='Galerie nach Bildart filtern');filter.value='environment';filter.onchange();assert.equal(gallery.all().filter(n=>n.dataset.galleryPhotoId).length,1);const favorite=gallery.all().find(n=>n.textContent==='Nur Favoriten');favorite.onclick();assert.equal(gallery.all().filter(n=>n.dataset.galleryPhotoId).length,0);h.api.openGallery(id);assert.equal(h.api.referenceId,id);
+});
+test('favorite persists through server request and is immediately filterable',async()=>{
+ const calls=[];const h=harness(async(u,o)=>{calls.push(JSON.parse(o.body));return {ok:true};});h.api.restore([{...image(id),createdAt:new Date().toISOString(),kind:'selfie'}]);h.api.openGallery();const gallery=h.document.getElementById('sofia-gallery'),button=gallery.all().find(n=>n.tag==='button'&&n.textContent==='☆ Favorit');await button.onclick();assert.equal(calls[0].operation,'favorite');assert.equal(calls[0].imageId,id);assert.equal(calls[0].favorite,true);gallery.all().find(n=>n.textContent==='Nur Favoriten').onclick();assert.equal(gallery.all().filter(n=>n.dataset.galleryPhotoId).length,1);
+});

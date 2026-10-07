@@ -1,10 +1,11 @@
+import { dataPrefix } from "../lib/environment.js";
 import crypto from "node:crypto";
 import { executeTaskAction, taskIntentCandidate } from "./task-action.js";
 
-const STATE_KEY = "sofia:main:action-state";
+const STATE_KEY = dataPrefix() + 'action-state';
 const STATE_TTL = 60 * 60 * 24;
-const RESEARCH_KEY = "sofia:main:research-state";
-const IDEMPOTENCY_KEY = "sofia:main:action-idempotency";
+const RESEARCH_KEY = dataPrefix() + 'research-state';
+const IDEMPOTENCY_KEY = dataPrefix() + 'action-idempotency';
 
 async function redis(command) {
   const response = await fetch(process.env.KV_REST_API_URL, {
@@ -40,7 +41,7 @@ function summarize(result) {
 
 // A mode-independent rolling retry window also spans minute boundaries.
 // Reserve before execution so a crashed request cannot immediately be replayed.
-const ACTION_LOCK_KEY = "sofia:main:action-lock:v2";
+const ACTION_LOCK_KEY = dataPrefix() + 'action-lock:v2';
 const RESERVE_ACTION = `
 local cached = redis.call("GET", KEYS[1])
 if cached then
@@ -174,5 +175,4 @@ export async function getResearchState() {
 export async function getActionState() {
   return loadState();
 }
-
 

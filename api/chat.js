@@ -1,11 +1,12 @@
+import { dataPrefix, testModeRequested, publicTestMode, guardTestRequest } from "../lib/environment.js";
 import { conversationClarification, guardPermanentMemory, compactConversationHistory, safeDiagnostic, taskReceipt, hamburgReferenceTime, portraitPreparationReply, preparePortrait, generatePortrait, servePortrait, portraitGallery, appendPortraitAcknowledgment, PORTRAIT_FAILURE_REPLY, getSofiaLife, learnSofiaLife, lifeContext, prepareProactivePortrait, PROACTIVE_PHOTO_ANNOUNCEMENT } from '../lib/character-image.js';
 import crypto from "node:crypto";
 import { executeUnifiedAction, getActionState, getResearchState } from "./action-engine.js";
 
-const HISTORY_KEY = "sofia:main:history";
-const MEMORY_KEY = "sofia:main:longterm";
-const IDENTITY_KEY = "sofia:main:identity";
-const TASKS_KEY = "sofia:main:tasks";
+const HISTORY_KEY = dataPrefix() + 'history';
+const MEMORY_KEY = dataPrefix() + 'longterm';
+const IDENTITY_KEY = dataPrefix() + 'identity';
+const TASKS_KEY = dataPrefix() + 'tasks';
 
 const MAX_HISTORY_MESSAGES = 40;
 const MAX_LONGTERM_MEMORIES = 80;
@@ -470,6 +471,7 @@ export default async function handler(req, res) {
      AUTHENTIFIZIERUNG
   ======================================== */
 
+  if (!testModeRequested()) {
   if (!process.env.SOFIA_PASSWORD) {
 
     console.error(
@@ -511,6 +513,9 @@ export default async function handler(req, res) {
 
   }
 
+
+  }
+  if(!await guardTestRequest(req,res,"chat"))return;
 
   /* ========================================
      HAUPTLOGIK
@@ -790,6 +795,9 @@ ein fertiges Bild, bevor das Bild tatsächlich geliefert wurde. Fehlt ein
 angenommener Auftrag, verspreche keine laufende Generierung; bei einer
 Fähigkeitsfrage erkläre knapp, dass du ein Bild von dir erstellen kannst.
 Bei einem gemeldeten Fehler bleibe in deiner Rolle und erkläre ihn kurz.
+Ohne technisches Ergebnis darfst du weder ein fehlgeschlagenes Bild noch
+eine erneute Generierung behaupten. Wartefloskeln älterer Antworten sind
+kein Nachweis eines Bildauftrags. Erfinde keine technischen Fehlergründe.
 Frühere gegenteilige Aussagen im Verlauf sind veraltet: Die Bildfunktion
 ist inzwischen vorhanden. Outfitvarianten behalten das referenzierte Outfit,
 sofern nicht ausdrücklich andere Kleidung gewünscht wird.

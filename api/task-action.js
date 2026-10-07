@@ -1,6 +1,7 @@
+import { dataPrefix } from "../lib/environment.js";
 import { addCalendarDays, nextRecurringDates, normalizeTaskDate, validateTaskPatch } from "../lib/task-dates.js";
 
-const TASKS_KEY = "sofia:main:tasks";
+const TASKS_KEY = dataPrefix() + 'tasks';
 
 async function redis(command) {
   const response = await fetch(process.env.KV_REST_API_URL, {
@@ -211,5 +212,4 @@ export async function executeTaskAction(message, referenceTime, options = {}) {
   await saveTasks(tasks);
   return { ok: true, action, task: tasks[index] };
 }
-
 

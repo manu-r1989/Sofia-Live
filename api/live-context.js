@@ -1,9 +1,10 @@
+import { dataPrefix, testModeRequested, publicTestMode, guardTestRequest } from "../lib/environment.js";
 import { taskReceipt, hamburgReferenceTime, portraitPreparationReply, preparePortrait, getSofiaLife, lifeContext, prepareProactivePortrait, PROACTIVE_PHOTO_ANNOUNCEMENT } from '../lib/character-image.js';
 import crypto from "node:crypto";
 import { executeUnifiedAction, getActionState, getResearchState } from "./action-engine.js";
 
-const MEMORY_KEY = "sofia:main:longterm";
-const TASKS_KEY = "sofia:main:tasks";
+const MEMORY_KEY = dataPrefix() + 'longterm';
+const TASKS_KEY = dataPrefix() + 'tasks';
 
 function cookie(req, name) {
   for (const part of String(req.headers.cookie || "").split(";")) {
@@ -14,6 +15,7 @@ function cookie(req, name) {
 }
 
 function authorized(req) {
+  if(testModeRequested())return publicTestMode();
   const password = process.env.SOFIA_PASSWORD;
   if (!password) return false;
   const got = cookie(req, "sofia_session");
@@ -96,6 +98,8 @@ export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
   if (!authorized(req)) return res.status(401).json({ error: "Nicht autorisiert." });
+  if(!await guardTestRequest(req,res,"context"))return;
+
 
   const message = String(req.body?.message || "").trim().slice(0, 2000);
   if (!message) return res.status(200).json({ context: "", calendarAction: null });
