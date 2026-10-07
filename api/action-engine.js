@@ -144,10 +144,11 @@ export async function executeUnifiedAction(message, referenceTime, options = {})
       try { await saveState(next); }
       catch { value.continuityWarning = "state_save_failed"; }
     }
-  } catch {
+  } catch (error) {
     // A failed write may have reached Redis before its response was lost.
     // Cache uncertain outcomes too; never blindly replay a mutation.
-    value = { taskAction: { ok: false, action: "none", status: "execution_failed" } };
+    const code=["task_provider_failed","task_classifier_incomplete","task_classifier_invalid_json"].includes(error?.code)?error.code:"task_execution_failed";
+    value = { taskAction: { ok: false, action: "none", status: "execution_failed", code, ...(Number.isInteger(error?.providerStatus)?{providerStatus:error.providerStatus}:{}) } };
   }
 
   try {

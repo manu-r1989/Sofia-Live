@@ -61,14 +61,15 @@ Das folgende task-Beispiel gilt für create; bei update ist task ein sparsames O
 Antworte ausschließlich als JSON:
 {"action":"none|create|update|complete|delete|list|calendar_export","id":null,"task":{"title":"","dueAt":null,"remindAt":null,"priority":"normal","notes":"","recurrence":null},"status":"open","scope":"all|today|week|overdue"}`,
       input: `Referenzzeit: ${referenceTime}\nZuletzt relevante Aufgabe: ${recentTaskId || "(keine)"}\nNutzer: ${message}\n\nAufgaben:\n${catalog}`,
-      max_output_tokens: 260
+      max_output_tokens: 1200
     })
   });
-  if (!response.ok) throw new Error("Task classifier request failed");
+  if (!response.ok) {const error=new Error("Task classifier request failed");error.code="task_provider_failed";error.providerStatus=response.status;throw error;}
   const data = await response.json();
+  if(data.status === "incomplete") {const error=new Error("Task classifier output incomplete");error.code="task_classifier_incomplete";throw error;}
   const text = data.output?.flatMap(x => x.content || [])?.find(x => x.type === "output_text")?.text || "";
   let parsed;
-  try { parsed = JSON.parse(text); } catch { throw new Error("Invalid task classifier JSON"); }
+  try { parsed = JSON.parse(text); } catch { const error=new Error("Invalid task classifier JSON");error.code="task_classifier_invalid_json";throw error; }
   if (!parsed || !["none", "create", "update", "complete", "delete", "list", "calendar_export"].includes(parsed.action)) {
     throw new Error("Invalid task classifier action");
   }

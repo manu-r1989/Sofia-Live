@@ -104,7 +104,7 @@ globalThis.fetch = async (url, options) => {
     if (classifierHook) await classifierHook(body);
     if (classifierFailure) return { ok: false, status: 503, json: async () => ({}) };
     output = malformed ? 'not JSON' : JSON.stringify(parsed);
-  } else if (body.instructions.includes('Kalender-Erinnerung') || body.instructions.includes('Kalendereintrag')) {
+  } else if (!Array.isArray(body.input) && (body.instructions.includes('Kalender-Erinnerung') || body.instructions.includes('Kalendereintrag'))) {
     calendarCalls++;
     output = JSON.stringify({ calendar_action: calendarOutput });
   } else if (Array.isArray(body.input)) {
@@ -460,4 +460,22 @@ test('normal conversation and topic change bypass task Redis even when unavailab
 test('actual task requests still fail closed when reservation store is unavailable',async()=>{
  reset();const normal=globalThis.fetch;globalThis.fetch=async()=>{throw Error('task store unavailable');};
  try{assert.equal((await run('Lege eine Aufgabe Bericht an')).taskAction.status,'execution_failed');}finally{globalThis.fetch=normal;}
+});
+
+test('failed text reminder does not create a misleading calendar fallback',async()=>{
+ reset();classifierFailure=true;calendarOutput={title:'Testversion prüfen',start:'2026-10-07T10:00:00'};
+ const result=await endpoint('chat','Erinnere mich morgen um 10 Uhr daran, die Testversion zu prüfen.');
+ assert.equal(result.taskAction.ok,false);assert.equal(result.calendarAction,null);assert.equal(calendarCalls,0);assert.equal(writes,0);assert.match(result.reply,/nicht sicher bestätigen/);
+});
+test('confirmed text task creation does not silently export an independent calendar entry',async()=>{
+ reset();parsed={action:'create',task:{title:'TEST reminder',dueAt:'2026-10-07T10:00:00',remindAt:'2026-10-07T10:00:00'}};
+ const result=await endpoint('chat','Erinnere mich morgen um 10 Uhr an TEST reminder');assert.equal(result.taskAction.ok,true);assert.equal(result.calendarAction,null);assert.equal(calendarCalls,0);assert.equal(writes,1);
+});
+test('incomplete task classifier output cannot execute and carries a safe diagnostic',async()=>{
+ reset();const normal=globalThis.fetch;globalThis.fetch=async(url,options)=>{const body=JSON.parse(options.body);if(body.instructions?.includes('strikter Task-Action-Parser'))return {ok:true,json:async()=>({status:'incomplete',output:[]})};return normal(url,options);};
+ try{const r=await run('Erinnere mich morgen um 10 Uhr an TEST');assert.equal(r.taskAction.code,'task_classifier_incomplete');assert.equal(writes,0);}finally{globalThis.fetch=normal;}
+});
+test('provider failure exposes only status and a fixed diagnostic without provider content',async()=>{
+ reset();const normal=globalThis.fetch;globalThis.fetch=async(url,options)=>{const body=JSON.parse(options.body);if(body.instructions?.includes('strikter Task-Action-Parser'))return {ok:false,status:403,json:async()=>({error:'sensitive provider content'})};return normal(url,options);};
+ try{const r=await run('Erinnere mich morgen an TEST');assert.equal(r.taskAction.code,'task_provider_failed');assert.equal(r.taskAction.providerStatus,403);assert.doesNotMatch(JSON.stringify(r),/sensitive/);assert.equal(writes,0);}finally{globalThis.fetch=normal;}
 });
