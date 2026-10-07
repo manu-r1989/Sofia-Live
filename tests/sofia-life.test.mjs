@@ -129,7 +129,7 @@ test('Text and Live return an unsolicited image with announcement and common quo
  assert.equal([...quotas.values()][0].length,1);
 });
 test('image prompts preserve face and master hair color and request ordinary snapshots without subtitles',()=>{
- assert.match(source,/hair COLOR/);assert.match(source,/Small natural variations in facial expression/);
+ assert.match(source,/hair COLOR/);assert.match(source,/clearly different, natural head AND body orientation/);
  assert.match(source,/Typical casual PHONE SNAPSHOT/);assert.match(source,/No studio lighting/);
 });
 test('a recent cafe scene survives the time boundary briefly, then yields to the new slot',async()=>{
@@ -395,3 +395,4 @@ test('expired mood evidence cannot cause an immediate mood jump',()=>{
  const next=api.proposeCharacterMood(life,'amüsiert',now);
  assert.equal(next.mood,'neutral');assert.equal(next.moodCandidate.count,1);
 });
+
