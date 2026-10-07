@@ -1,5 +1,5 @@
 import { dataPrefix, testModeRequested, publicTestMode, guardTestRequest } from "../lib/environment.js";
-import { conversationClarification, guardPermanentMemory, compactConversationHistory, safeDiagnostic, taskReceipt, hamburgReferenceTime, portraitPreparationReply, preparePortrait, generatePortrait, servePortrait, portraitGallery, appendPortraitAcknowledgment, PORTRAIT_FAILURE_REPLY, getSofiaLife, learnSofiaLife, lifeContext, prepareProactivePortrait, PROACTIVE_PHOTO_ANNOUNCEMENT } from '../lib/character-image.js';
+import { appearanceChoice, conversationClarification, guardPermanentMemory, compactConversationHistory, safeDiagnostic, taskReceipt, hamburgReferenceTime, portraitPreparationReply, preparePortrait, generatePortrait, servePortrait, portraitGallery, appendPortraitAcknowledgment, PORTRAIT_FAILURE_REPLY, getSofiaLife, learnSofiaLife, lifeContext, prepareProactivePortrait, PROACTIVE_PHOTO_ANNOUNCEMENT } from '../lib/character-image.js';
 import crypto from "node:crypto";
 import { executeUnifiedAction, getActionState, getResearchState } from "./action-engine.js";
 
@@ -521,6 +521,7 @@ export default async function handler(req, res) {
      HAUPTLOGIK
   ======================================== */
 
+  const turnStartedAt=new Date().toISOString();
   try {
 
     if (req.method === "GET" && req.query?.image) return await servePortrait(req, res);
@@ -596,7 +597,9 @@ export default async function handler(req, res) {
 
 
     try {
-      const imageRequest = await preparePortrait(message, req.body?.referenceImageId, new Date(), req.body?.mood);
+      const appearance=await appearanceChoice(message,new Date(),req.body?.mood);
+      if(appearance?.reply){const createdAt=await appendPortraitAcknowledgment(message,appearance.reply);return res.status(200).json({reply:appearance.reply,createdAt,life:appearance.life,mood:appearance.life.mood,taskAction:{ok:true,action:'none'}});}
+      const imageRequest = appearance?.imageRequest || await preparePortrait(message, req.body?.referenceImageId, new Date(), req.body?.mood);
       if (imageRequest) {
         let taskAction={ok:true,action:"none"},calendarAction=null;
         if(imageRequest.taskMessage) {
@@ -605,9 +608,9 @@ export default async function handler(req, res) {
         }
         const receipt=imageRequest.taskMessage?(calendarAction && taskAction.action==='none'?'Kalenderimport ist vorbereitet.':taskReceipt(taskAction)):'';
         const reply = receipt ? receipt + " Gib mir einen kleinen Moment." : "Gib mir einen kleinen Moment.";
-        await appendPortraitAcknowledgment(message, reply, imageRequest.id);
+        const createdAt=await appendPortraitAcknowledgment(message, reply, imageRequest.id);
         const life = await getSofiaLife();
-        return res.status(200).json({ reply, life, mood: life.mood || "entspannt", imageRequest, taskAction, calendarAction });
+        return res.status(200).json({ reply,createdAt, life, mood: life.mood || "entspannt", imageRequest, taskAction, calendarAction });
       }
     } catch (error) {
       return res.status(200).json({ reply:portraitPreparationReply(error), taskAction:{ok:true,action:"none"} });
@@ -1915,11 +1918,13 @@ Kein Markdown außerhalb des JSON-Objekts.
       {
         role: "user",
         content:
-          message.trim()
+          message.trim(),
+        createdAt: turnStartedAt
       },
 
       {
         role: "assistant",
+        createdAt: new Date().toISOString(),
         ...(spontaneousImageRequest ? {imageRequestId:spontaneousImageRequest.id} : {}),
         content:
           reply
@@ -1990,6 +1995,7 @@ Kein Markdown außerhalb des JSON-Objekts.
     return res.status(200).json({
 
       reply,
+      createdAt: history.at(-1)?.createdAt,
       life: sofiaLife,
       ...(spontaneousImageRequest ? {imageRequest:spontaneousImageRequest} : {}),
 

@@ -17,9 +17,9 @@
   function hideAcknowledgment(image, anchorNode) {
     const node=anchorNode || document.getElementById('messages')?.querySelector(`[data-portrait-request-id="${image.anchorId || image.id}"]`);
     if(!node)return;
-    const text=node.textContent.trim();
+    const text=(node.dataset.messageText || node.textContent).trim();
     if(/^Gib mir einen kleinen Moment[.!]?$/i.test(text))node.hidden=true;
-    else if(/\s+Gib mir einen kleinen Moment[.!]?$/i.test(text))node.textContent=text.replace(/\s+Gib mir einen kleinen Moment[.!]?$/i,'');
+    else if(/\s+Gib mir einen kleinen Moment[.!]?$/i.test(text)){node.textContent=text.replace(/\s+Gib mir einen kleinen Moment[.!]?$/i,'');node.dataset.messageText=node.textContent;window.SofiaTimeline?.decorate(node,node.dataset.createdAt);}
   }
   const valid = id => typeof id === 'string' && /^[a-f0-9-]{36}$/.test(id);
   function slotFor(id) {
@@ -44,7 +44,7 @@
     let node=messages.querySelector(`[data-portrait-request-id="${event.anchorId || event.id}"]`);
     if (!node && event.requestMessage) {
       const users=[...messages.querySelectorAll('.msg.user')];
-      node=users.reverse().find(x=>x.textContent === event.requestMessage);
+      node=users.reverse().find(x=>(x.dataset.messageText||x.textContent) === event.requestMessage);
       if (node?.nextSibling?.classList?.contains('sofia')) node=node.nextSibling;
     }
     if (node) anchor(event.id,node);
@@ -56,8 +56,8 @@
     }
     return slot;
   }
-  function openPhoto(image) {
-    const url='/api/chat?image='+image.id;
+  function openPhoto(image, gallerySequence=null) {
+    let url='/api/chat?image='+image.id;
 
       selectionVersion++;rememberReference(image.id);
       const dialog = document.createElement('dialog');dialog.id='sofia-photo-'+image.id;
@@ -68,18 +68,20 @@
       const mobile=typeof navigator!=='undefined' && (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent||'') || (/Mac/i.test(navigator.userAgent||'') && navigator.maxTouchPoints>1));
       const download=document.createElement('button');download.type='button';download.textContent=mobile?'Bild speichern / teilen':'Herunterladen';download.style.cssText='margin-left:16px';download.disabled=true;
       const status=document.createElement('p');status.setAttribute('role','status');status.style.cssText='font-size:13px;margin-bottom:0';status.textContent='Bild wird zum Speichern vorbereitet.';
-      let blob=null,file=null,objectUrl=null,closed=false;
+      let blob=null,file=null,objectUrl=null,closed=false,downloadVersion=0;
       // Prepare before the click: iOS share requires an immediate user gesture.
       async function prepareDownload() {
+        const version=++downloadVersion,requestedImage=image,requestedUrl=url;
         download.disabled=true;status.textContent='Bild wird zum Speichern vorbereitet.';
         try {
-          const response=await fetch(url,{credentials:'same-origin',cache:'no-store'});
+          const response=await fetch(requestedUrl,{credentials:'same-origin',cache:'no-store'});
           if(!response.ok)throw new Error('download_failed');
-          blob=await response.blob();if(!blob.size || !/^image\/jpeg(?:;|$)/i.test(blob.type))throw new Error('download_invalid');
-          if(closed)return;
-          if(typeof File!=='undefined')file=new File([blob],'sofia-'+image.id+'.jpg',{type:'image/jpeg'});
+          const preparedBlob=await response.blob();if(!preparedBlob.size || !/^image\/jpeg(?:;|$)/i.test(preparedBlob.type))throw new Error('download_invalid');
+          if(closed || version!==downloadVersion)return;
+          blob=preparedBlob;
+          if(typeof File!=='undefined')file=new File([blob],'sofia-'+requestedImage.id+'.jpg',{type:'image/jpeg'});
           download.disabled=false;status.textContent='';
-        } catch {blob=null;file=null;if(!closed){download.disabled=false;status.textContent='Bild konnte nicht vorbereitet werden. Bitte noch einmal versuchen.';}}
+        } catch {if(version!==downloadVersion)return;blob=null;file=null;if(!closed){download.disabled=false;status.textContent='Bild konnte nicht vorbereitet werden. Bitte noch einmal versuchen.';}}
       }
       download.onclick=async()=>{
         if(!blob){await prepareDownload();return;}
@@ -97,9 +99,25 @@
       };
       const remove=document.createElement('button');remove.type='button';remove.textContent='Bild löschen';remove.style.cssText='margin-left:16px';remove.onclick=async()=>{
         if(!window.confirm('Dieses Foto endgültig aus Galerie und Chat löschen?'))return;
-        remove.disabled=true;try{const response=await fetch('/api/session?social=1',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({operation:'delete_image',imageId:image.id})});if(!response.ok)throw Error();show({...image,status:'expired'});if(referenceId===image.id){referenceId=null;try{localStorage.removeItem('sofia-photo-reference');}catch{}}dialog.close();const gallery=document.getElementById('sofia-gallery');if(gallery){gallery.close();openGallery();}}catch{status.textContent='Das Bild konnte nicht gelöscht werden.';remove.disabled=false;}
+        const deleting=image;remove.disabled=true;try{const response=await fetch('/api/session?social=1',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({operation:'delete_image',imageId:deleting.id})});if(!response.ok)throw Error();show({...deleting,status:'expired'});if(referenceId===deleting.id){referenceId=null;try{localStorage.removeItem('sofia-photo-reference');}catch{}}dialog.close();const gallery=document.getElementById('sofia-gallery');if(gallery){gallery.close();openGallery();}}catch{status.textContent='Das Bild konnte nicht gelöscht werden.';remove.disabled=false;}
       };
-      dialog.append(full,close,download,status,remove); document.body.append(dialog);
+      const navigation=document.createElement('div');navigation.style.cssText='display:flex;justify-content:space-between;gap:16px;margin:12px 0';
+      const previous=document.createElement('button'),next=document.createElement('button');previous.type=next.type='button';previous.textContent='‹ Vorheriges';next.textContent='Nächstes ›';previous.setAttribute('aria-label','Vorheriges Foto');next.setAttribute('aria-label','Nächstes Foto');
+      const sequence=()=>typeof gallerySequence==='function'?gallerySequence().filter(x=>!['pending','failed','expired'].includes(x.status)&&Date.now()-Date.parse(x.createdAt)<30*86400000):[];
+      function updateNavigation(){const items=sequence(),index=items.findIndex(x=>x.id===image.id);previous.disabled=index<=0;next.disabled=index<0 || index>=items.length-1;}
+      function changePhoto(offset){const items=sequence(),index=items.findIndex(x=>x.id===image.id),target=index<0?null:items[index+offset];if(!target)return;
+        image=target;url='/api/chat?image='+image.id;dialog.id='sofia-photo-'+image.id;full.src=url;full.alt=image.caption||'Sofia';selectionVersion++;rememberReference(image.id);
+        if(objectUrl){URL.revokeObjectURL(objectUrl);objectUrl=null;}blob=null;file=null;updateNavigation();void prepareDownload();
+      }
+      previous.onclick=()=>changePhoto(-1);next.onclick=()=>changePhoto(1);navigation.append(previous,next);
+      if(gallerySequence){
+        full.style.touchAction='pan-y pinch-zoom';let touch=null;
+        full.addEventListener('touchstart',event=>{touch=event.touches?.length===1?{x:event.touches[0].clientX,y:event.touches[0].clientY,id:event.touches[0].identifier}:null;},{passive:true});
+        full.addEventListener('touchcancel',()=>{touch=null;},{passive:true});
+        full.addEventListener('touchend',event=>{const start=touch;touch=null;const end=[...(event.changedTouches||[])].find(x=>x.identifier===start?.id);if(!start||!end||event.touches?.length)return;const dx=end.clientX-start.x,dy=end.clientY-start.y;if(Math.abs(dx)>=50 && Math.abs(dx)>Math.abs(dy)*1.4)changePhoto(dx<0?1:-1);},{passive:true});
+        dialog.addEventListener('keydown',event=>{if(event.key==='ArrowLeft'||event.key==='ArrowRight'){event.preventDefault();changePhoto(event.key==='ArrowLeft'?-1:1);}});
+      }
+      dialog.append(full);if(gallerySequence){dialog.append(navigation);updateNavigation();}dialog.append(close,download,status,remove); document.body.append(dialog);
       dialog.addEventListener('close',()=>{closed=true;if(objectUrl)URL.revokeObjectURL(objectUrl);dialog.remove();},{once:true});
       prepareDownload();
       dialog.showModal(); close.focus();
@@ -113,6 +131,7 @@
     const dialog=document.createElement('dialog');dialog.id='sofia-gallery';dialog.style.cssText='width:680px;max-width:92vw;max-height:85vh;border:0;border-radius:16px;padding:20px;background:#171722;color:white';
     const title=document.createElement('h2');title.textContent='Galerie';const note=document.createElement('p');note.textContent='Fotos bleiben 30 Tage ab Versand erhalten.';
     const close=document.createElement('button');close.type='button';close.textContent='Schließen';close.onclick=()=>dialog.close();
+    const closeBottom=document.createElement('button');closeBottom.type='button';closeBottom.textContent='Schließen';closeBottom.onclick=()=>dialog.close();
     const grid=document.createElement('div');grid.style.cssText='display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:12px;margin:16px 0';
     const filters=document.createElement('div');filters.style.cssText='display:flex;gap:8px;flex-wrap:wrap';
     const date=document.createElement('input');date.type='date';date.setAttribute('aria-label','Galerie nach Datum filtern');date.style.cssText='flex:0 1 170px;min-width:0;color-scheme:dark';
@@ -122,15 +141,16 @@
     const feedback=document.createElement('p');feedback.setAttribute('role','status');feedback.setAttribute('aria-live','polite');
     filters.append(date,type,onlyFavorites,clear);
     const photoDate=image=>new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Berlin',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(image.createdAt));
-    function render(){grid.replaceChildren();const items=[...galleryItems.values()].filter(x=>!['pending','failed','expired'].includes(x.status)&&Date.now()-Date.parse(x.createdAt)<30*86400000&&(!date.value||photoDate(x)===date.value)&&(type.value==='all'||x.kind===type.value)&&(!favoritesOnly||x.favorite)).reverse();
-     for(const image of items){const card=document.createElement('div');card.dataset.galleryPhotoId=image.id;const button=document.createElement('button');button.type='button';button.setAttribute('aria-label','Foto vom '+new Date(image.createdAt).toLocaleString('de-DE',{timeZone:'Europe/Berlin'}));button.style.cssText='width:100%;padding:0;border:0;border-radius:12px;background:transparent;cursor:pointer';const img=document.createElement('img');img.src='/api/chat?image='+image.id;img.alt='Sofia';img.loading='lazy';img.style.cssText='width:100%;aspect-ratio:2/3;object-fit:cover;border-radius:12px';button.append(img);button.onclick=()=>openPhoto(image);
+    let visibleItems=[];
+    function render(){grid.replaceChildren();const items=[...galleryItems.values()].filter(x=>!['pending','failed','expired'].includes(x.status)&&Date.now()-Date.parse(x.createdAt)<30*86400000&&(!date.value||photoDate(x)===date.value)&&(type.value==='all'||x.kind===type.value)&&(!favoritesOnly||x.favorite)).reverse();visibleItems=items;
+     for(const image of items){const card=document.createElement('div');card.dataset.galleryPhotoId=image.id;const button=document.createElement('button');button.type='button';button.setAttribute('aria-label','Foto vom '+new Date(image.createdAt).toLocaleString('de-DE',{timeZone:'Europe/Berlin'}));button.style.cssText='width:100%;padding:0;border:0;border-radius:12px;background:transparent;cursor:pointer';const img=document.createElement('img');img.src='/api/chat?image='+image.id;img.alt='Sofia';img.loading='lazy';img.style.cssText='width:100%;aspect-ratio:2/3;object-fit:cover;border-radius:12px';button.append(img);button.onclick=()=>openPhoto(image,()=>visibleItems);
       const favorite=document.createElement('button');favorite.type='button';favorite.textContent=image.favorite?'★ Favorit':'☆ Favorit';favorite.setAttribute('aria-label','Favorit für Foto vom '+new Date(image.createdAt).toLocaleString('de-DE',{timeZone:'Europe/Berlin'}));favorite.setAttribute('aria-pressed',String(!!image.favorite));favorite.onclick=async()=>{favorite.disabled=true;try{const r=await fetch('/api/session?social=1',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({operation:'favorite',imageId:image.id,favorite:!image.favorite})});if(!r.ok)throw Error();image.favorite=!image.favorite;galleryItems.set(image.id,image);feedback.textContent='Favorit gespeichert. Aufbewahrung bleibt 30 Tage.';render();}catch{feedback.textContent='Favorit konnte nicht gespeichert werden. Bitte Verbindung prüfen.';favorite.disabled=false;}};card.append(button,favorite);grid.append(card);
      }
      feedback.textContent=items.length?items.length+' Fotos':'Keine Fotos für diese Auswahl.';
     }
     date.onchange=type.onchange=render;onlyFavorites.onclick=()=>{favoritesOnly=!favoritesOnly;onlyFavorites.setAttribute('aria-pressed',String(favoritesOnly));render();};
-    dialog.append(title,note,filters,feedback,grid,close);document.body.append(dialog);dialog.addEventListener('close',()=>dialog.remove(),{once:true});dialog.showModal();render();close.focus();
-    if(selectedId){const selected=galleryItems.get(selectedId);if(selected&&!['expired','failed','pending'].includes(selected.status))openPhoto(selected);}
+    dialog.append(title,close,note,filters,feedback,grid,closeBottom);document.body.append(dialog);dialog.addEventListener('close',()=>dialog.remove(),{once:true});dialog.showModal();render();close.focus();
+    if(selectedId){const selected=galleryItems.get(selectedId);if(selected&&!['expired','failed','pending'].includes(selected.status))openPhoto(selected,()=>visibleItems);}
   }
   function show(image) {
     if (!image || !valid(image.id)) return;
@@ -150,7 +170,7 @@
     if (image.status === 'failed') {
       const notice=document.createElement('div'); notice.id='portrait-' + image.id;
       notice.className='msg sofia'; notice.dataset.portraitStatus='failed';notice.dataset.presentation=mode; notice.textContent=image.failureCode==='test_image_limit'?'Das Foto-Limit der Testversion ist für heute erreicht. Morgen kann ich wieder ein Foto schicken.':failureReply;
-      slot.append(notice); slot.hidden=false; window.SofiaChatViewport?.restore(viewport); return;
+      window.SofiaTimeline?.decorate(notice,image.createdAt||new Date().toISOString());slot.append(notice); slot.hidden=false; window.SofiaChatViewport?.restore(viewport); return;
     }
     if(mode==='archived'||mode==='expired') {
       const marker=document.createElement(mode==='archived'?'button':'div');marker.id='portrait-'+image.id;marker.className='msg sofia';marker.dataset.presentation=mode;marker.dataset.portraitStatus='done';marker.textContent=mode==='archived'?'Bild in der Galerie':'Bild nicht mehr verfügbar';
@@ -171,6 +191,7 @@
     button.append(img);
     button.onclick = () => openPhoto(image);
     figure.append(button); slot.append(figure); slot.hidden=false;
+    window.SofiaTimeline?.decorate(figure,image.createdAt);
     window.SofiaChatViewport?.restore(viewport);
   }
   function refreshExpiry(){for(const image of galleryItems.values()){const expired=Date.now()-Date.parse(image.createdAt)>=30*86400000;show({...image,...(expired?{status:'expired'}:{})});if(expired){document.getElementById('sofia-photo-'+image.id)?.close();document.getElementById('sofia-gallery')?.querySelector('[data-gallery-photo-id="'+image.id+'"]')?.remove();}}}
@@ -196,7 +217,7 @@
       // Associate legacy photographs with their old acknowledgments where possible.
       const old=events.filter(x=>!x.anchorId && valid(x.id));
       const acknowledgments=[...document.getElementById('messages')?.querySelectorAll('.msg.sofia') || []]
-        .filter(x=>x.textContent === 'Gib mir einen kleinen Moment.' && !x.dataset.portraitRequestId).slice(-old.length);
+        .filter(x=>(x.dataset.messageText||x.textContent) === 'Gib mir einen kleinen Moment.' && !x.dataset.portraitRequestId).slice(-old.length);
       old.forEach((image,index)=>{const node=acknowledgments[index];if(node)node.dataset.portraitRequestId=image.id;});
       events.forEach(show);
       events.filter(x=>x.status==='pending' && x.jobStatus==='ready').forEach(x=>window.SofiaImages.generate(x));

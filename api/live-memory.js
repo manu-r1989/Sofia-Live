@@ -706,12 +706,14 @@ ${cleanUser}
 
     history.push({
       role: "user",
+      createdAt: new Date().toISOString(),
       content: cleanUser
     });
 
     if (cleanAssistant) {
       history.push({
         role: "assistant",
+        createdAt: new Date().toISOString(),
         ...(typeof imageRequestId === "string" && /^[a-f0-9-]{36}$/.test(imageRequestId) ? { imageRequestId } : {}),
         content: cleanAssistant
       });
@@ -899,4 +901,5 @@ async function redisPipeline(
 
   return data;
 }
+
 

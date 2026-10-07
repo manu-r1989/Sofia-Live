@@ -1,5 +1,5 @@
 import { dataPrefix, testModeRequested, publicTestMode, guardTestRequest } from "../lib/environment.js";
-import { taskReceipt, hamburgReferenceTime, portraitPreparationReply, preparePortrait, getSofiaLife, lifeContext, prepareProactivePortrait, PROACTIVE_PHOTO_ANNOUNCEMENT } from '../lib/character-image.js';
+import { appearanceChoice, taskReceipt, hamburgReferenceTime, portraitPreparationReply, preparePortrait, getSofiaLife, lifeContext, prepareProactivePortrait, PROACTIVE_PHOTO_ANNOUNCEMENT } from '../lib/character-image.js';
 import crypto from "node:crypto";
 import { executeUnifiedAction, getActionState, getResearchState } from "./action-engine.js";
 
@@ -105,7 +105,9 @@ export default async function handler(req, res) {
   if (!message) return res.status(200).json({ context: "", calendarAction: null });
 
   try {
-    const imageRequest = await preparePortrait(message, req.body?.referenceImageId, new Date(), req.body?.mood);
+    const appearance=await appearanceChoice(message,new Date(),req.body?.mood);
+    if(appearance?.reply)return res.status(200).json({context:'AKTUELLES AUSSEHEN: Antworte ausschließlich und wörtlich auf Deutsch: '+appearance.reply,life:appearance.life,taskAction:{ok:true,action:'none'},calendarAction:null});
+    const imageRequest = appearance?.imageRequest || await preparePortrait(message, req.body?.referenceImageId, new Date(), req.body?.mood);
     if (imageRequest) {
       let taskAction={ok:true,action:'none'},calendarAction=null;
       if(imageRequest.taskMessage) {
@@ -240,3 +242,4 @@ export default async function handler(req, res) {
     });
   }
 }
+

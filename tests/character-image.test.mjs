@@ -27,7 +27,7 @@ globalThis.fetch=async(url,options)=>{
   if(op==='EVAL' && key.includes('sofia-gallery-append')) {const target=body[3],item=JSON.parse(body[4]);db.set(target,JSON.stringify([...JSON.parse(db.get(target)||'[]').filter(x=>x.id!==item.id),item]));return response({result:1});}
   if(op==='EVAL' && key.includes('sofia-portrait-jobs')) {const target=body[3],id=body[4];let jobs=JSON.parse(db.get(target)||'[]').filter(x=>x.id!==id);if(body[5])jobs.push(JSON.parse(body[5]));db.set(target,JSON.stringify(jobs.slice(-20)));return response({result:1});}
   if(op==='EVAL' && key.includes('sofia-life-cas')) {const target=body[3];if((db.get(target)||'')!==body[4])return response({result:0});db.set(target,body[5]);return response({result:1});}
-  if(op==='EVAL'){const lock=body[3],id=body[4]; if(lock === 'sofia:main:history') { const history=JSON.parse(db.get(lock)||'[]'); history.push({role:'user',content:body[4]},{role:'assistant',content:body[5],imageRequestId:body[6]});db.set(lock,JSON.stringify(history.slice(-40))); } else if(db.get(lock)===id)db.delete(lock);return response({result:1});}
+  if(op==='EVAL'){const lock=body[3],id=body[4]; if(lock === 'sofia:main:history') { const history=JSON.parse(db.get(lock)||'[]'); history.push({role:'user',content:body[4],createdAt:body[7]},{role:'assistant',content:body[5],...(body[6]?{imageRequestId:body[6]}:{}),createdAt:body[7]});db.set(lock,JSON.stringify(history.slice(-40))); } else if(db.get(lock)===id)db.delete(lock);return response({result:1});}
   throw Error('Unexpected Redis '+op);
  }
  if(String(url).endsWith('/chat/completions')) { plannerInputs.push(JSON.parse(body.messages[1].content)); return response({choices:[{message:{content:JSON.stringify(plan)}}]}); }
@@ -40,6 +40,24 @@ test('Berlin date and time periods include summer and winter offsets',()=>{
  assert.equal(api.portraitPeriod(new Date('2026-12-06T10:30:00Z')),'2026-12-06:day');
 });
 test('ordinary conversation skips every network and classifier call',async()=>{reset();assert.equal(await api.preparePortrait('Wie geht es dir?'),null);assert.equal(calls.length,0);});
+test('appearance question offers a photograph without starting generation; no gives description',async()=>{
+ reset();const now=new Date();const offer=await api.appearanceChoice('Wie siehst du aktuell aus?',now);assert.equal(offer.reply,'Möchtest du es sehen?');assert.equal(plannerInputs.length,0);assert.equal(imageCalls.length,0);
+ await api.appendPortraitAcknowledgment('Wie siehst du aktuell aus?',offer.reply);
+ const answer=await api.appearanceChoice('Nein danke',now);assert.match(answer.reply,/Ich trage/);assert.match(answer.reply,/Gerade bin ich/);assert.equal(answer.imageRequest,undefined);assert.equal(plannerInputs.length,0);
+});
+test('yes to appearance creates a real master-based request matching the offered bed scene',async()=>{
+ reset();const now=new Date(),life=api.defaultSofiaLife(now);life.location='zu Hause im Bett';life.activity='im Bett liegen';life.outfit='ein bequemes Schlafshirt';db.set(prefix+'life',JSON.stringify(life));
+ const offer=await api.appearanceChoice('Wie siehst du gerade aus?',now);await api.appendPortraitAcknowledgment('Wie siehst du gerade aus?',offer.reply);
+ const answer=await api.appearanceChoice('Ja bitte',now);assert.ok(answer.imageRequest?.id);const job=JSON.parse(db.get(prefix+'request:'+answer.imageRequest.id));assert.equal(job.outfit,offer.life.outfit);assert.match(job.scene,/liegend.*Bett/);assert.match(job.scene,/kein stehendes Ganzkörperfoto/);assert.equal(job.sourceId,null);
+ assert.equal(await api.appearanceChoice('ja',now),null);assert.equal(plannerInputs.length,1);
+});
+test('appearance consent expires and unrelated yes never starts an old photo offer',async()=>{
+ reset();const now=new Date();const offer=await api.appearanceChoice('Was trägst du gerade?',now);await api.appendPortraitAcknowledgment('Was trägst du gerade?',offer.reply);
+ assert.equal(await api.appearanceChoice('ja',new Date(+now+600001)),null);
+ await api.appendPortraitAcknowledgment('Erzähl mir einen Witz','Ein Witz.');assert.equal(await api.appearanceChoice('ja',now),null);
+ for(const text of ['Was hast du heute gemacht?','Wie würdest du morgen aussehen?','Schick mir ein Selfie','Wie siehst du meine Lage?'])assert.equal(api.currentAppearanceRequest(text),false,text);
+ assert.equal(plannerInputs.length,0);
+});
 test('seeing the just described appearance creates a real job even when planner says none',async()=>{
  reset();const now=new Date();plan.action='none';
  const life=api.defaultSofiaLife(now);life.dialogue={at:now.toISOString(),lastUser:'Wie siehst du aktuell aus?',lastAssistant:'Im gemütlichen Oberteil auf dem Sofa.'};db.set(prefix+'life',JSON.stringify(life));
@@ -147,7 +165,7 @@ test('image delivery is private JPEG with download attachment and validated IDs'
 });
 test('UI integration loads shared renderer before app and does not alter avatar assets',async()=>{
  const root=new URL('../',import.meta.url);const index=await readFile(new URL('index.html',root),'utf8');
- assert.ok(index.indexOf('sofia-images.js?v=4337test3')<index.indexOf('app.js?v=4337test3'));
+ assert.ok(index.indexOf('sofia-images.js?v=4343v1')<index.indexOf('app.js?v=4343v1'));
  const chat=await readFile(new URL('api/chat.js',root),'utf8');
  assert.ok(chat.indexOf('!safeEqual(')<chat.indexOf('await servePortrait'));
  const ui=await readFile(new URL('sofia-images.js',root),'utf8');assert.match(ui,/dialog.showModal/);assert.match(ui,/link.download=/);assert.doesNotMatch(ui,/spinner|generating-status/);

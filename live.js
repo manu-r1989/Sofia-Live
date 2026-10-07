@@ -792,6 +792,7 @@
       history.push({
         role:
           "user",
+        createdAt: new Date().toISOString(),
 
         content:
           userText
@@ -803,6 +804,7 @@
         history.push({
           role:
             "assistant",
+          createdAt: new Date().toISOString(),
 
           content:
             assistantText,
@@ -1910,3 +1912,4 @@
   );
 
 })();
+

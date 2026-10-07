@@ -855,3 +855,14 @@
   body:has(#sofia-test-banner) .chatPanel.chat-full,
   body:has(#sofia-test-banner) .moodPanel { top:110px!important; }
 }
+/* Sofia 4.34.2: persistent, unobtrusive Hamburg message times. */
+.message-time {
+  display: block;
+  margin-top: 5px;
+  font-size: 10px;
+  line-height: 1.2;
+  font-weight: 400;
+  opacity: .55;
+  text-align: right;
+  white-space: nowrap;
+}
