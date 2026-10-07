@@ -135,3 +135,13 @@ test('opening an older photo during generation keeps that selected reference',as
  complete({ok:true,json:async()=>({image:image(id)})});await job;
  assert.equal(h.api.referenceId,id2);
 });
+
+
+test('archived thumbnail is replaced in place and its link opens the exact gallery photo',()=>{
+ const h=harness(async()=>({ok:false}));const ack=h.message('Gib mir einen kleinen Moment.','sofia',id);h.api.restore([image(id)]);const later=h.message('Weiter','user');
+ h.api.restore([{...image(id),archived:true,createdAt:new Date().toISOString()}]);const marker=h.document.getElementById('portrait-'+id);assert.equal(marker.textContent,'Bild in der Galerie');assert.equal(marker.tag,'button');
+ assert.deepEqual(h.messages.children,[ack,h.document.getElementById('portrait-slot-'+id),later]);marker.onclick();assert.ok(h.document.getElementById('sofia-gallery'));assert.equal(h.api.referenceId,id);
+});
+test('expired photograph has no thumbnail and is excluded from gallery references',()=>{
+ const h=harness();h.api.restore([{...image(id),status:'expired',createdAt:'2026-01-01T00:00Z'}]);assert.equal(h.document.getElementById('portrait-'+id).textContent,'Bild nicht mehr verfügbar');assert.equal(h.api.referenceId,null);h.api.openGallery();assert.match(h.document.getElementById('sofia-gallery').textContent,/Noch keine Fotos/);
+});
