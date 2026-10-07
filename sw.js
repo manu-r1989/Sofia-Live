@@ -2,7 +2,7 @@
    SOFIA V4.33.1 Test — SERVICE WORKER
    ========================================================= */
 
-const CACHE = "sofia-live-v4331test4";
+const CACHE = "sofia-live-v4331test5";
 
 
 const ASSETS = [
@@ -11,7 +11,7 @@ const ASSETS = [
 
   "./index.html",
 
-  "./style.css?v=4331test4",
+  "./style.css?v=4331test5",
 
   "./action-feedback.js?v=4331test3",
   "./sofia-images.js?v=4331test3",
