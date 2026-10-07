@@ -621,7 +621,6 @@ async function askSofia(userMessage, imageDataUrl = null) {
 
     if (!response.ok) {
       throw new Error(
-        data.error ||
         'Sofia konnte nicht antworten.'
       );
     }
@@ -693,10 +692,13 @@ async function askSofia(userMessage, imageDataUrl = null) {
       error
     );
 
-    if (!actionResultReceived) window.SofiaActionFeedback?.show({ ok: false, status: 'execution_failed' });
+    const actionPossible = /aufgabe|erinner|termin|kalender|erledig|lösch|verschieb|priorität|(?:ändere|änder|mach das|nochmal)/i.test(userMessage);
+    if (!actionResultReceived && actionPossible) window.SofiaActionFeedback?.show({ ok: false, status: 'execution_failed' });
 
     const errorMessage =
-      'Okay… meine Verbindung ist gerade weg. Versuch es noch einmal. 🙄';
+      !actionResultReceived && actionPossible
+        ? 'Die Verbindung ist gerade unterbrochen. Bitte prüfe zuerst den Aufgabenstand, bevor du die Aktion wiederholst.'
+        : 'Meine Verbindung ist gerade unterbrochen. Sobald sie wieder da ist, können wir weiterreden.';
 
     addMessage(
       errorMessage,
@@ -1995,3 +1997,5 @@ syncConversationFromServer().then(ok => {
 console.log(
   `Sofia V3.9 gestartet. Lokaler Chat: ${conversationHistory.length} Nachrichten.`
 );
+
+

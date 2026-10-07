@@ -1,8 +1,8 @@
 /* =========================================================
-   SOFIA V4.27.10 — SERVICE WORKER
+   SOFIA V4.29.7 — SERVICE WORKER
    ========================================================= */
 
-const CACHE = "sofia-live-v42710";
+const CACHE = "sofia-live-v4297";
 
 
 const ASSETS = [
@@ -11,13 +11,13 @@ const ASSETS = [
 
   "./index.html",
 
-  "./style.css?v=42710",
+  "./style.css?v=4297",
 
-  "./action-feedback.js?v=42710",
-  "./sofia-images.js?v=42710",
-  "./app.js?v=42710",
+  "./action-feedback.js?v=4297",
+  "./sofia-images.js?v=4297",
+  "./app.js?v=4297",
 
-  "./live.js?v=42710",
+  "./live.js?v=4297",
 
   "./sofia-avatar.js?v=4192c1",
 
@@ -290,3 +290,4 @@ self.addEventListener(
 
   }
 );
+

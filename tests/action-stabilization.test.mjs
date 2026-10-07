@@ -183,6 +183,7 @@ test('uncertain task write is not confirmed or replayed', async () => {
   reset([fixture('a')], 'a'); writeUncertain = true; parsed = { action: 'complete', id: 'a' };
   const first = await run('Die ist erledigt');
   assert.equal(first.taskAction.ok, false); assert.equal(first.taskAction.status, 'execution_failed');
+  assert.equal(first.taskAction.code, 'task_write_unconfirmed');
   assert.deepEqual(await run('Die ist erledigt'), first); assert.equal(writes, 1);
 });
 
@@ -485,3 +486,12 @@ test('wrong classifier timestamp format has a fixed diagnostic and never writes'
  reset();parsed={action:'create',task:{title:'TEST offset',dueAt:'2026-10-08T10:00:00+02:00',remindAt:'2026-10-08T10:00:00+02:00'}};
  const r=await run('Erinnere mich morgen um 10 Uhr an TEST offset');assert.equal(r.taskAction.code,'task_invalid_fields');assert.equal(writes,0);
 });
+
+
+ test('corrupt task store fails closed rather than overwriting existing tasks',async()=>{
+ reset();db.set(TASKS,'{broken');parsed={action:'create',title:'TEST'};
+ const result=await run('Erstelle Aufgabe TEST');
+ assert.equal(result.taskAction.code,'task_store_unavailable');assert.equal(writes,0);
+ assert.equal(db.get(TASKS),'{broken');
+ });
+
