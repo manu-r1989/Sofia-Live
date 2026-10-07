@@ -344,3 +344,54 @@ test('correction cannot overwrite unrelated character preferences or plans',()=>
  const next=api.mergeCharacterDetails(base,{preferences:[{topic:'kaffee',value:'Espresso',evidence:'Ich mag Espresso.',reason:'Lieber kräftig'},{topic:'musik',value:'Rock',evidence:'Ich mag Rock.',reason:'Neue Musik'}]},'Nein, ich meinte deinen Kaffee.','Ich mag Espresso. Ich mag Rock.',now);
  assert.equal(next.preferences.find(x=>x.topic==='kaffee').value,'Espresso');assert.equal(next.preferences.find(x=>x.topic==='musik').value,'Jazz');
 });
+
+
+test('short follow-ups preserve topic and answered short replies close the pending question',()=>{
+ const now=new Date('2026-10-07T12:00:00Z');
+ let life=api.updateDialogue({threads:[]},'Dein Studium','Ich lerne heute. Und mit wem bist du unterwegs?',now);
+ const follow=api.updateDialogue(life,'Warum?','Weil morgen eine Prüfung ist.',new Date(now.getTime()+1000));
+ assert.equal(follow.dialogue.topic,life.dialogue.topic);
+ assert.equal(follow.dialogue.pendingQuestion,life.dialogue.pendingQuestion);
+ life=api.updateDialogue(life,'Mit Freunden.','Das klingt schön.',new Date(now.getTime()+2000));
+ assert.equal(life.dialogue.pendingQuestion,null);
+ assert.equal(life.dialogue.questions.at(-1).status,'answered');
+});
+test('topic changes and pauses do not resurrect pending questions',()=>{
+ const now=new Date('2026-10-07T12:00:00Z');
+ const life=api.updateDialogue({threads:[]},'Dein Studium','Was studierst du?',now);
+ assert.equal(api.conversationContinuity(life,'Andere Frage: Was kochst du?',now).topic,null);
+ const later=api.conversationContinuity(life,'Hallo',new Date(now.getTime()+3*3600000));
+ assert.equal(later.paused,true);assert.equal(later.pendingQuestion,null);
+ assert.equal(api.conversationContinuity(life,'Warum?',new Date(now.getTime()+25*3600000)).fresh,false);
+});
+test('corrections are bounded temporary context and future timestamps are ignored',()=>{
+ const now=new Date('2026-10-07T12:00:00Z');
+ let life=api.updateDialogue({threads:[]},'Mein Buch','Interessant.',now);
+ life=api.updateDialogue(life,'Nein, ich meinte den Film.','Den Film also.',new Date(now.getTime()+1000));
+ assert.equal(life.dialogue.corrections.length,1);
+ life.dialogue.corrections.push({message:'future',at:'2030-01-01T00:00:00Z'});
+ assert.equal(api.conversationContinuity(life,'Und du?',new Date(now.getTime()+2000)).corrections.length,1);
+ assert.equal(life.preferences,undefined);
+});
+test('observed activity keeps its start and day changes discard transitions',()=>{
+ const now=new Date('2026-10-07T12:00:00Z');
+ const old={key:'2026-10-07:cafe',location:'Café',activity:'Kaffee trinken',updatedAt:now.toISOString()};
+ const same=api.activityContinuity(old,{...old},new Date(now.getTime()+60000));
+ assert.equal(same.activityState.since,old.updatedAt);
+ const next=api.activityContinuity(same,{...same,location:'zu Hause',activity:'lesen'},new Date(now.getTime()+120000));
+ assert.equal(next.transition.from,'Café');assert.equal(next.transition.to,'zu Hause');
+ const day=api.activityContinuity(next,{...next,key:'2026-10-08:sleep',location:'im Bett'},new Date('2026-10-08T00:00:00Z'));
+ assert.equal(day.transition,null);
+});
+test('framing varies for new photos while variants preserve their source',()=>{
+ const first=api.snapshotStyle(null),second=api.snapshotStyle({snapshotStyle:first});
+ assert.notEqual(first,second);
+ assert.equal(api.snapshotStyle({snapshotStyle:first},true),first);
+ assert.equal(api.snapshotStyle({},true),null);
+});
+test('expired mood evidence cannot cause an immediate mood jump',()=>{
+ const now=new Date('2026-10-07T12:00:00Z');
+ const life={mood:'neutral',moodMode:'auto',moodChangedAt:'2026-10-07T10:00:00Z',moodCandidate:{value:'amüsiert',count:3,at:'2026-10-07T10:00:00Z'}};
+ const next=api.proposeCharacterMood(life,'amüsiert',now);
+ assert.equal(next.mood,'neutral');assert.equal(next.moodCandidate.count,1);
+});

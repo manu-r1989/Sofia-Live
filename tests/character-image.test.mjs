@@ -116,7 +116,7 @@ test('image delivery is private JPEG with download attachment and validated IDs'
 });
 test('UI integration loads shared renderer before app and does not alter avatar assets',async()=>{
  const root=new URL('../',import.meta.url);const index=await readFile(new URL('index.html',root),'utf8');
- assert.ok(index.indexOf('sofia-images.js?v=4280test')<index.indexOf('app.js?v=4280test'));
+ assert.ok(index.indexOf('sofia-images.js?v=4297test')<index.indexOf('app.js?v=4297test'));
  const chat=await readFile(new URL('api/chat.js',root),'utf8');
  assert.ok(chat.indexOf('!safeEqual(')<chat.indexOf('await servePortrait'));
  const ui=await readFile(new URL('sofia-images.js',root),'utf8');assert.match(ui,/dialog.showModal/);assert.match(ui,/link.download=/);assert.doesNotMatch(ui,/spinner|generating-status/);
@@ -261,3 +261,4 @@ test('confirmed last photo is shared continuity and variants ignore descriptive 
  const life=await api.getSofiaLife();assert.equal(life.lastPhoto.id,r.id);assert.match(api.lifeContext(life,'Und danach?'),/LETZTES ERFOLGREICHES FOTO/);
  assert.equal(api.photoVariantRequest('Nur das Licht ist schön'),false);
 });
+

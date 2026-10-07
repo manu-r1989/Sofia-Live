@@ -20,18 +20,17 @@ async function redis(command) {
 }
 
 async function loadTasks() {
-  const raw = await redis(["GET", TASKS_KEY]);
-  if (!raw) return [];
   try {
-    const value = JSON.parse(raw);
-    return Array.isArray(value) ? value : [];
-  } catch {
-    return [];
-  }
+    const raw=await redis(["GET",TASKS_KEY]);
+    if(!raw)return [];
+    const value=JSON.parse(raw);
+    if(!Array.isArray(value))throw new Error("Invalid task store");
+    return value;
+  } catch { const error=new Error("Task store unavailable");error.code="task_store_unavailable";throw error; }
 }
-
 async function saveTasks(tasks) {
-  await redis(["SET", TASKS_KEY, JSON.stringify(tasks.slice(-250))]);
+  try { await redis(["SET",TASKS_KEY,JSON.stringify(tasks.slice(-250))]); }
+  catch { const error=new Error("Task write outcome unconfirmed");error.code="task_write_unconfirmed";throw error; }
 }
 
 
@@ -213,3 +212,4 @@ export async function executeTaskAction(message, referenceTime, options = {}) {
   await saveTasks(tasks);
   return { ok: true, action, task: tasks[index] };
 }
+
