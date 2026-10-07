@@ -505,3 +505,11 @@ test('provider response failure after a successful task preserves the confirmed 
  assert.equal(result.code,'chat_provider_failed');assert.equal(result.taskAction.ok,true);assert.equal(writes,1);
  assert.doesNotMatch(JSON.stringify(result),/private provider detail/);
 });
+
+test('text endpoint clarifies multiple topics without asking its answer model to guess',async()=>{
+ reset();const portrait=await import(portraitUrl);const now=new Date();
+ const life={...portrait.defaultSofiaLife(now),dialogue:{topic:'Mein Projekt und mein Auto',topics:['Mein Projekt stockt','Mein Auto macht Probleme'],lastUser:'Mein Projekt stockt und mein Auto macht Probleme',lastAssistant:'Wir haben zwei Themen.',at:now.toISOString()}};
+ db.set('sofia:main:portrait:life',JSON.stringify(life));
+ modelHook=()=>{throw new Error('Answer model must not run for local clarification');};
+ const result=await endpoint('chat','Warum?');assert.match(result.reply,/Projekt.*oder.*Auto/);assert.equal(result.taskAction.action,'none');assert.equal(writes,0);
+});

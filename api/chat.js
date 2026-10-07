@@ -1,5 +1,5 @@
 import { dataPrefix, testModeRequested, publicTestMode, guardTestRequest } from "../lib/environment.js";
-import { guardPermanentMemory, compactConversationHistory, safeDiagnostic, taskReceipt, hamburgReferenceTime, portraitPreparationReply, preparePortrait, generatePortrait, servePortrait, portraitGallery, appendPortraitAcknowledgment, PORTRAIT_FAILURE_REPLY, getSofiaLife, learnSofiaLife, lifeContext, prepareProactivePortrait, PROACTIVE_PHOTO_ANNOUNCEMENT } from '../lib/character-image.js';
+import { conversationClarification, guardPermanentMemory, compactConversationHistory, safeDiagnostic, taskReceipt, hamburgReferenceTime, portraitPreparationReply, preparePortrait, generatePortrait, servePortrait, portraitGallery, appendPortraitAcknowledgment, PORTRAIT_FAILURE_REPLY, getSofiaLife, learnSofiaLife, lifeContext, prepareProactivePortrait, PROACTIVE_PHOTO_ANNOUNCEMENT } from '../lib/character-image.js';
 import crypto from "node:crypto";
 import { executeUnifiedAction, getActionState, getResearchState } from "./action-engine.js";
 
@@ -1613,8 +1613,9 @@ Kein Markdown außerhalb des JSON-Objekts.
     ].filter(Boolean);
 
 
+    const clarification=taskAction?.ok && taskAction.action==="none"?conversationClarification(sofiaLife,message):null;
     failureStage="chat_provider_failed";
-    const response =
+    const response = clarification ? {ok:true,json:async()=>({output:[{content:[{type:"output_text",text:JSON.stringify({reply:clarification,mood:sofiaLife.mood,memory_action:{action:"none"},calendar_action:null})}]}]})} :
       await fetch(
         "https://api.openai.com/v1/responses",
         {

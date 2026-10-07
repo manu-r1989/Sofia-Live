@@ -99,3 +99,11 @@ test('requested hairstyle and time dimensions are explicit without broad outfit 
  assert.deepEqual(api.variantDimensions('Dasselbe Bild mit Pferdeschwanz'),['hairstyle']);
  assert.deepEqual(api.variantDimensions('Nur die Tageszeit ändern'),['time']);
 });
+
+test('generic ambiguous follow-up receives a concrete clarification while a named topic does not',()=>{
+ const life=fresh('Mein Studienprojekt stockt und mein Auto macht Probleme');
+ assert.match(api.conversationClarification(life,'Warum?',now),/Studienprojekt.*oder.*Auto/);
+ assert.equal(api.conversationClarification(life,'Zum zweiten Punkt',now),null);
+ assert.equal(api.conversationClarification(life,'Erledige Aufgabe TEST',now),null);
+ assert.match(api.initiativeContext(life,'Warum?',now),/BEZUGSKLÄRUNG DIESES TURNS/);
+});
