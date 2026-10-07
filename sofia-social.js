@@ -23,25 +23,30 @@
   for(const [value,text]of [['off','Aus'],['quiet','Zurückhaltend · 1–3 pro Tag'],['natural','Natürlich · 3–7 pro Tag'],['active','Aktiv · 5–9 pro Tag']]){const o=document.createElement('option');o.value=value;o.textContent=text;select.append(o);}
   const photoLabel=document.createElement('label');const photos=document.createElement('input');photos.type='checkbox';photos.setAttribute('aria-label','Eigenständige Fotos erlauben');photoLabel.append(photos,document.createTextNode(' Eigenständige Fotos erlauben'));
   const note=document.createElement('p');note.style.fontSize='13px';note.textContent='Mindestens zwei Stunden Abstand. Ruhezeit 23–8 Uhr (Hamburg). Fotos zählen mit; das Tagesbudget muss nicht ausgeschöpft werden.';
-  const status=document.createElement('p');status.setAttribute('role','status');const save=document.createElement('button');save.textContent='Speichern';save.type='button';
+  const status=document.createElement('p');status.id='sofia-push-status';status.setAttribute('role','status');status.setAttribute('aria-live','polite');status.setAttribute('aria-atomic','true');status.style.cssText='display:block;min-height:44px;padding:12px;background:#252535;color:#fff;border-radius:10px;font-size:14px;line-height:1.4';status.textContent='Mitteilungsstatus wird geprüft …';const save=document.createElement('button');save.textContent='Speichern';save.type='button';
   const push=document.createElement('button');push.textContent='Mitteilungen auf diesem Gerät aktivieren';push.type='button';push.style.cssText='display:block;margin:16px 0';
   const disable=document.createElement('button');disable.textContent='Mitteilungen auf diesem Gerät deaktivieren';disable.type='button';disable.style.cssText='display:block;margin:12px 0';
   const close=document.createElement('button');close.textContent='Schließen';close.type='button';close.onclick=()=>dialog.close();
-  dialog.append(title,label,select,photoLabel,note,save,push,disable,status,close);document.body.append(dialog);dialog.addEventListener('close',()=>dialog.remove(),{once:true});dialog.showModal();close.focus();
-  let registration=null;
+  dialog.append(title,label,select,photoLabel,note,status,save,push,disable,close);document.body.append(dialog);dialog.addEventListener('close',()=>dialog.remove(),{once:true});dialog.showModal();close.focus();
+  let registration=null;push.disabled=true;disable.disabled=true;
+  const within=(promise)=>{let timer;return Promise.race([promise,new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('Die Einrichtung dauert zu lange. Bitte schließe dieses Fenster und versuche es erneut.')),20000);})]).finally(()=>clearTimeout(timer));};
   try{state=await request();select.value=state.preferences.level;photos.checked=state.preferences.photos;
-   if('serviceWorker' in navigator)registration=await navigator.serviceWorker.ready;
-   if(!state.backgroundConfigured)status.textContent='Hintergrundversand ist noch nicht eingerichtet. Bei geöffneter App kann Sofia sich bereits melden.';
+   if('serviceWorker' in navigator)registration=await within(navigator.serviceWorker.ready);
+   const sub=registration?.pushManager?await within(registration.pushManager.getSubscription()):null;
+   status.textContent=typeof Notification!=='undefined'&&Notification.permission==='denied'?'Mitteilungen sind im Browser blockiert. Bitte erlaube sie in den Website-Einstellungen.':sub&&Notification.permission==='granted'?'Mitteilungen auf diesem Gerät eingerichtet.':'Mitteilungen auf diesem Gerät noch nicht aktiviert.';
+   if(!state.backgroundConfigured)status.textContent+=' Hintergrundversand ist noch nicht eingerichtet. Bei geöffneter App kann Sofia sich bereits melden.';
   }catch(e){status.textContent=e.message;save.disabled=true;push.disabled=true;}
+  push.disabled=!registration?.pushManager;disable.disabled=!registration?.pushManager;
   if(!registration?.pushManager||typeof Notification==='undefined'){push.disabled=true;disable.disabled=true;status.textContent+=' Mitteilungen werden in diesem Browser nicht unterstützt. Auf dem iPhone Sofia vom Home-Bildschirm öffnen.';}
   save.onclick=async()=>{save.disabled=true;try{state=await request('preferences',{preferences:{level:select.value,photos:photos.checked}});status.textContent='Gespeichert.';renderBadge();}catch(e){status.textContent=e.message;}finally{save.disabled=false;}};
   push.onclick=async()=>{
-   push.disabled=true;try{
+   push.disabled=true;push.textContent='Aktivierung läuft …';status.textContent='Bitte bestätige die Mitteilungsfreigabe deines Browsers.';try{
     // Browser permission is requested only in this explicit user click.
-    const permission=await Notification.requestPermission();if(permission!=='granted')throw Error('Mitteilungen wurden nicht erlaubt.');
-    let sub=await registration.pushManager.getSubscription();if(!sub){const raw=atob(state.publicKey.replace(/-/g,'+').replace(/_/g,'/'));sub=await registration.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:Uint8Array.from(raw,c=>c.charCodeAt(0))});}
-    await request('subscribe',{subscription:sub.toJSON()});status.textContent='Mitteilungen auf diesem Gerät aktiviert.';
-   }catch(e){status.textContent=e.message;}finally{push.disabled=false;}
+    const permission=await Notification.requestPermission();if(permission!=='granted')throw Error(permission==='denied'?'Mitteilungen wurden blockiert. Bitte erlaube sie in den Website-Einstellungen.':'Aktivierung abgebrochen. Mitteilungen sind nicht aktiviert.');
+    status.textContent='Freigabe erteilt. Mitteilungen werden eingerichtet …';
+    let sub=await within(registration.pushManager.getSubscription());if(!sub){const raw=atob(state.publicKey.replace(/-/g,'+').replace(/_/g,'/'));sub=await within(registration.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:Uint8Array.from(raw,c=>c.charCodeAt(0))}));}
+    await within(request('subscribe',{subscription:sub.toJSON()}));status.textContent='✓ Mitteilungen auf diesem Gerät aktiviert.'+(state.backgroundConfigured?'':' Der Hintergrundversand muss noch eingerichtet werden.');
+   }catch(e){status.textContent=e.message;}finally{push.disabled=false;push.textContent='Mitteilungen auf diesem Gerät aktivieren';}
   };
   disable.onclick=async()=>{disable.disabled=true;try{const sub=await registration.pushManager.getSubscription();if(sub){await request('unsubscribe',{subscription:sub.toJSON()});await sub.unsubscribe();}status.textContent='Mitteilungen auf diesem Gerät deaktiviert.';}catch(e){status.textContent=e.message;}finally{disable.disabled=false;}};
  }
