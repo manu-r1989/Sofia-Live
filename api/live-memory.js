@@ -1,5 +1,5 @@
 import { dataPrefix, testModeRequested, publicTestMode, guardTestRequest } from "../lib/environment.js";
-import { learnSofiaLife, getSofiaLife } from '../lib/character-image.js';
+import { guardPermanentMemory, permanentMemoryCandidate, safeDiagnostic, learnSofiaLife, getSofiaLife } from '../lib/character-image.js';
 import crypto from "node:crypto";
 
 const HISTORY_KEY = dataPrefix() + 'history';
@@ -551,7 +551,7 @@ ${cleanUser}
 `.trim();
 
 
-    const openAIResponse =
+    const openAIResponse = permanentMemoryCandidate(cleanUser) ?
       await fetch(
         "https://api.openai.com/v1/responses",
         {
@@ -565,6 +565,7 @@ ${cleanUser}
               "application/json"
           },
 
+          signal:AbortSignal.timeout(15000),
           body: JSON.stringify({
             model:
               "gpt-5.6",
@@ -574,24 +575,18 @@ ${cleanUser}
             input,
 
             max_output_tokens:
-              300
+              500
           })
         }
-      );
+      ).catch(()=>({ok:false,status:503,json:async()=>({})})) : {ok:true,json:async()=>({output_text:"{\"action\":\"none\"}"})};
 
     const openAIData =
-      await openAIResponse.json();
+      await openAIResponse.json().catch(()=>({output_text:"{invalid"}));
 
-    if (!openAIResponse.ok) {
-      console.error(
-        "Live Memory OpenAI:",
-        openAIData
-      );
-
-      throw new Error(
-        openAIData?.error?.message ||
-        "Memory-Auswertung fehlgeschlagen."
-      );
+    let memoryWarning=!openAIResponse.ok?"memory_provider_failed":null;
+    if(memoryWarning) {
+      console.warn("Sofia memory",{code:memoryWarning,status:openAIResponse.status});
+      openAIData.output_text='{"action":"none"}';
     }
 
 
@@ -697,9 +692,10 @@ ${cleanUser}
       }
 
     } catch (error) {
+      memoryWarning="memory_response_invalid";
       console.warn(
-        "Live Memory JSON ungültig:",
-        outputText
+        "Live Memory JSON ungültig",
+        {code:"memory_response_invalid"}
       );
     }
 
@@ -731,6 +727,7 @@ ${cleanUser}
        LONG TERM MEMORY
     ======================================== */
 
+    memoryAction=guardPermanentMemory(cleanUser,memoryAction,memories);
     memories =
       applyMemoryAction(
         memories,
@@ -766,6 +763,7 @@ ${cleanUser}
       life,
 
       memoryAction,
+      ...(memoryWarning?{memoryWarning}:{}),
 
       historyMessages:
         history.length,
@@ -775,10 +773,7 @@ ${cleanUser}
     });
 
   } catch (error) {
-    console.error(
-      "Sofia V4.1 Live Memory:",
-      error
-    );
+    console.warn("Sofia memory",safeDiagnostic(error,"memory_store_unconfirmed"));
 
     return res.status(500).json({
       error:
@@ -904,3 +899,4 @@ async function redisPipeline(
 
   return data;
 }
+

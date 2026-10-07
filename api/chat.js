@@ -1,5 +1,5 @@
 import { dataPrefix, testModeRequested, publicTestMode, guardTestRequest } from "../lib/environment.js";
-import { taskReceipt, hamburgReferenceTime, portraitPreparationReply, preparePortrait, generatePortrait, servePortrait, portraitGallery, appendPortraitAcknowledgment, PORTRAIT_FAILURE_REPLY, getSofiaLife, learnSofiaLife, lifeContext, prepareProactivePortrait, PROACTIVE_PHOTO_ANNOUNCEMENT } from '../lib/character-image.js';
+import { guardPermanentMemory, compactConversationHistory, safeDiagnostic, taskReceipt, hamburgReferenceTime, portraitPreparationReply, preparePortrait, generatePortrait, servePortrait, portraitGallery, appendPortraitAcknowledgment, PORTRAIT_FAILURE_REPLY, getSofiaLife, learnSofiaLife, lifeContext, prepareProactivePortrait, PROACTIVE_PHOTO_ANNOUNCEMENT } from '../lib/character-image.js';
 import crypto from "node:crypto";
 import { executeUnifiedAction, getActionState, getResearchState } from "./action-engine.js";
 
@@ -451,6 +451,8 @@ function applyMemoryAction(
 ======================================== */
 
 export default async function handler(req, res) {
+  let completedTaskAction=null;
+  let failureStage="chat_request_failed";
 
   res.setHeader(
     "Cache-Control",
@@ -751,6 +753,7 @@ export default async function handler(req, res) {
 Du bist Sofia.
 
 ${lifeContext(sofiaLife,message)}
+LANGZEITGEDÄCHTNIS: Vorläufige, hypothetische, zitierte und kurzfristige Aussagen bleiben nur Gesprächskontext. Eine dauerhafte Erinnerung muss ausdrücklich vom Nutzer belegte stabile Angaben enthalten; Korrekturen ersetzen genau die bezeichnete bestehende Angabe. Bei nicht speicherwürdiger Aussage keine dauerhafte Speicherung behaupten.
 
 
 ALLTAG UND FOTOS
@@ -1580,19 +1583,13 @@ Kein Markdown außerhalb des JSON-Objekts.
 
     // V4.12.6: keep recent turns verbatim; compress older history locally.
     // This reduces context noise without adding another model call.
-    const recentHistory = history.slice(-12);
-    const olderHistory = history.slice(0, -12);
-    const olderContext = olderHistory.length
-      ? olderHistory
-          .slice(-16)
-          .map(item => `${item.role === "user" ? "Nutzer" : "Sofia"}: ${String(item.content || "").trim().slice(0, 220)}`)
-          .join("\n")
-      : "";
+    const {recentHistory,olderContext}=compactConversationHistory(history,message);
 
     let taskAction = { ok: true, action: "none" };
     try {
       const unifiedAction = await executeUnifiedAction(message.trim(), hamburgNow, { mode: "text" });
       taskAction = unifiedAction.taskAction;
+      completedTaskAction=taskAction;
     } catch (taskError) {
       taskAction = { ok: false, action: "none", status: "execution_failed" };
       console.warn("Task action:", taskError?.message || taskError);
@@ -1616,6 +1613,7 @@ Kein Markdown außerhalb des JSON-Objekts.
     ].filter(Boolean);
 
 
+    failureStage="chat_provider_failed";
     const response =
       await fetch(
         "https://api.openai.com/v1/responses",
@@ -1630,6 +1628,7 @@ Kein Markdown außerhalb des JSON-Objekts.
               `Bearer ${process.env.OPENAI_API_KEY}`
           },
 
+          signal:AbortSignal.timeout(60000),
           body:
             JSON.stringify({
 
@@ -1664,20 +1663,8 @@ Kein Markdown außerhalb des JSON-Objekts.
 
     if (!response.ok) {
 
-      console.error(
-        "OpenAI error:",
-        data
-      );
-
-      return res
-        .status(response.status)
-        .json({
-
-          error:
-            data?.error?.message ||
-            "OpenAI API request failed."
-
-        });
+      console.warn("Sofia request",{code:"chat_provider_failed",status:response.status});
+      return res.status(response.status).json({error:"Sofia konnte gerade nicht antworten.",code:"chat_provider_failed",...(completedTaskAction?{taskAction:completedTaskAction}:{})});
 
     }
 
@@ -1707,8 +1694,8 @@ Kein Markdown außerhalb des JSON-Objekts.
     } catch {
 
       console.error(
-        "Ungültige Sofia JSON-Antwort:",
-        raw
+        "Ungültige Sofia JSON-Antwort",
+        {code:"chat_response_invalid"}
       );
 
       parsed = {
@@ -1905,6 +1892,9 @@ Kein Markdown außerhalb des JSON-Objekts.
     }
 
 
+    const proposedMemory=memoryAction;
+    memoryAction=guardPermanentMemory(message,memoryAction,memories);
+    if(proposedMemory.action!=="none" && memoryAction.action==="none" && /(?:habe|hab|ist|wurde).{0,45}(?:dauerhaft gespeichert|im langzeitgedächtnis|als erinnerung gespeichert)/i.test(reply))reply="Das behalte ich zunächst nur für dieses Gespräch im Blick.";
     sofiaLife = await learnSofiaLife(message, reply, new Date(), mood, sofiaLife.revision);
     let spontaneousImageRequest = null;
     if (taskAction?.ok && taskAction.action === "none" && !calendarAction && !image) {
@@ -1955,6 +1945,7 @@ Kein Markdown außerhalb des JSON-Objekts.
        REDIS SPEICHERN
     ======================================== */
 
+    failureStage="chat_store_unconfirmed";
     await redisPipeline([
 
       [
@@ -2015,16 +2006,15 @@ Kein Markdown außerhalb des JSON-Objekts.
 
   } catch (error) {
 
-    console.error(
-      "Sofia V3.8 server error:",
-      error
-    );
+    console.warn("Sofia request",safeDiagnostic(error,failureStage));
 
 
     return res.status(500).json({
 
       error:
-        "Interner Sofia-Fehler."
+        "Interner Sofia-Fehler.",
+      code:failureStage,
+      ...(completedTaskAction?{taskAction:completedTaskAction}:{})
 
     });
 
@@ -2189,3 +2179,4 @@ async function redisPipeline(
   return data;
 
 }
+

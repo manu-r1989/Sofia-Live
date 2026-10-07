@@ -1,6 +1,8 @@
 (() => {
   const active = new Map();
   const pending = new Set();
+  const completed = new Set();
+  let selectionVersion=0;
   const failureReply = 'Ich bin gerade nicht in der passenden Umgebung für ein Foto. Frag mich gern gleich noch einmal.';
   let referenceId = null;
   try { referenceId=localStorage.getItem('sofia-photo-reference'); } catch {}
@@ -75,7 +77,7 @@
     img.style.cssText = 'display:block;width:180px;height:auto;aspect-ratio:2/3;max-width:100%;border-radius:12px;object-fit:cover';
     button.append(img);
     button.onclick = () => {
-      rememberReference(image.id);
+      selectionVersion++;rememberReference(image.id);
       const dialog = document.createElement('dialog');
       dialog.style.cssText = 'max-width:92vw;max-height:92vh;border:0;border-radius:16px;padding:16px;background:#171722;color:white';
       const full = document.createElement('img'); full.src = url; full.alt = img.alt;
@@ -132,27 +134,39 @@
       events.forEach(show);
       events.filter(x=>x.status==='pending' && x.jobStatus==='ready').forEach(x=>window.SofiaImages.generate(x));
       const successful=events.filter(x=>x.status !== 'failed' && x.status !== 'pending' && valid(x.id));
-      if (!successful.some(x=>x.id===referenceId))referenceId=null;
+      if (!successful.some(x=>x.id===referenceId)){referenceId=null;try{localStorage.removeItem('sofia-photo-reference');}catch{}}
       if (!referenceId && successful.length) rememberReference(successful.at(-1).id);
     },
     generate(request) {
       if (!valid(request?.id)) return Promise.resolve();
       if (active.has(request.id)) return active.get(request.id);
+      if(completed.has(request.id))return Promise.resolve();
+      const selectionAtStart=selectionVersion;
       pending.add(request.id);
       slotFor(request.id); // Reserve the original turn without showing progress UI.
       const job = (async () => {
         try {
           const response = await fetch('/api/chat',{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json'},body:JSON.stringify({operation:'generate_image',requestId:request.id}),signal:typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function' ? AbortSignal.timeout(250000) : undefined});
           const data = await response.json();
-          if (!response.ok) throw new Error('portrait_failed');
-          show(data.image); rememberReference(data.image.id);
+          if (!response.ok || !valid(data.image?.id)) throw new Error('portrait_failed');
+          show(data.image); if(selectionVersion===selectionAtStart)rememberReference(data.image.id);
         } catch {
-          show({...request,anchorId:request.id,status:'failed'});
+          // A lost response may follow a successful write: reconcile by GET only.
+          let recovered=null;
+          try {
+            const state=await fetch('/api/chat',{method:'GET',credentials:'same-origin',cache:'no-store',signal:typeof AbortSignal!=='undefined'&&typeof AbortSignal.timeout==='function'?AbortSignal.timeout(15000):undefined});
+            if(state.ok){const data=await state.json();recovered=data.images?.find(x=>x.id===request.id&&x.status!=='failed'&&x.status!=='pending');}
+          }catch{}
+          if(recovered){show(recovered);if(selectionVersion===selectionAtStart)rememberReference(recovered.id);}
+          else show({...request,anchorId:request.id,status:'failed'});
         } finally {
           pending.delete(request.id);
+          completed.add(request.id);if(completed.size>100)completed.delete(completed.values().next().value);
+          active.delete(request.id);
         }
       })();
       active.set(request.id,job); return job;
     }
   };
 })();
+

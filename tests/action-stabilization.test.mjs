@@ -497,3 +497,11 @@ test('wrong classifier timestamp format has a fixed diagnostic and never writes'
  assert.equal(result.taskAction.code,'task_store_unavailable');assert.equal(writes,0);
  assert.equal(db.get(TASKS),'{broken');
  });
+
+
+test('provider response failure after a successful task preserves the confirmed action receipt',async()=>{
+ reset();parsed={action:'create',task:{title:'TEST preserved'}};modelHook=()=>{throw new Error('private provider detail');};
+ const result=await endpoint('chat','Erstelle Aufgabe TEST preserved',{expectedStatus:500});
+ assert.equal(result.code,'chat_provider_failed');assert.equal(result.taskAction.ok,true);assert.equal(writes,1);
+ assert.doesNotMatch(JSON.stringify(result),/private provider detail/);
+});

@@ -46,3 +46,17 @@ test('a rebuilt history keeps the same visible message at the same offset while 
  ctx.window.SofiaChatViewport.restore(snapshot);
  assert.equal(messages.scrollTop,680);assert.equal(frames.size,0);
 });
+
+
+test('offline reconciliation performs no requests and never automatically resends an uncertain turn',async()=>{
+ const sync=app.slice(app.indexOf('async function syncConversationFromServer'),app.indexOf('function startConversationSync'));
+ let calls=0;const ctx=vm.createContext({isResponding:false,historySyncInFlight:false,navigator:{onLine:false},fetch:()=>calls++});
+ vm.runInContext(sync,ctx);assert.equal(await ctx.syncConversationFromServer(),false);assert.equal(calls,0);
+});
+test('server history cannot erase an unconfirmed local user turn',async()=>{
+ const sync=app.slice(app.indexOf('async function syncConversationFromServer'),app.indexOf('function startConversationSync'));
+ let saves=0;const local=[{role:'user',content:'Erstelle Aufgabe TEST',delivery:'unconfirmed'}];
+ const ctx=vm.createContext({isResponding:false,historySyncInFlight:false,conversationHistory:local,messages:null,MAX_STORED_MESSAGES:100,
+ window:{},fetch:async()=>({ok:true,status:200,json:async()=>({history:[{role:'assistant',content:'old'}],images:[]})}),updateSofiaLocation(){},saveMemory:()=>saves++});
+ vm.runInContext(sync,ctx);assert.equal(await ctx.syncConversationFromServer({silent:true}),false);assert.equal(saves,0);assert.equal(ctx.conversationHistory[0].content,'Erstelle Aufgabe TEST');
+});

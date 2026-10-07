@@ -116,7 +116,7 @@ test('image delivery is private JPEG with download attachment and validated IDs'
 });
 test('UI integration loads shared renderer before app and does not alter avatar assets',async()=>{
  const root=new URL('../',import.meta.url);const index=await readFile(new URL('index.html',root),'utf8');
- assert.ok(index.indexOf('sofia-images.js?v=4297test')<index.indexOf('app.js?v=4297test'));
+ assert.ok(index.indexOf('sofia-images.js?v=4327test')<index.indexOf('app.js?v=4327test'));
  const chat=await readFile(new URL('api/chat.js',root),'utf8');
  assert.ok(chat.indexOf('!safeEqual(')<chat.indexOf('await servePortrait'));
  const ui=await readFile(new URL('sofia-images.js',root),'utf8');assert.match(ui,/dialog.showModal/);assert.match(ui,/link.download=/);assert.doesNotMatch(ui,/spinner|generating-status/);
@@ -262,3 +262,18 @@ test('confirmed last photo is shared continuity and variants ignore descriptive 
  assert.equal(api.photoVariantRequest('Nur das Licht ist schön'),false);
 });
 
+
+
+test('explicit outfit variant changes clothing while keeping source and other scene dimensions',async()=>{
+ reset();const old='11111111-1111-4111-8111-111111111111';
+ db.set(prefix+'image:'+old,JSON.stringify({id:old,outfit:'Green dress',base64:'/9j/AA==',scene:'Café',life:{location:'Café'},snapshotStyle:'relaxed eye-level phone framing'}));
+ plan.action='variant';plan.changeOutfit=false;plan.outfit='Blue sweater';
+ const r=await api.preparePortrait('Dasselbe Bild mit einem anderen Outfit',old);
+ const job=JSON.parse(db.get(prefix+'request:'+r.id));
+ assert.equal(job.outfit,'Blue sweater');assert.equal(job.sourceId,old);assert.deepEqual(job.dimensions,['outfit']);assert.equal(job.life.location,'Café');
+ assert.equal(job.snapshotStyle,'relaxed eye-level phone framing');
+});
+test('expired explicitly selected photo never silently falls back to the latest photograph',async()=>{
+ reset();const old='11111111-1111-4111-8111-111111111111';plan.action='variant';
+ await assert.rejects(()=>api.preparePortrait('Dasselbe in anderem Licht',old),/zuerst ein Bild/);assert.equal(imageCalls.length,0);
+});
