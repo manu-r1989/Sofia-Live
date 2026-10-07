@@ -43,7 +43,7 @@ test('ordinary conversation skips every network and classifier call',async()=>{r
 test('appearance question offers a photograph without starting generation; no gives description',async()=>{
  reset();const now=new Date();const offer=await api.appearanceChoice('Wie siehst du aktuell aus?',now);assert.equal(offer.reply,'Möchtest du es sehen?');assert.equal(plannerInputs.length,0);assert.equal(imageCalls.length,0);
  await api.appendPortraitAcknowledgment('Wie siehst du aktuell aus?',offer.reply);
- const answer=await api.appearanceChoice('Nein danke',now);assert.match(answer.reply,/Ich trage/);assert.match(answer.reply,/Gerade bin ich/);assert.equal(answer.imageRequest,undefined);assert.equal(plannerInputs.length,0);
+ const answer=await api.appearanceChoice('Nein danke',now);assert.match(answer.reply,/Ich trage/);assert.match(answer.reply,/Gerade bin ich/);assert.doesNotMatch(answer.reply,/Master|Referenz|Porträt/);assert.equal(answer.imageRequest,undefined);assert.equal(plannerInputs.length,0);
 });
 test('yes to appearance creates a real master-based request matching the offered bed scene',async()=>{
  reset();const now=new Date(),life=api.defaultSofiaLife(now);life.location='zu Hause im Bett';life.activity='im Bett liegen';life.outfit='ein bequemes Schlafshirt';db.set(prefix+'life',JSON.stringify(life));
