@@ -71,3 +71,7 @@ test('push always displays a generic notification, and notification click never 
  handlers.push({data:{json:()=>({unread:2,body:'private chat text',url:'https://evil.test'})},waitUntil:p=>work=p});await work;assert.deepEqual(badges,[2]);assert.equal(notifications.length,1);assert.doesNotMatch(JSON.stringify(notifications),/private chat text|evil/);
  handlers.notificationclick({notification:{close(){},data:{url:'https://evil.test'}},waitUntil:p=>work=p});await work;assert.deepEqual(opened,['/']);
 });
+
+test('legacy Redis empty tables do not break gallery or inbox reads',async()=>{
+ reset();for(const key of ['gallery','jobs','notices'])db.set(prefix+key,'{}');assert.deepEqual(await photo.portraitGallery(base),[]);db.set(prefix+'contact-inbox',JSON.stringify({sequence:0,read:0,items:{}}));assert.equal((await api.socialState()).contacts.length,0);
+});
