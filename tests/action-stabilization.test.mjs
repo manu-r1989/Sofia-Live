@@ -448,3 +448,13 @@ test.after(() => {
   globalThis.fetch = savedFetch;
   for (const key of envNames) if (savedEnv[key] === undefined) delete process.env[key]; else process.env[key] = savedEnv[key];
 });
+
+test('normal conversation and topic change bypass task Redis even when unavailable',async()=>{
+ reset([fixture('a')],'a');const normal=globalThis.fetch;let requests=0;
+ globalThis.fetch=async()=>{requests++;throw Error('task store unavailable');};
+ try {for(const message of ['Andere Frage: Was machst du gerade?','Ich lese gern Krimis.','Und danach?','Nein, ich meinte deinen Abend.','Hallo Sofia','Das klingt gut.','Die Frage habe ich beantwortet.','Am liebsten lese ich Krimis.'])assert.deepEqual(await run(message),{taskAction:{ok:true,action:'none'}});assert.equal(requests,0);}finally{globalThis.fetch=normal;}
+});
+test('actual task requests still fail closed when reservation store is unavailable',async()=>{
+ reset();const normal=globalThis.fetch;globalThis.fetch=async()=>{throw Error('task store unavailable');};
+ try{assert.equal((await run('Lege eine Aufgabe Bericht an')).taskAction.status,'execution_failed');}finally{globalThis.fetch=normal;}
+});

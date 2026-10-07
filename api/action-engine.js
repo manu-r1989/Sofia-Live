@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { executeTaskAction } from "./task-action.js";
+import { executeTaskAction, taskIntentCandidate } from "./task-action.js";
 
 const STATE_KEY = "sofia:main:action-state";
 const STATE_TTL = 60 * 60 * 24;
@@ -94,6 +94,9 @@ export async function withTaskMutationLock(callback) {
 export async function executeUnifiedAction(message, referenceTime, options = {}) {
   const text = String(message || "").trim();
   if (!text) return { taskAction: { ok: true, action: "none" } };
+  // Conversation must not acquire task locks or depend on the task store.
+  // A possible follow-up remains eligible; its actual target is read under lock.
+  if (!taskIntentCandidate(text,{recentTaskId:"possible-follow-up"})) return { taskAction:{ok:true,action:"none"} };
   const fingerprint = crypto.createHash("sha256")
     .update(text.toLocaleLowerCase("de-DE").replace(/\s+/g, " ")).digest("hex");
   const resultKey = `${IDEMPOTENCY_KEY}:v2:${fingerprint}`;

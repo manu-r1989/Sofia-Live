@@ -74,9 +74,9 @@ Antworte ausschließlich als JSON:
   return parsed;
 }
 
-export async function executeTaskAction(message, referenceTime, options = {}) {
-  const text = String(message || "").trim();
-  if (!text) return { ok: true, action: "none" };
+export function taskIntentCandidate(message, options = {}) {
+  const text=String(message || "").trim();
+  if(!text)return false;
   // Only gate the classifier; it still decides whether an action is intended.
   // Normalize umlauts so word boundaries also work for "überfällig".
   const intentText = text.toLocaleLowerCase("de-DE")
@@ -85,10 +85,19 @@ export async function executeTaskAction(message, referenceTime, options = {}) {
     || /\b(?:ich\s+(?:muss|soll|werde)|(?:muss|soll)\s+ich|steht\b.*\ban|steht\b.*\baus|ansteht|anstehen)\b/.test(intentText)
     || /\b(?:setz\w*|leg\w*|trag\w*|notier\w*)\b.*\b(?:liste|ein|an|drauf)\b/.test(intentText);
   const likelyFollowUp = Boolean(options.recentTaskId) && (
-    /^(?:(?:sofia|bitte)\b[\s,!:]*)*(?:mach\w*|verschieb\w*|loesch\w*|streich\w*|die|das|doch|lieber|erst|schon|erledigt|morgen|heute|uebermorgen|naechste\w*|am|um)\b/.test(intentText)
+    /^(?:(?:sofia|bitte)\b[\s,!:]*)*(?:mach\w*|verschieb\w*|loesch\w*|streich\w*|erledigt)\b/.test(intentText)
+    || /^(?:(?:sofia|bitte)\b[\s,!:]*)*(?:die|das|doch|lieber|erst|schon)\b.{0,50}\b(?:morgen|heute|uebermorgen|freitag|montag|dienstag|mittwoch|donnerstag|samstag|sonntag|um\s+\d|taeglich|woechentlich|monatlich)\b/.test(intentText)
+    || /^(?:(?:bitte|doch|lieber|erst)\s+)*(?:(?:morgen|heute|uebermorgen)(?:\s+um\s+\d{1,2}(?::\d{2})?)?|am\s+(?:montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag|\d{1,2}\.)|um\s+\d{1,2}(?::\d{2})?)[.!?\s]*$/.test(intentText)
     || /\b(?:kalender|termin|export\w*|priorit\w*|taeglich|woechentlich|monatlich)\b/.test(intentText)
   );
-  if (!likelyTaskIntent && !likelyFollowUp) return { ok: true, action: "none" };
+  if (!likelyTaskIntent && !likelyFollowUp) return false;
+  return true;
+}
+
+export async function executeTaskAction(message, referenceTime, options = {}) {
+  const text = String(message || "").trim();
+  if (!text) return { ok: true, action: "none" };
+  if (!taskIntentCandidate(text,options)) return { ok:true, action:"none" };
   const tasks = await loadTasks();
   const parsed = await interpret(text, tasks, referenceTime, options.recentTaskId || null);
   const action = String(parsed?.action || "none");
