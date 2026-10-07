@@ -21,13 +21,34 @@ function harness(fetchImpl,extras={}) {
   querySelectorAll(selector){return this.all().filter(n=>selector.startsWith('[data-portrait-request-id=')?n.dataset.portraitRequestId===selector.split('"')[1]:selector.split('.').filter(Boolean).every(c=>n.classList.contains(c)));}
   querySelector(s){return this.querySelectorAll(s)[0]||null;}
  }
- const body=new Node('body'),messages=new Node('div');messages.id='messages';body.append(messages);
+ const body=new Node('body'),messages=new Node('div'),mode=new Node('small');messages.id='messages';mode.id='mode';mode.textContent='bereit';body.append(messages,mode);
  const document={body,createElement:tag=>new Node(tag),getElementById:target=>[body,...body.all()].find(n=>n.id===target)||null};
  const window={};vm.runInNewContext(source,{document,window,fetch:fetchImpl,Map,Promise,...extras});
  const message=(text,who='sofia',anchorId)=>{const n=new Node('div');n.className='msg '+who;n.textContent=text;if(anchorId)n.dataset.portraitRequestId=anchorId;messages.append(n);if(anchorId)window.SofiaImages.anchor(anchorId,n);return n;};
  return {body,messages,document,api:window.SofiaImages,message};
 }
 const image=(id)=>({id,anchorId:id,caption:'Sofia',url:'/api/chat?image='+id});
+test('photo progress lives in status line while acknowledgment stays hidden',async()=>{
+ let resolve;const h=harness(()=>new Promise(r=>resolve=r)),ack=h.message('Gib mir einen kleinen Moment.','sofia',id);
+ assert.equal(ack.hidden,true);const job=h.api.generate({id});assert.equal(h.document.getElementById('mode').textContent,'nimmt ein Foto auf');assert.equal(h.api.isGenerating,true);
+ resolve({ok:true,json:async()=>({image:image(id)})});await job;
+ assert.equal(h.api.isGenerating,false);assert.equal(h.document.getElementById('mode').textContent,'bereit');assert.ok(h.document.getElementById('portrait-'+id));
+});
+test('confirmed daily test limit automatically shows an honest failure without a follow-up',async()=>{
+ const h=harness(async(_url,options)=>options.method==='POST'?{ok:false,json:async()=>({code:'test_image_limit',error:'hidden provider detail'})}:{ok:true,json:async()=>({images:[]})});
+ h.message('Gib mir einen kleinen Moment.','sofia',id);await h.api.generate({id});
+ assert.match(h.document.getElementById('portrait-'+id).textContent,/Foto-Limit der Testversion/);assert.equal(h.document.getElementById('mode').textContent,'bereit');
+});
+test('a repeated pending receipt retains its first turn and hides both wait messages',()=>{
+ const h=harness(),first=h.message('Gib mir einen kleinen Moment.','sofia',id),slot=h.document.getElementById('portrait-slot-'+id),middle=h.message('nochmal','user'),second=h.message('Gib mir einen kleinen Moment.','sofia',id);
+ assert.deepEqual(h.messages.children,[first,slot,middle,second]);assert.equal(first.hidden,true);assert.equal(second.hidden,true);
+});
+test('uncertain response with confirmed processing job keeps photo status and polls reads only',async()=>{
+ let tick,calls=[];const h=harness(async(_url,options)=>{calls.push(options.method);return options.method==='POST'?{ok:false,json:async()=>({})}:{ok:true,json:async()=>({images:[{id,status:'pending',jobStatus:'processing'}]})};},{setInterval:fn=>{tick=fn;}});
+ h.message('Gib mir einen kleinen Moment.','sofia',id);await h.api.generate({id});assert.equal(h.document.getElementById('portrait-'+id),null);assert.equal(h.api.isGenerating,true);
+ await tick();assert.deepEqual(calls,['POST','GET','GET']);assert.equal(h.document.getElementById('mode').textContent,'nimmt ein Foto auf');
+ h.api.restore([{...image(id),status:'failed'}]);assert.equal(h.api.isGenerating,false);assert.equal(h.document.getElementById('mode').textContent,'bereit');
+});
 test('slow image completion stays at requested turn ahead of newer messages',async()=>{
  let resolve;const h=harness(()=>new Promise(r=>resolve=r));
  const ack=h.message('Gib mir einen kleinen Moment.','sofia',id);
@@ -85,9 +106,9 @@ test('successful photo hides only its moment acknowledgment, including after rel
  const h=harness();const ack=h.message('Gib mir einen kleinen Moment.','sofia',id);const content=h.message('Eine richtige Antwort.','sofia',id2);
  h.api.restore([image(id),image(id2)]);assert.equal(ack.hidden,true);assert.equal(content.hidden,false);
 });
-test('failed photo retains acknowledgment and friendly explanation',()=>{
+test('failed photo hides acknowledgment and retains friendly explanation',()=>{
  const h=harness();const ack=h.message('Gib mir einen kleinen Moment.','sofia',id);
- h.api.restore([{...image(id),status:'failed'}]);assert.equal(ack.hidden,false);
+ h.api.restore([{...image(id),status:'failed'}]);assert.equal(ack.hidden,true);
 });
 test('reload resumes ready jobs once and never restarts processing jobs',async()=>{
  let calls=0;const h=harness(async()=>{calls++;return {ok:true,json:async()=>({image:image(id)})};});

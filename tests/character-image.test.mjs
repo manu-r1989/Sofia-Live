@@ -40,6 +40,36 @@ test('Berlin date and time periods include summer and winter offsets',()=>{
  assert.equal(api.portraitPeriod(new Date('2026-12-06T10:30:00Z')),'2026-12-06:day');
 });
 test('ordinary conversation skips every network and classifier call',async()=>{reset();assert.equal(await api.preparePortrait('Wie geht es dir?'),null);assert.equal(calls.length,0);});
+test('seeing the just described appearance creates a real job even when planner says none',async()=>{
+ reset();const now=new Date();plan.action='none';
+ const life=api.defaultSofiaLife(now);life.dialogue={at:now.toISOString(),lastUser:'Wie siehst du aktuell aus?',lastAssistant:'Im gemütlichen Oberteil auf dem Sofa.'};db.set(prefix+'life',JSON.stringify(life));
+ const job=await api.preparePortrait('Das würd ich gern sehen',null,now);
+ assert.ok(job?.id);assert.equal(JSON.parse(db.get(prefix+'request:'+job.id)).status,'ready');
+ assert.equal(await api.preparePortrait('Das würde ich gern sehen',null,new Date(now.getTime()+601000)),null);
+});
+test('repeat after a failed photo creates a fresh job without sharing error context',async()=>{
+ reset();const now=new Date(),life=api.defaultSofiaLife(now);life.dialogue={at:now.toISOString(),lastUser:'Ich warte'};db.set(prefix+'life',JSON.stringify(life));
+ const old='11111111-1111-4111-8111-111111111111';db.set(prefix+'request:'+old,JSON.stringify({id:old,status:'failed',failureCode:'portrait_moderated'}));
+ db.set('sofia:main:history',JSON.stringify([{role:'user',content:'Mach bitte ein Selfie von dir'},{role:'assistant',content:'Gib mir einen kleinen Moment.',imageRequestId:old},{role:'user',content:'Ich warte'},{role:'assistant',content:'Es hat nicht geklappt.'}]));
+ const job=await api.preparePortrait('Nochmal',null,now);assert.ok(job?.id);assert.notEqual(job.id,old);assert.doesNotMatch(JSON.stringify(plannerInputs.at(-1)),/failed|moderated/);
+});
+test('repeat after legacy unstarted appearance request repairs the missing job',async()=>{
+ reset();const now=new Date(),life=api.defaultSofiaLife(now);life.dialogue={at:now.toISOString(),lastUser:'Warum?'};db.set(prefix+'life',JSON.stringify(life));
+ db.set('sofia:main:history',JSON.stringify([{role:'user',content:'Wie siehst du aktuell aus?'},{role:'assistant',content:'Auf dem Sofa.'},{role:'user',content:'Das würd ich gern sehen'},{role:'assistant',content:'Gib mir einen kleinen Moment.'},{role:'user',content:'Ich warte'},{role:'assistant',content:'Leider kein Bild.'},{role:'user',content:'Warum?'},{role:'assistant',content:'Kein genauer Grund.'}]));
+ assert.ok((await api.preparePortrait('noch mal',null,now))?.id);
+});
+test('repeat of unrelated conversation and stale photo context never starts a picture',async()=>{
+ reset();const now=new Date(),life=api.defaultSofiaLife(now);life.dialogue={at:now.toISOString()};db.set(prefix+'life',JSON.stringify(life));
+ db.set('sofia:main:history',JSON.stringify([{role:'user',content:'Selfie bitte'},{role:'assistant',content:'Gib mir einen kleinen Moment.'},{role:'user',content:'Erzähl mir einen Witz'},{role:'assistant',content:'Ein Witz.'}]));
+ assert.equal(await api.preparePortrait('nochmal',null,now),null);assert.equal(plannerInputs.length,0);
+ life.dialogue.at=new Date(now.getTime()-1801000).toISOString();db.set(prefix+'life',JSON.stringify(life));assert.equal(await api.preparePortrait('nochmal',null,now),null);
+});
+test('repeating a pending photo reuses its receipt rather than creating a second paid job',async()=>{
+ reset();const now=new Date(),life=api.defaultSofiaLife(now);life.dialogue={at:now.toISOString()};db.set(prefix+'life',JSON.stringify(life));
+ const old='11111111-1111-4111-8111-111111111111';db.set(prefix+'request:'+old,JSON.stringify({id:old,status:'ready',requestedAt:now.toISOString(),requestMessage:'Selfie bitte'}));
+ db.set('sofia:main:history',JSON.stringify([{role:'user',content:'Selfie bitte'},{role:'assistant',content:'Gib mir einen kleinen Moment.',imageRequestId:old}]));
+ assert.equal((await api.preparePortrait('nochmal',null,now))?.id,old);assert.equal(plannerInputs.length,0);
+});
 test('same period preserves outfit, new day permits variety, explicit outfit changes apply',async()=>{
  reset();db.set(prefix+'state',JSON.stringify({period:'2026-10-06:day',outfit:'Red jacket'}));
  let r=await api.preparePortrait('Ein Selfie bitte',null,new Date('2026-10-06T12:00Z'));
@@ -117,7 +147,7 @@ test('image delivery is private JPEG with download attachment and validated IDs'
 });
 test('UI integration loads shared renderer before app and does not alter avatar assets',async()=>{
  const root=new URL('../',import.meta.url);const index=await readFile(new URL('index.html',root),'utf8');
- assert.ok(index.indexOf('sofia-images.js?v=4337test1')<index.indexOf('app.js?v=4337test1'));
+ assert.ok(index.indexOf('sofia-images.js?v=4337test3')<index.indexOf('app.js?v=4337test3'));
  const chat=await readFile(new URL('api/chat.js',root),'utf8');
  assert.ok(chat.indexOf('!safeEqual(')<chat.indexOf('await servePortrait'));
  const ui=await readFile(new URL('sofia-images.js',root),'utf8');assert.match(ui,/dialog.showModal/);assert.match(ui,/link.download=/);assert.doesNotMatch(ui,/spinner|generating-status/);
@@ -298,3 +328,4 @@ test('lighting-only variant preserves photo pose and has no new pose instruction
  reset();const old='11111111-1111-4111-8111-111111111111',pose=api.photoPose(null,false,'entspannt');db.set(prefix+'image:'+old,JSON.stringify({id:old,createdAt:new Date().toISOString(),outfit:'Blue sweater',base64:'/9j/AA==',scene:'Café',photoPose:pose}));plan={action:'variant',scene:'Andere Beleuchtung'};const r=await api.preparePortrait('Dasselbe Foto in anderem Licht',old);await api.generatePortrait(r.id);
  assert.deepEqual(JSON.parse(db.get(prefix+'request:'+r.id)).photoPose,pose);assert.doesNotMatch(imageCalls[0].prompt,/NEW PHOTO POSE/);assert.match(imageCalls[0].prompt,/Preserve the earlier head orientation, gaze and expression/);assert.equal(imageCalls[0].images.length,2);
 });
+

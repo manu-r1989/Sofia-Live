@@ -675,11 +675,11 @@ async function askSofia(userMessage, imageDataUrl = null) {
     if (data.imageRequest) void window.SofiaImages?.generate(data.imageRequest);
 
     if (thought) {
-      thought.textContent = reply;
+      thought.textContent = data.imageRequest && /^Gib mir einen kleinen Moment[.!]?$/i.test(reply.trim()) ? '' : reply;
     }
 
     if (mode) {
-      mode.textContent = 'bereit';
+      mode.textContent = window.SofiaImages?.isGenerating ? 'nimmt ein Foto auf' : 'bereit';
     }
 
     if (data.taskAction?.action === 'create' && (data.taskAction.task?.remindAt || data.taskAction.task?.dueAt)) {
@@ -708,7 +708,7 @@ async function askSofia(userMessage, imageDataUrl = null) {
       }
     }
 
-    speak(reply);
+    if(!data.imageRequest || !/^Gib mir einen kleinen Moment[.!]?$/i.test(reply.trim()))speak(reply);
 
   } catch (error) {
     console.warn('Sofia API Fehler',{code:error?.name==='TimeoutError'?'request_timeout':'request_failed',...(Number.isInteger(error?.status)?{status:error.status}:{})});

@@ -2,13 +2,20 @@
   const active = new Map();
   const pending = new Set();
   const completed = new Set();
+  const remotePending = new Set();
+  function updatePhotoStatus() {
+    const mode=document.getElementById('mode');
+    if(!mode)return;
+    if(pending.size || remotePending.size)mode.textContent='nimmt ein Foto auf';
+    else if(mode.textContent==='nimmt ein Foto auf')mode.textContent='bereit';
+  }
   let selectionVersion=0;
   const failureReply = 'Ich bin gerade nicht in der passenden Umgebung für ein Foto. Frag mich gern gleich noch einmal.';
   let referenceId = null;
   try { referenceId=localStorage.getItem('sofia-photo-reference'); } catch {}
   function rememberReference(id) { referenceId=id;try { localStorage.setItem('sofia-photo-reference',id); } catch {} }
-  function hideAcknowledgment(image) {
-    const node=document.getElementById('messages')?.querySelector(`[data-portrait-request-id="${image.anchorId || image.id}"]`);
+  function hideAcknowledgment(image, anchorNode) {
+    const node=anchorNode || document.getElementById('messages')?.querySelector(`[data-portrait-request-id="${image.anchorId || image.id}"]`);
     if(!node)return;
     const text=node.textContent.trim();
     if(/^Gib mir einen kleinen Moment[.!]?$/i.test(text))node.hidden=true;
@@ -26,7 +33,9 @@
   }
   function anchor(id, node) {
     const slot=slotFor(id);
-    if (slot && node?.parentNode) node.parentNode.insertBefore(slot,node.nextSibling);
+    const first=document.getElementById('messages')?.querySelector(`[data-portrait-request-id="${id}"]`);
+    if (slot && node?.parentNode && (!first || first===node)) node.parentNode.insertBefore(slot,node.nextSibling);
+    hideAcknowledgment({id},node);
   }
   function locate(event) {
     const messages=document.getElementById('messages');
@@ -129,8 +138,9 @@
     if (!messages) return;
     const slot=locate(image);
     if (!slot) return;
+    hideAcknowledgment(image);
     if(image.status==='pending')return;
-    if(image.status!=='failed')hideAcknowledgment(image);
+    remotePending.delete(image.id);
     galleryItems.set(image.id,image);
     const mode=presentation(image);
     const existing=document.getElementById('portrait-' + image.id);
@@ -139,7 +149,7 @@
     existing?.remove();
     if (image.status === 'failed') {
       const notice=document.createElement('div'); notice.id='portrait-' + image.id;
-      notice.className='msg sofia'; notice.dataset.portraitStatus='failed';notice.dataset.presentation=mode; notice.textContent=failureReply;
+      notice.className='msg sofia'; notice.dataset.portraitStatus='failed';notice.dataset.presentation=mode; notice.textContent=image.failureCode==='test_image_limit'?'Das Foto-Limit der Testversion ist für heute erreicht. Morgen kann ich wieder ein Foto schicken.':failureReply;
       slot.append(notice); slot.hidden=false; window.SofiaChatViewport?.restore(viewport); return;
     }
     if(mode==='archived'||mode==='expired') {
@@ -164,13 +174,25 @@
     window.SofiaChatViewport?.restore(viewport);
   }
   function refreshExpiry(){for(const image of galleryItems.values()){const expired=Date.now()-Date.parse(image.createdAt)>=30*86400000;show({...image,...(expired?{status:'expired'}:{})});if(expired){document.getElementById('sofia-photo-'+image.id)?.close();document.getElementById('sofia-gallery')?.querySelector('[data-gallery-photo-id="'+image.id+'"]')?.remove();}}}
-  if(typeof setInterval==='function')setInterval(refreshExpiry,60000);
+  let reconciling=false;
+  if(typeof setInterval==='function')setInterval(async()=>{
+    refreshExpiry();
+    if(!remotePending.size || pending.size || reconciling)return;
+    reconciling=true;
+    try {
+      const state=await fetch('/api/chat',{method:'GET',credentials:'same-origin',cache:'no-store',signal:typeof AbortSignal!=='undefined'&&typeof AbortSignal.timeout==='function'?AbortSignal.timeout(15000):undefined});
+      if(state.ok)window.SofiaImages.restore((await state.json()).images);
+    }catch{}finally{reconciling=false;}
+  },10000);
   document.addEventListener?.('visibilitychange',()=>{if(document.visibilityState==='visible')refreshExpiry();});
   window.SofiaImages = {
     anchor, openGallery,
+    get isGenerating() { return pending.size>0 || remotePending.size>0; },
     get referenceId() { return referenceId; },
     restore(events) {
       if (!Array.isArray(events)) return;
+      remotePending.clear();
+      events.filter(x=>x.status==='pending' && valid(x.id)).forEach(x=>remotePending.add(x.id));
       // Associate legacy photographs with their old acknowledgments where possible.
       const old=events.filter(x=>!x.anchorId && valid(x.id));
       const acknowledgments=[...document.getElementById('messages')?.querySelectorAll('.msg.sofia') || []]
@@ -178,6 +200,7 @@
       old.forEach((image,index)=>{const node=acknowledgments[index];if(node)node.dataset.portraitRequestId=image.id;});
       events.forEach(show);
       events.filter(x=>x.status==='pending' && x.jobStatus==='ready').forEach(x=>window.SofiaImages.generate(x));
+      updatePhotoStatus();
       const successful=events.filter(x=>x.status !== 'failed' && x.status !== 'pending' && x.status !== 'expired' && valid(x.id));
       if (!successful.some(x=>x.id===referenceId)){referenceId=null;try{localStorage.removeItem('sofia-photo-reference');}catch{}}
       if (!referenceId && successful.length) rememberReference(successful.at(-1).id);
@@ -188,24 +211,26 @@
       if(completed.has(request.id))return Promise.resolve();
       const selectionAtStart=selectionVersion;
       pending.add(request.id);
+      updatePhotoStatus();
       slotFor(request.id); // Reserve the original turn without showing progress UI.
       const job = (async () => {
         try {
           const response = await fetch('/api/chat',{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json'},body:JSON.stringify({operation:'generate_image',requestId:request.id}),signal:typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function' ? AbortSignal.timeout(250000) : undefined});
           const data = await response.json();
-          if (!response.ok || !valid(data.image?.id)) throw new Error('portrait_failed');
+          if (!response.ok || !valid(data.image?.id)) {const error=new Error('portrait_failed');error.code=data.code;throw error;}
           show(data.image); if(selectionVersion===selectionAtStart)rememberReference(data.image.id);
-        } catch {
+        } catch (error) {
           // A lost response may follow a successful write: reconcile by GET only.
           let recovered=null;
           try {
             const state=await fetch('/api/chat',{method:'GET',credentials:'same-origin',cache:'no-store',signal:typeof AbortSignal!=='undefined'&&typeof AbortSignal.timeout==='function'?AbortSignal.timeout(15000):undefined});
-            if(state.ok){const data=await state.json();recovered=data.images?.find(x=>x.id===request.id&&x.status!=='failed'&&x.status!=='pending');}
+            if(state.ok){const data=await state.json();recovered=data.images?.find(x=>x.id===request.id);}
           }catch{}
-          if(recovered){show(recovered);if(selectionVersion===selectionAtStart)rememberReference(recovered.id);}
-          else show({...request,anchorId:request.id,status:'failed'});
+          if(recovered){show({...recovered,failureCode:recovered.failureCode||error?.code});if(recovered.status==='pending')remotePending.add(request.id);else if(recovered.status!=='failed' && selectionVersion===selectionAtStart)rememberReference(recovered.id);}
+          else show({...request,anchorId:request.id,status:'failed',failureCode:error?.code});
         } finally {
           pending.delete(request.id);
+          updatePhotoStatus();
           completed.add(request.id);if(completed.size>100)completed.delete(completed.values().next().value);
           active.delete(request.id);
         }

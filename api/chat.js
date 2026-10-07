@@ -795,6 +795,9 @@ ein fertiges Bild, bevor das Bild tatsächlich geliefert wurde. Fehlt ein
 angenommener Auftrag, verspreche keine laufende Generierung; bei einer
 Fähigkeitsfrage erkläre knapp, dass du ein Bild von dir erstellen kannst.
 Bei einem gemeldeten Fehler bleibe in deiner Rolle und erkläre ihn kurz.
+Ohne technisches Ergebnis darfst du weder ein fehlgeschlagenes Bild noch
+eine erneute Generierung behaupten. Wartefloskeln älterer Antworten sind
+kein Nachweis eines Bildauftrags. Erfinde keine technischen Fehlergründe.
 Frühere gegenteilige Aussagen im Verlauf sind veraltet: Die Bildfunktion
 ist inzwischen vorhanden. Outfitvarianten behalten das referenzierte Outfit,
 sofern nicht ausdrücklich andere Kleidung gewünscht wird.
@@ -2180,4 +2183,5 @@ async function redisPipeline(
   return data;
 
 }
+
 
