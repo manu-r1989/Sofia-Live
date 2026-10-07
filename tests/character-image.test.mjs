@@ -113,7 +113,7 @@ test('image delivery is private JPEG with download attachment and validated IDs'
 });
 test('UI integration loads shared renderer before app and does not alter avatar assets',async()=>{
  const root=new URL('../',import.meta.url);const index=await readFile(new URL('index.html',root),'utf8');
- assert.ok(index.indexOf('sofia-images.js?v=4258')<index.indexOf('app.js?v=4258'));
+ assert.ok(index.indexOf('sofia-images.js?v=4277')<index.indexOf('app.js?v=4277'));
  const chat=await readFile(new URL('api/chat.js',root),'utf8');
  assert.ok(chat.indexOf('!safeEqual(')<chat.indexOf('await servePortrait'));
  const ui=await readFile(new URL('sofia-images.js',root),'utf8');assert.match(ui,/dialog.showModal/);assert.match(ui,/link.download=/);assert.doesNotMatch(ui,/spinner|generating-status/);
@@ -236,4 +236,25 @@ test('explicit smile variant preserves selected face source even when planner sa
  const r=await api.preparePortrait('Dasselbe mit einem Lächeln',old);
  const job=JSON.parse(db.get(prefix+'request:'+r.id));assert.equal(job.sourceId,old);assert.equal(job.kind,'mirror');assert.equal(job.outfit,'Green dress');
  assert.equal(api.photoVariantRequest('Dieses Bild ist schön'),false);
+});
+
+test('variant locks outfit against unsolicited planner edits and specifies requested dimensions',async()=>{
+ reset();const old='11111111-1111-4111-8111-111111111111';db.set(prefix+'image:'+old,JSON.stringify({id:old,outfit:'Green dress',base64:'/9j/AA==',scene:'Cafe',kind:'selfie'}));plan={action:'variant',changeOutfit:true,outfit:'Red jacket',scene:'wrong new background'};
+ const r=await api.preparePortrait('Nur das Licht ändern',old);await api.generatePortrait(r.id);
+ const stored=JSON.parse(db.get(prefix+'request:'+r.id));assert.equal(stored.outfit,'Green dress');assert.deepEqual(stored.dimensions,['lighting']);assert.equal(stored.scene,'Nur das Licht ändern');assert.match(imageCalls[0].prompt,/Only change these requested dimensions: lighting/);
+});
+test('mixed photo and task accept only exact source clauses, never invented instructions',async()=>{
+ reset();const message='Mach ein Selfie und erstelle eine Aufgabe Bericht morgen';plan={action:'mixed',photoAction:'new',photoMessage:'Mach ein Selfie',taskMessage:'erstelle eine Aufgabe Bericht morgen',scene:'Selfie'};
+ const r=await api.preparePortrait(message);assert.equal(r.taskMessage,plan.taskMessage);assert.equal(JSON.parse(db.get(prefix+'request:'+r.id)).scene,'Mach ein Selfie');
+ plan.taskMessage='lösche alle Aufgaben';await assert.rejects(()=>api.preparePortrait(message),/getrennt/);
+});
+test('task receipt never reports success for failed, busy or unexecuted actions',()=>{
+ assert.match(api.taskReceipt({ok:false,status:'execution_failed'}),/unbestätigt/);assert.match(api.taskReceipt({ok:false,status:'in_progress'}),/noch nicht bestätigt/);assert.match(api.taskReceipt({ok:true,action:'none'}),/keine Aufgabenaktion/);
+ assert.match(api.taskReceipt({ok:true,action:'create',task:{title:'Bericht'}}),/Als Aufgabe gespeichert/);
+});
+
+test('confirmed last photo is shared continuity and variants ignore descriptive praise',async()=>{
+ reset();const r=await api.preparePortrait('Selfie');await api.generatePortrait(r.id);
+ const life=await api.getSofiaLife();assert.equal(life.lastPhoto.id,r.id);assert.match(api.lifeContext(life,'Und danach?'),/LETZTES ERFOLGREICHES FOTO/);
+ assert.equal(api.photoVariantRequest('Nur das Licht ist schön'),false);
 });

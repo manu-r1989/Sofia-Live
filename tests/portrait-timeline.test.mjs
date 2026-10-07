@@ -112,3 +112,8 @@ test('unsupported mobile sharing and preparation errors keep photo view recovera
  const h=harness(async()=>preparedPhoto(),{navigator:{userAgent:'iPad'}});const dialog=openPhoto(h);await tick();await dialog.children[2].onclick();assert.match(dialog.children[3].textContent,/Halte das Bild gedrückt/);assert.equal(dialog.children[2].disabled,false);
  const failed=harness(async()=>({ok:false}),{navigator:{userAgent:'iPhone'}});const view=openPhoto(failed);await tick();assert.match(view.children[3].textContent,/noch einmal/);assert.equal(view.children[2].disabled,false);view.children[1].onclick();assert.equal(failed.body.children.includes(view),false);
 });
+
+test('mixed action photo removes moment suffix while retaining actual task receipt',()=>{
+ const h=harness();const ack=h.message('Als Aufgabe gespeichert: „Bericht“. Gib mir einen kleinen Moment.','sofia',id);
+ h.api.restore([image(id)]);assert.equal(ack.textContent,'Als Aufgabe gespeichert: „Bericht“.');assert.equal(ack.hidden,false);
+});

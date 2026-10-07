@@ -289,3 +289,55 @@ test('same proactive motif is suppressed but another motif fits rolling quota',a
  assert.equal(await api.reserveProactivePhoto('three',now,'alster-view'),true);
  assert.equal(await api.reserveProactivePhoto('four',now,'home'),false);
 });
+
+test('conversation reference distinguishes corrections, tasks, photos and ambiguous repeats',()=>{
+ const now=new Date('2026-10-06T12:00Z');const life=api.updateDialogue(api.defaultSofiaLife(now),'Was liest du?','Ich lese einen Roman.',now);
+ assert.equal(api.conversationReference(life,'Nein, ich meinte deinen Abend.',now).correction,true);
+ assert.equal(api.conversationReference(life,'Ändere das in der Aufgabe',now).type,'task');
+ assert.equal(api.conversationReference(life,'Das Foto nochmal',now).type,'photo');
+ assert.equal(api.conversationReference(life,'Noch einmal',now).type,'ambiguous');
+ assert.equal(api.conversationReference(life,'Und danach?',new Date(now.getTime()+86400000)).type,'none');
+});
+test('answered and skipped questions close without repeating pending state',()=>{
+ const now=new Date('2026-10-06T12:00Z'),first=api.updateDialogue(api.defaultSofiaLife(now),'Hallo','Was liest du gern?',now);
+ const answered=api.updateDialogue(first,'Ich lese Krimis.','Krimis mag ich auch.',now);assert.equal(answered.dialogue.questions[0].status,'answered');assert.equal(answered.dialogue.pendingQuestion,null);
+ const skipped=api.updateDialogue(first,'Andere Frage: Was machst du?','Ich bin im Café.',now);assert.equal(skipped.dialogue.questions[0].status,'skipped');
+ const repeated=api.updateDialogue(first,'Erzähl weiter','Was liest du gern?',now);assert.equal(repeated.dialogue.questions.length,1);assert.equal(repeated.dialogue.pendingQuestion,null);
+});
+test('current listening and brief requests override initiative and suppress proactive photos',async()=>{
+ reset();const now=new Date('2026-10-06T12:00Z'),life=await api.getSofiaLife(now);
+ assert.equal(api.conversationIntent('Hör mir einfach zu'),'listening');assert.equal(api.conversationIntent('Nur kurz: Wo bist du?'),'brief');
+ assert.match(api.initiativeContext(life,'Ich möchte nur erzählen',now),/ZUHÖREN/);
+ assert.equal(await api.prepareProactivePortrait('Nur kurz: Wo bist du?',life,'',now),null);
+ assert.equal(await api.prepareProactivePortrait('Was machst du? Ich muss los',life,'',now),null);
+});
+test('weekly frame honors Hamburg date, weekend and bedtime',()=>{
+ const night=api.defaultSofiaLife(new Date('2026-10-06T22:30Z'));assert.equal(night.weekFrame.day,'Mittwoch');assert.match(night.location,/Bett/);
+ const saturday=api.defaultSofiaLife(new Date('2026-10-10T08:00Z'));assert.match(saturday.weekFrame.frame,/Freizeit/);assert.doesNotMatch(saturday.location,/Universität/);
+ assert.match(api.defaultSofiaLife(new Date('2026-10-07T08:00Z')).activity,/Studienprojekt/);
+});
+test('own plans require exact own evidence and grounded reason for progress',async()=>{
+ reset();const now=new Date('2026-10-06T12:00Z'),base=await api.getSofiaLife(now);
+ const create={plans:[{topic:'roman',text:'Roman weiterlesen',status:'planned',evidence:'Ich möchte meinen Roman weiterlesen.'}]};
+ const first=api.mergeCharacterDetails(base,create,'Was möchtest du machen?','Ich möchte meinen Roman weiterlesen.',now);assert.equal(first.plans.length,1);assert.equal(first.development.length,1);
+ const unsupported=api.mergeCharacterDetails(first,{plans:[{topic:'roman',text:'Roman fertig',status:'completed',evidence:'Ich habe den Roman fertig gelesen.'}]},'Hallo','Ich habe den Roman fertig gelesen.',now);assert.equal(unsupported.plans[0].status,'planned');
+ const complete=api.mergeCharacterDetails(first,{plans:[{topic:'roman',text:'Roman fertig',status:'completed',reason:'Die letzten Kapitel gelesen',evidence:'Ich habe den Roman fertig gelesen.'}]},'Und dein Buch?','Ich habe den Roman fertig gelesen.',new Date(now.getTime()+60000));assert.equal(complete.plans[0].status,'completed');assert.equal(complete.plans[0].history.length,2);
+ assert.equal(api.mergeCharacterDetails(base,create,'Ich lese einen Roman.','Du möchtest weiterlesen.',now).plans.length,0);
+});
+test('plans persist across days without automatic completion and manual removal remains protected',async()=>{
+ reset();const now=new Date('2026-10-06T12:00Z'),base=await api.getSofiaLife(now);db.set(prefix+'life',JSON.stringify({...base,plans:[{topic:'buch',text:'Lesen',status:'active'}]}));
+ const tomorrow=await api.getSofiaLife(new Date('2026-10-07T12:00Z'));assert.equal(tomorrow.plans[0].status,'active');
+ const removed=await api.editCharacterState({revision:tomorrow.revision,field:'plan',topic:'buch',value:''},new Date('2026-10-07T12:00Z'));assert.equal(removed.plans[0].dismissed,true);
+});
+test('shared phrases require actual repeated user use and reset independently',async()=>{
+ reset();const now=new Date('2026-10-06T12:00Z'),base=await api.getSofiaLife(now),decision={sharedPhrases:[{text:'Team Kaffeepause',evidence:'Team Kaffeepause!'}]};
+ const first=api.mergeCharacterDetails(base,decision,'Team Kaffeepause!','Genau.',now),second=api.mergeCharacterDetails(first,decision,'Team Kaffeepause!','Genau.',new Date(now.getTime()+60000));assert.equal(second.sharedPhrases[0].count,2);
+ assert.equal(api.mergeCharacterDetails(base,decision,'Hallo','Team Kaffeepause!',now).sharedPhrases.length,0);
+ db.set(prefix+'life',JSON.stringify(second));const saved=await api.editCharacterState({revision:second.revision,field:'sharedPhrases',value:'reset'},now);assert.equal(saved.sharedPhrases.length,0);
+});
+
+test('correction cannot overwrite unrelated character preferences or plans',()=>{
+ const now=new Date('2026-10-06T12:00Z');const base={...api.defaultSofiaLife(now),preferences:[{topic:'kaffee',value:'Kaffee'},{topic:'musik',value:'Jazz'}],dialogue:{topic:'Dein Kaffee'}};
+ const next=api.mergeCharacterDetails(base,{preferences:[{topic:'kaffee',value:'Espresso',evidence:'Ich mag Espresso.',reason:'Lieber kräftig'},{topic:'musik',value:'Rock',evidence:'Ich mag Rock.',reason:'Neue Musik'}]},'Nein, ich meinte deinen Kaffee.','Ich mag Espresso. Ich mag Rock.',now);
+ assert.equal(next.preferences.find(x=>x.topic==='kaffee').value,'Espresso');assert.equal(next.preferences.find(x=>x.topic==='musik').value,'Jazz');
+});

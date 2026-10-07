@@ -33,3 +33,10 @@ test('conversation settings use revision guarded character API and habits can be
  assert.deepEqual(h.requests[0].value,{initiative:'quiet',replyLength:'short',photos:false});assert.equal(h.requests[0].revision,7);
  await h.root.children.find(n=>n.textContent==='Gesprächsgewohnheiten zurücksetzen').onclick();assert.equal(h.requests[1].field,'habits');
 });
+
+test('character overview renders own plans, history and development safely and resets shared phrases',async()=>{
+ const h=harness();h.state.plans=[{topic:'buch',text:'Roman lesen',status:'active',history:[{at:'2026-10-06T12:00Z',status:'active',reason:'Weitergelesen'}]}];h.state.development=[{topic:'buch',text:'Kapitel 3',at:'2026-10-06T12:00Z',reason:'Weitergelesen'}];h.state.sharedPhrases=[{text:'Team Kaffeepause',count:2}];h.context.renderCharacterMemories(h.state);
+ assert.ok(h.root.children.some(x=>x.textContent==='Sofias eigene Vorhaben'));assert.ok(h.root.children.some(x=>x.children[0]?.textContent==='In Arbeit: buch: Roman lesen'));
+ assert.ok(h.root.children.some(x=>x.textContent.includes('Kapitel 3')));
+ await h.root.children.find(x=>x.textContent==='Vertraute Gesprächsbezüge zurücksetzen').onclick();assert.equal(h.requests[0].field,'sharedPhrases');assert.equal(h.requests[0].revision,7);
+});

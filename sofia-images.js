@@ -7,7 +7,10 @@
   function rememberReference(id) { referenceId=id;try { localStorage.setItem('sofia-photo-reference',id); } catch {} }
   function hideAcknowledgment(image) {
     const node=document.getElementById('messages')?.querySelector(`[data-portrait-request-id="${image.anchorId || image.id}"]`);
-    if(node && /^Gib mir einen kleinen Moment[.!]?$/i.test(node.textContent.trim()))node.hidden=true;
+    if(!node)return;
+    const text=node.textContent.trim();
+    if(/^Gib mir einen kleinen Moment[.!]?$/i.test(text))node.hidden=true;
+    else if(/\s+Gib mir einen kleinen Moment[.!]?$/i.test(text))node.textContent=text.replace(/\s+Gib mir einen kleinen Moment[.!]?$/i,'');
   }
   const valid = id => typeof id === 'string' && /^[a-f0-9-]{36}$/.test(id);
   function slotFor(id) {

@@ -1,4 +1,4 @@
-import { portraitPreparationReply, preparePortrait, getSofiaLife, lifeContext, prepareProactivePortrait, PROACTIVE_PHOTO_ANNOUNCEMENT } from '../lib/character-image.js';
+import { taskReceipt, hamburgReferenceTime, portraitPreparationReply, preparePortrait, getSofiaLife, lifeContext, prepareProactivePortrait, PROACTIVE_PHOTO_ANNOUNCEMENT } from '../lib/character-image.js';
 import crypto from "node:crypto";
 import { executeUnifiedAction, getActionState, getResearchState } from "./action-engine.js";
 
@@ -102,7 +102,15 @@ export default async function handler(req, res) {
 
   try {
     const imageRequest = await preparePortrait(message, req.body?.referenceImageId, new Date(), req.body?.mood);
-    if (imageRequest) return res.status(200).json({ context:'BILDANFRAGE ANGENOMMEN: Sage auf Deutsch nur „Gib mir einen kleinen Moment.“ Das Bild wird separat erstellt. Noch keinen Erfolg behaupten.', imageRequest, life:await getSofiaLife(), taskAction:{ok:true,action:'none'}, calendarAction:null });
+    if (imageRequest) {
+      let taskAction={ok:true,action:'none'},calendarAction=null;
+      if(imageRequest.taskMessage) {
+        try {taskAction=(await executeUnifiedAction(imageRequest.taskMessage,hamburgReferenceTime(),{mode:'live'})).taskAction;}catch {taskAction={ok:false,action:'none',status:'execution_failed'};}
+        if(taskAction?.ok)calendarAction=taskAction.calendarAction || (taskAction.action==='none'?await extractLiveCalendarAction(imageRequest.taskMessage,hamburgReferenceTime()):null);
+      }
+      const receipt=imageRequest.taskMessage?(calendarAction && taskAction.action==='none'?'Kalenderimport ist vorbereitet.':taskReceipt(taskAction)):'';
+      return res.status(200).json({context:(receipt?'AUFGABENTEILERGEBNIS: '+receipt+' Gib ausschließlich dieses Ergebnis wieder. ':'')+'BILDANFRAGE ANGENOMMEN: Sage auf Deutsch „Gib mir einen kleinen Moment.“ Das Bild wird separat erstellt. Noch keinen Bilderfolg behaupten.',imageRequest,life:await getSofiaLife(),taskAction,calendarAction});
+    }
   } catch (error) {
     return res.status(200).json({ context:'BILDANFRAGE: ' + portraitPreparationReply(error), taskAction:{ok:true,action:'none'}, calendarAction:null });
   }
