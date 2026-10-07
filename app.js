@@ -542,6 +542,12 @@ async function speak(text) {
    SOFIA API
 ========================= */
 
+function chatFailureFeedback(status,code,actionPossible,resultReceived) {
+  const busy=status===429 && code==='test_busy';
+  const uncertainAction=!busy && actionPossible && !resultReceived;
+  return {uncertainAction,statusLabel:status===429?(busy?'Bitte kurz warten':'Nutzungspause'):'Verbindungsfehler',message:busy?'Einen kleinen Moment, es läuft noch eine Anfrage. Bitte warte kurz.':status===429?'Ich brauche gerade eine kurze Pause. Bitte versuche es später noch einmal.':uncertainAction?'Die Verbindung ist gerade unterbrochen. Bitte prüfe zuerst den Aufgabenstand, bevor du die Aktion wiederholst.':'Meine Verbindung ist gerade unterbrochen. Sobald sie wieder da ist, können wir weiterreden.'};
+}
+
 async function askSofia(userMessage, imageDataUrl = null) {
   if (isResponding) return;
   if(typeof navigator!=='undefined' && navigator.onLine===false){addMessage('Ich bin gerade offline. Deine Nachricht wird nicht automatisch gesendet.');return;}
@@ -629,7 +635,7 @@ async function askSofia(userMessage, imageDataUrl = null) {
 
     if (!response.ok) {
       if(data.taskAction){actionResultReceived=true;window.SofiaActionFeedback?.show(data.taskAction);}
-      const error=new Error('Sofia konnte nicht antworten.');error.status=response.status;throw error;
+      const error=new Error('Sofia konnte nicht antworten.');error.status=response.status;error.code=response.status===429 && /^Ein Testaufruf läuft bereits/.test(data.error||'')?'test_busy':data.code;throw error;
     }
 
     updateSofiaLocation(data.life);
@@ -699,13 +705,10 @@ async function askSofia(userMessage, imageDataUrl = null) {
     const pendingTurn=conversationHistory.at(-1);
     if(pendingTurn?.role==='user'){pendingTurn.delivery='unconfirmed';saveMemory();}
     const actionPossible = /aufgabe|erinner|termin|kalender|erledig|lösch|verschieb|priorität|\b(?:ändere|änder|mach das|nochmal)\b/i.test(userMessage);
-    if (!actionResultReceived && actionPossible) window.SofiaActionFeedback?.show({ ok: false, status: 'execution_failed' });
+    const failure=chatFailureFeedback(error?.status,error?.code,actionPossible,actionResultReceived);
+    if (failure.uncertainAction) window.SofiaActionFeedback?.show({ ok: false, status: 'execution_failed' });
 
-    const errorMessage =
-      error?.status===429?'Ich brauche gerade eine kurze Pause. Bitte versuche es später noch einmal.':
-      !actionResultReceived && actionPossible
-        ? 'Die Verbindung ist gerade unterbrochen. Bitte prüfe zuerst den Aufgabenstand, bevor du die Aktion wiederholst.'
-        : 'Meine Verbindung ist gerade unterbrochen. Sobald sie wieder da ist, können wir weiterreden.';
+    const errorMessage = failure.message;
 
     addMessage(
       errorMessage,
@@ -718,8 +721,7 @@ async function askSofia(userMessage, imageDataUrl = null) {
     }
 
     if (mode) {
-      mode.textContent =
-        'Verbindungsfehler';
+      mode.textContent = failure.statusLabel;
     }
 
   } finally {

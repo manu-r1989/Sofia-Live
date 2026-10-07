@@ -60,3 +60,11 @@ test('server history cannot erase an unconfirmed local user turn',async()=>{
  window:{},fetch:async()=>({ok:true,status:200,json:async()=>({history:[{role:'assistant',content:'old'}],images:[]})}),updateSofiaLocation(){},saveMemory:()=>saves++});
  vm.runInContext(sync,ctx);assert.equal(await ctx.syncConversationFromServer({silent:true}),false);assert.equal(saves,0);assert.equal(ctx.conversationHistory[0].content,'Erstelle Aufgabe TEST');
 });
+
+test('a rejected parallel test call is waiting, while an unknown action outcome stays uncertain',()=>{
+ const helper=app.slice(app.indexOf('function chatFailureFeedback('),app.indexOf('async function askSofia('));
+ const ctx=vm.createContext({});vm.runInContext(helper,ctx);
+ const busy=ctx.chatFailureFeedback(429,'test_busy',true,false);assert.equal(busy.uncertainAction,false);assert.equal(busy.statusLabel,'Bitte kurz warten');
+ const lost=ctx.chatFailureFeedback(undefined,undefined,true,false);assert.equal(lost.uncertainAction,true);assert.match(lost.message,/Aufgabenstand/);
+ assert.equal(ctx.chatFailureFeedback(500,'chat_provider_failed',true,true).uncertainAction,false);
+});
