@@ -526,7 +526,7 @@ export default async function handler(req, res) {
     if (req.method === "GET" && req.query?.image) return await servePortrait(req, res);
     if (req.method === "POST" && req.body?.operation === "generate_image") {
       try { return res.status(200).json({ image: await generatePortrait(req.body.requestId) }); }
-      catch (error) { return res.status(409).json({ error: PORTRAIT_FAILURE_REPLY }); }
+      catch (error) { return res.status(409).json({ error: PORTRAIT_FAILURE_REPLY,code:safeDiagnostic(error,'portrait_generation_failed').code }); }
     }
 
     if (req.method === "GET") {

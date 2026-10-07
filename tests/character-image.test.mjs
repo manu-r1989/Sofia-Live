@@ -277,3 +277,8 @@ test('expired explicitly selected photo never silently falls back to the latest 
  reset();const old='11111111-1111-4111-8111-111111111111';plan.action='variant';
  await assert.rejects(()=>api.preparePortrait('Dasselbe in anderem Licht',old),/zuerst ein Bild/);assert.equal(imageCalls.length,0);
 });
+
+test('photo acknowledgment becomes the current dialogue reference without storing failure context',async()=>{
+ reset();await api.appendPortraitAcknowledgment('Ein Selfie bitte','Gib mir einen kleinen Moment.','11111111-1111-4111-8111-111111111111');
+ const life=await api.getSofiaLife();assert.equal(life.dialogue.lastUser,'Ein Selfie bitte');assert.equal(life.dialogue.topics.length,1);assert.doesNotMatch(JSON.stringify(life.dialogue),/moderation|failed/);
+});
