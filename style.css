@@ -829,3 +829,21 @@
     bottom:auto!important;
   }
 }
+
+/* V4.33.1 — seven tools stay in one row within the chat width. */
+.actions {
+  grid-template-columns:repeat(7,minmax(0,1fr))!important;
+  gap:2px!important;
+  padding:4px!important;
+  box-sizing:border-box;
+}
+.actions button {
+  width:100%;
+  min-width:0!important;
+  padding:5px 1px!important;
+}
+.actions button span { font-size:9px; }
+@media (max-width:420px) {
+  .actions { gap:0!important; }
+  .actions button span { font-size:8px!important; }
+}
