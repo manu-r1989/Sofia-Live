@@ -18,7 +18,7 @@ async function endpoint(provider){for(const k of names)process.env[k]=k==='KV_RE
 }
 test('optional Redis outage does not block realtime token and client handoff context',async()=>{
  const r=await endpoint({ok:true,json:async()=>({value:'test-ephemeral'})});assert.equal(r.status,200);assert.equal(r.payload.value,'test-ephemeral');assert.match(r.payload.instructions,/Was machst du/);
- assert.equal(r.sessionBody.session.audio.input.turn_detection.create_response,false);assert.equal(r.sessionBody.session.audio.input.turn_detection.interrupt_response,false);assert.equal(r.sessionBody.session.audio.output.voice,'marin');
+ assert.equal(r.sessionBody.session.audio.input.turn_detection.create_response,false);assert.equal(r.sessionBody.session.audio.input.turn_detection.interrupt_response,false);assert.equal(r.sessionBody.session.audio.output.voice,'marin');assert.equal(r.sessionBody.session.audio.output.speed,1);assert.match(r.sessionBody.session.instructions,/STIMMPROFIL D \(A \+ C\)/);assert.match(r.sessionBody.session.instructions,/flippige, leicht freche Energie/);assert.match(r.sessionBody.session.instructions,/keine kindliche Sprache/);assert.doesNotMatch(r.sessionBody.session.instructions,/gelieferten Text wortgetreu/);
 });
 test('provider limits return safe actionable code without raw provider message',async()=>{
  const r=await endpoint({ok:false,status:429,json:async()=>({error:{code:'rate_limit_exceeded',message:'private provider details'}})});assert.equal(r.status,429);assert.equal(r.payload.code,'realtime_limit');assert.doesNotMatch(JSON.stringify(r.payload),/private provider/);
