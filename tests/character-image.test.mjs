@@ -407,3 +407,7 @@ test('Hamburg weather validates numeric fresh conditions, caches them and shares
 test('uncertain visual location does not cause needless retries or assert precise identification',()=>{
  assert.equal(api.photoReviewResult({ok:false,confidence:.4,mismatches:['location']}).status,'uncertain');assert.throws(()=>api.photoReviewResult({ok:false,confidence:2,mismatches:['location']}),/review_unavailable/);
 });
+
+test('an idempotent completed image response refreshes server time without restarting retention',async()=>{
+ reset();const id='11111111-1111-4111-8111-111111111111',createdAt=new Date(Date.now()-16*3600000).toISOString(),started=Date.now();db.set(prefix+'request:'+id,JSON.stringify({id,status:'done',image:{id,createdAt,availabilityAt:createdAt}}));const result=await api.generatePortrait(id);assert.equal(result.createdAt,createdAt);assert.equal(result.archived,true);assert.ok(Date.parse(result.availabilityAt)>=started);assert.equal(imageCalls.length,0);
+});
