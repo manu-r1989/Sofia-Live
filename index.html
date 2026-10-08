@@ -60,7 +60,7 @@
 
   <link
     rel="stylesheet"
-    href="./style.css?v=4557v1"
+    href="./style.css?v=4559v2"
   >
 </head>
 
@@ -182,7 +182,7 @@
   ====================================== -->
 
   <div
-    class="app"
+    class="app tools-closed"
     id="app"
     data-mood="flirty"
     data-speaking="false"
@@ -349,7 +349,7 @@
 
         <div class="chatHeadActions">
           <button id="workspaceAction" type="button" aria-label="Chatwerkzeuge und Einstellungen" title="Chatwerkzeuge und Einstellungen">⋯</button>
-          <button id="toolsToggle" type="button" aria-label="Werkzeugleiste ein-/ausblenden" aria-expanded="true" title="Werkzeuge">☷</button>
+          <button id="toolsToggle" type="button" aria-label="Werkzeugleiste ein-/ausblenden" aria-expanded="false" title="Werkzeuge">☷</button>
 <button
             type="button"
             id="voiceToggle"
@@ -550,7 +550,7 @@
             window.SofiaTestMode=true;
             const banner=document.createElement('div');banner.id='sofia-test-banner';banner.setAttribute('role','status');
             banner.style.cssText='position:fixed;top:0;left:0;right:0;z-index:99999;padding:8px 12px;background:#694510;color:white;font-size:12px;display:flex;gap:12px;align-items:center;justify-content:center';
-            const label=document.createElement('span');label.textContent='TESTVERSION 4.55.7 · Nur Testdaten · '+(session.paidEnabled?'Begrenzte KI-Nutzung':'KI-Aufrufe deaktiviert');
+            const label=document.createElement('span');label.textContent='TESTVERSION 4.55.9 · Nur Testdaten · '+(session.paidEnabled?'Begrenzte KI-Nutzung':'KI-Aufrufe deaktiviert');
             const reset=document.createElement('button');reset.type='button';reset.textContent='Testdaten zurücksetzen';reset.onclick=async()=>{
               if(!window.confirm('Alle Chats, Fotos, Aufgaben und Erinnerungen dieser Testversion zurücksetzen? Nutzungsgrenzen bleiben erhalten.'))return;
               reset.disabled=true;
@@ -737,24 +737,24 @@
     window.SofiaAvatar verwenden.
   -->
 
-  <script src="./sofia-ui.js?v=4557v1"></script>
-  <script src="./sofia-workspace.js?v=4557v1"></script>
-  <script src="./action-feedback.js?v=4557v1"></script>
-  <script src="./sofia-timeline.js?v=4557v1"></script>
-  <script src="./sofia-projects.js?v=4557v1"></script>
-  <script src="./sofia-images.js?v=4557v1"></script>
-  <script src="./sofia-social.js?v=4557v1"></script>
-  <script src="./app.js?v=4557v1"></script>
+  <script src="./sofia-ui.js?v=4559v2"></script>
+  <script src="./sofia-workspace.js?v=4559v2"></script>
+  <script src="./action-feedback.js?v=4559v2"></script>
+  <script src="./sofia-timeline.js?v=4559v2"></script>
+  <script src="./sofia-projects.js?v=4559v2"></script>
+  <script src="./sofia-images.js?v=4559v2"></script>
+  <script src="./sofia-social.js?v=4559v2"></script>
+  <script src="./app.js?v=4559v2"></script>
 
   <script src="./sofia-avatar.js?v=4192c1"></script>
 
   <script src="./avatar-presence.js?v=4193p3"></script>
 
   <script src="./avatar-gesture.js?v=4197m1"></script>
-  <script src="./avatar-expression.js?v=4557v1"></script>
-  <script src="./avatar-gaze.js?v=4557v1"></script>
+  <script src="./avatar-expression.js?v=4559v2"></script>
+  <script src="./avatar-gaze.js?v=4559v2"></script>
 
-  <script src="./live.js?v=4557v1"></script>
+  <script src="./live.js?v=4559v2"></script>
 
 
   <!-- Service Worker for offline assets and opt-in Web Push. -->

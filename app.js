@@ -932,7 +932,7 @@ window.addEventListener('orientationchange', () => {
   window.setTimeout(enforceLandscapeChat, 120);
 });
 window.addEventListener('resize', enforceLandscapeChat);
-enforceLandscapeChat();
+applyChatState(window.matchMedia('(orientation: landscape)').matches?'full':'compact');
 
 if (app) {
   let previousLive = app.dataset.live === 'true';
@@ -1377,10 +1377,15 @@ function renderCharacterMemories(character) {
   const select=(label,choices,value)=>{const wrapper=document.createElement('label');wrapper.textContent=label+' ';const input=document.createElement('select');for(const [key,text]of choices){const option=document.createElement('option');option.value=key;option.textContent=text;input.append(option);}input.value=value;wrapper.append(input);controls.append(wrapper);return input;};
   const initiative=select('Gesprächsinitiative',[['quiet','Zurückhaltend'],['balanced','Ausgewogen'],['active','Aktiv']],settings.initiative||'balanced');
   const length=select('Antwortlänge',[['auto','Nach Bedarf'],['short','Kurz'],['detailed','Ausführlich']],settings.replyLength||'auto');
-  const mix=select('Eigene Fotomotive',[['mixed','Selfies und Alltagsmomente'],['selfies','Selfies'],['moments','Umgebung und Alltagsdetails']],settings.photoMix||'mixed');
+  const motifs=document.createElement('fieldset');motifs.style.cssText='border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:12px;display:grid;gap:10px';
+  const legend=document.createElement('legend');legend.textContent='Eigene Fototypen · Mehrfachauswahl';motifs.append(legend);
+  const selected=Array.isArray(settings.photoKinds)?settings.photoKinds:settings.photoMix==='selfies'?['selfie']:settings.photoMix==='moments'?['environment']:['selfie','environment'];
+  const photoKinds=[];
+  for(const [key,label]of [['selfie','Selfie'],['full_selfie','Ganzkörperselfie · selbst aufgenommen'],['portrait','Porträtfoto · von jemand anderem aufgenommen'],['full_portrait','Ganzkörperfoto · von jemand anderem aufgenommen'],['environment','Alltag und Umgebung · aus Sofias Perspektive']]){const wrapper=document.createElement('label'),input=document.createElement('input');input.type='checkbox';input.value=key;input.checked=selected.includes(key);wrapper.textContent=label+' ';wrapper.append(input);motifs.append(wrapper);photoKinds.push(input);}
+  controls.append(motifs);
   const photoLabel=document.createElement('label'),photos=document.createElement('input');photos.type='checkbox';photos.checked=settings.photos!==false;photoLabel.textContent='Gelegentliche eigene Fotos (max. 2 pro Stunde) ';photoLabel.append(photos);controls.append(photoLabel);
   const help=document.createElement('small');help.textContent='Die Motivauswahl gilt für selbst angebotene Fotos. Ausdrücklich angefragte Bilder bleiben möglich. Nachrichtenhäufigkeit und Ruhezeiten findest du unter Mitteilungen.';help.style.opacity='.65';controls.append(help);
-  const save=document.createElement('button');save.type='button';save.textContent='Gesprächseinstellungen speichern';save.onclick=()=>apply('settings',{initiative:initiative.value,replyLength:length.value,photos:photos.checked,photoMix:mix.value},undefined,save);controls.append(save);groups.settings.append(controls);
+  const save=document.createElement('button');save.type='button';save.textContent='Gesprächseinstellungen speichern';save.onclick=()=>{const kinds=photoKinds.filter(x=>x.checked).map(x=>x.value);if(photos.checked&&!kinds.length){status('Bitte mindestens einen Fototyp wählen oder eigene Fotos deaktivieren.');return;}return apply('settings',{initiative:initiative.value,replyLength:length.value,photos:photos.checked,photoKinds:kinds},undefined,save);};controls.append(save);groups.settings.append(controls);
   for(const pref of character.preferences||[])if(pref.value)history(row(groups.preferences,'Vorliebe: '+pref.topic,pref.value,'preference',pref.topic,'preference'),pref.history);
   for(const interest of character.interests||[])if(!interest.dismissed){const item=row(groups.interests,'Interesse: '+interest.topic,interest.description+(interest.progress?' · '+interest.progress:''),'interest',interest.topic,'interest');history(item,interest.history);}
   const labels={planned:'Geplant',active:'In Arbeit',completed:'Abgeschlossen',paused:'Pausiert'};
@@ -1741,7 +1746,7 @@ toolsToggle?.addEventListener('click', () => {
   setToolsOpen(app?.classList.contains('tools-closed'));
 });
 
-setToolsOpen(localStorage.getItem('sofia_tools_open') !== '0');
+setToolsOpen(false);
 
 const moodToggle = document.querySelector('#moodToggle');
 const moodPanel = document.querySelector('#moodPanel');
