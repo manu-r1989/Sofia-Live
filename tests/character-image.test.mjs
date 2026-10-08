@@ -222,7 +222,7 @@ test('image delivery is private JPEG with download attachment and validated IDs'
 });
 test('UI integration loads shared renderer before app and does not alter avatar assets',async()=>{
  const root=new URL('../',import.meta.url);const index=await readFile(new URL('index.html',root),'utf8');
- assert.ok(index.indexOf('sofia-images.js?v=4618v1')<index.indexOf('app.js?v=4618v1'));
+ assert.ok(index.indexOf('sofia-images.js?v=4619v1')<index.indexOf('app.js?v=4619v1'));
  const chat=await readFile(new URL('api/chat.js',root),'utf8');
  assert.ok(chat.indexOf('!safeEqual(')<chat.indexOf('await servePortrait'));
  const ui=await readFile(new URL('sofia-images.js',root),'utf8');assert.match(ui,/dialog.showModal/);assert.match(ui,/link.download=/);assert.doesNotMatch(ui,/spinner|generating-status/);
@@ -471,6 +471,19 @@ test('UI light, framing and custom variants retain source, clothing and capture 
  for(const action of ['none','new'])for(const text of ['Dieses Foto bitte nur bei etwas anderer Beleuchtung zeigen. Alles andere beibehalten.','Zeig dieses Foto bitte mit einem weiteren Ausschnitt und mehr Umgebung. Alles andere beibehalten.','Dieses Foto bitte entsprechend anpassen: etwas seitlicher. Alle nicht genannten Merkmale beibehalten.']){
   reset();const now=new Date(),old=previousPhotograph(now);plan.action=action;const prepared=await api.preparePortrait(text,old,now),job=JSON.parse(db.get(prefix+'request:'+prepared.id));assert.equal(job.variant,true,text);assert.equal(job.sourceId,old);assert.equal(job.outfit,'Green sweater with red scarf');assert.equal(job.bodyPose,'sitting');await api.generatePortrait(prepared.id);const stored=JSON.parse(db.get(prefix+'image:'+prepared.id));assert.equal(stored.sourceId,old);assert.match(imageCalls[0].prompt,/VARIANT EDIT BOUNDARY/);
  }
+});
+test('compass camera selections generate referenced variants with only the camera angle editable',async()=>{
+ for(const [angle,side] of [[45,'nach links'],[90,'nach rechts'],[135,'nach links'],[180,'auf die gegenüberliegende Seite']]){
+  reset();const now=new Date(),old=previousPhotograph(now);plan.action='none';
+  const message='Zeig dieses Foto bitte aus einer anderen Perspektive. Kamerastandpunkt: '+angle+'° '+side+' um das Motiv, relativ zur ursprünglichen Kamera. Nur den Kamerastandpunkt ändern. Die ursprüngliche Situation bleibt erhalten.';
+  const prepared=await api.preparePortrait(message,old,now),job=JSON.parse(db.get(prefix+'request:'+prepared.id));assert.equal(job.variant,true);assert.equal(job.sourceId,old);assert.deepEqual(job.dimensions,['camera-angle']);assert.equal(job.outfit,'Green sweater with red scarf');assert.equal(job.bodyPose,'sitting');
+  await api.generatePortrait(prepared.id);const prompt=imageCalls[0].prompt;assert.match(prompt,/CAMERA POSITION OVERRIDE/);assert.ok(prompt.includes(angle+' degrees'));assert.match(prompt,/Move the camera, NOT the subject/);assert.match(prompt,/NOT a horizontal flip/);if(angle===180){assert.match(prompt,/actual rear view/);assert.match(prompt,/Do not force her face/);}assert.equal(imageCalls[0].images.length,2);
+ }
+});
+test('camera position overrides are limited to explicit compass variants',()=>{
+ assert.equal(api.photoCameraPositionPrompt({variant:false,dimensions:['camera-angle'],scene:'Kamerastandpunkt: 180° auf die gegenüberliegende Seite'}),'');
+ assert.equal(api.photoCameraPositionPrompt({variant:true,dimensions:['lighting'],scene:'Kamerastandpunkt: 180° auf die gegenüberliegende Seite'}),'');
+ assert.equal(api.photoCameraPositionPrompt({variant:true,dimensions:['camera-angle'],scene:'Eine andere Perspektive'}),'');
 });
 test('preserving outfit and background in a custom request does not add them to editable dimensions',()=>{
  assert.deepEqual(api.variantDimensions('Etwas seitlicher, Outfit und Umgebung beibehalten.'),['camera-angle']);assert.deepEqual(api.variantDimensions('Anderes Licht, Outfit beibehalten.'),['lighting']);assert.deepEqual(api.variantDimensions('Andere Kleidung und anderer Hintergrund'),['background','outfit']);
