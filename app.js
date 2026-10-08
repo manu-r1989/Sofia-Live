@@ -1203,7 +1203,9 @@ function openMemoryView() {
   loadLongTermMemories();
 }
 
-function closeMemoryView() {
+async function closeMemoryView() {
+  if(flushCharacterSettings && !await flushCharacterSettings())return;
+  flushCharacterSettings=null;
   if (!memoryOverlay) return;
 
   memoryOverlay.style.display =
@@ -1344,10 +1346,16 @@ async function loadLongTermMemories() {
   }
 }
 
-async function saveCharacterEdit(field,value,topic,revision=latestSofiaLife?.revision) {
+let flushCharacterSettings=null;
+
+async function saveCharacterEdit(field,value,topic,revision=latestSofiaLife?.revision,retrySettings=false) {
   const response=await fetch('/api/memory',{method:'PUT',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json'},body:JSON.stringify({scope:'character',field,value,topic,revision})});
   if(response.status===401){window.location.reload();return false;}
   const data=await response.json();
+  if(response.status===409&&field==='settings'&&retrySettings){
+    const fresh=await fetch('/api/memory',{credentials:'same-origin',cache:'no-store'});
+    if(fresh.ok){const state=await fresh.json();if(Number.isInteger(state.character?.revision)){updateSofiaLocation(state.character);return saveCharacterEdit(field,value,topic,state.character.revision,false);}}
+  }
   if(!response.ok){const error=data.error || 'Änderung konnte nicht gespeichert werden.';setMemoryStatus(error);const note=document.getElementById('moodStatus');if(note)note.textContent=error;return false;}
   updateSofiaLocation(data.character);const note=document.getElementById('moodStatus');if(note)note.textContent='';return true;
 }
@@ -1361,7 +1369,7 @@ function renderCharacterMemories(character) {
   const groups={settings:section('Gespräch und Fotos'),day:section('Aktueller Alltag'),interests:section('Interessen'),plans:section('Sofias eigene Vorhaben'),references:section('Persönliche Gesprächsbezüge'),preferences:section('Vorlieben'),habits:section('Gesprächsgewohnheiten'),development:section('Jüngste Entwicklungen')};groups.settings.open=true;
   const date=at=>new Date(at).toLocaleDateString('de-DE',{timeZone:'Europe/Berlin',day:'2-digit',month:'2-digit',year:'numeric'});
   const status=(text)=>setMemoryStatus(text);
-  const apply=async(field,value,topic,button)=>{button.disabled=true;status('Wird gespeichert …');try{if(await saveCharacterEdit(field,value,topic,character.revision)){await loadLongTermMemories();status(field==='forget'?'Bezug vergessen.':'Gespeichert.');}}catch{status('Änderung konnte nicht gespeichert werden.');}finally{button.disabled=false;}};
+  const apply=async(field,value,topic,button)=>{button.disabled=true;status('Wird gespeichert …');try{if(await saveCharacterEdit(field,value,topic,latestSofiaLife?.revision??character.revision)){await loadLongTermMemories();status(field==='forget'?'Bezug vergessen.':'Gespeichert.');}}catch{status('Änderung konnte nicht gespeichert werden.');}finally{button.disabled=false;}};
   const row=(group,label,value,field,topic,kind)=>{
     const item=document.createElement('div');item.style.cssText='padding:12px 0;border-top:1px solid rgba(255,255,255,.08)';
     const text=document.createElement('div');text.textContent=label+': '+value;item.append(text);
@@ -1385,7 +1393,28 @@ function renderCharacterMemories(character) {
   controls.append(motifs);
   const photoLabel=document.createElement('label'),photos=document.createElement('input');photos.type='checkbox';photos.checked=settings.photos!==false;photoLabel.textContent='Gelegentliche eigene Fotos (max. 2 pro Stunde) ';photoLabel.append(photos);controls.append(photoLabel);
   const help=document.createElement('small');help.textContent='Die Motivauswahl gilt für selbst angebotene Fotos. Ausdrücklich angefragte Bilder bleiben möglich. Nachrichtenhäufigkeit und Ruhezeiten findest du unter Mitteilungen.';help.style.opacity='.65';controls.append(help);
-  const save=document.createElement('button');save.type='button';save.textContent='Gesprächseinstellungen speichern';save.onclick=()=>{const kinds=photoKinds.filter(x=>x.checked).map(x=>x.value);if(photos.checked&&!kinds.length){status('Bitte mindestens einen Fototyp wählen oder eigene Fotos deaktivieren.');return;}return apply('settings',{initiative:initiative.value,replyLength:length.value,photos:photos.checked,photoKinds:kinds},undefined,save);};controls.append(save);groups.settings.append(controls);
+  const values=()=>({initiative:initiative.value,replyLength:length.value,photos:photos.checked,photoKinds:photoKinds.filter(x=>x.checked).map(x=>x.value)});
+  let committed=JSON.stringify(values()),saving=null;
+  const save=document.createElement('button');save.type='button';save.textContent='Gesprächseinstellungen speichern';
+  async function flushSettings(force=false){
+    if(saving)return saving.then(ok=>ok?flushSettings(force):false);
+    const value=values(),snapshot=JSON.stringify(value);
+    if(!force&&snapshot===committed)return true;
+    if(value.photos&&!value.photoKinds.length){status('Bitte mindestens einen Fototyp wählen oder eigene Fotos deaktivieren.');return false;}
+    save.disabled=true;status('Wird gespeichert …');
+    saving=(async()=>{
+      try{if(!await saveCharacterEdit('settings',value,undefined,latestSofiaLife?.revision??character.revision,true))return false;committed=snapshot;status('Gespeichert.');return true;}
+      catch{status('Einstellungen konnten nicht gespeichert werden. Bitte erneut versuchen.');return false;}
+      finally{save.disabled=false;saving=null;}
+    })();
+    const ok=await saving;
+    return ok&&JSON.stringify(values())!==committed?flushSettings():ok;
+  }
+  flushCharacterSettings=flushSettings;
+  for(const input of [initiative,length,photos,...photoKinds])input.onchange=()=>flushSettings();
+  save.onclick=()=>flushSettings(true);controls.append(save);
+  const automatic=document.createElement('small');automatic.textContent='Änderungen werden automatisch gespeichert.';automatic.style.opacity='.65';controls.append(automatic);groups.settings.append(controls);
+
   for(const pref of character.preferences||[])if(pref.value)history(row(groups.preferences,'Vorliebe: '+pref.topic,pref.value,'preference',pref.topic,'preference'),pref.history);
   for(const interest of character.interests||[])if(!interest.dismissed){const item=row(groups.interests,'Interesse: '+interest.topic,interest.description+(interest.progress?' · '+interest.progress:''),'interest',interest.topic,'interest');history(item,interest.history);}
   const labels={planned:'Geplant',active:'In Arbeit',completed:'Abgeschlossen',paused:'Pausiert'};
