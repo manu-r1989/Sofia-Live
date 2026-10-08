@@ -6,11 +6,11 @@ const source=await readFile(new URL('../app.js',import.meta.url),'utf8');
 const block=source.slice(source.indexOf('let flushCharacterSettings'),source.indexOf('function renderEmptyMemory'));
 function harness(responseOk=true){
  class Node{constructor(tag){this.tag=tag;this.children=[];this.style={};this.textContent='';}append(...nodes){this.children.push(...nodes);}setAttribute(key,value){this[key]=value;}}
- const root=new Node('div'),requests=[],status=[];let reloads=0;
+ const root=new Node('div'),requests=[],status=[],storage=new Map();let reloads=0;
  const state={revision:7,location:'zu Hause',activity:'lesen',outfit:'Pullover',hairstyle:'Haare offen',mood:'entspannt',moodMode:'auto',preferences:[{topic:'buch',value:'<img src=x onerror=bad>'}],threads:[{topic:'arbeit',text:'Ein schwieriger Arbeitstag',status:'open'}]};
- const context=vm.createContext({memoryList:root,latestSofiaLife:state,document:{createElement:tag=>new Node(tag),getElementById:()=>null},window:{prompt:()=>null,location:{reload(){throw Error('unexpected reload');}}},updateSofiaLocation(){},setMemoryStatus:text=>status.push(text),loadLongTermMemories:async()=>reloads++,fetch:async(url,opts)=>{if(!opts?.method)return {ok:true,json:async()=>({character:state})};requests.push({url,...JSON.parse(opts.body)});return {status:responseOk?200:409,ok:responseOk,json:async()=>responseOk?{character:state}:{error:'Zustand geändert'}};}});
+ const context=vm.createContext({memoryList:root,latestSofiaLife:state,localStorage:{getItem:key=>storage.get(key)||null,setItem:(key,value)=>storage.set(key,value),removeItem:key=>storage.delete(key)},document:{createElement:tag=>new Node(tag),getElementById:()=>null},window:{prompt:()=>null,location:{reload(){throw Error('unexpected reload');}}},updateSofiaLocation(){},setMemoryStatus:text=>status.push(text),loadLongTermMemories:async()=>reloads++,fetch:async(url,opts)=>{if(!opts?.method)return {ok:true,json:async()=>({character:state})};requests.push({url,...JSON.parse(opts.body)});return {status:responseOk?200:409,ok:responseOk,json:async()=>responseOk?{character:state}:{error:'Zustand geändert'}};}});
  vm.runInContext(block,context);context.renderCharacterMemories(state);
- return {root,requests,status,state,context,reloads:()=>reloads};
+ return {root,requests,status,state,storage,context,reloads:()=>reloads};
 }
 const all=root=>root.children.flatMap(n=>[n,...all(n)]);
 test('character memory UI labels owners, renders strings safely and sends versioned removal separately',async()=>{
@@ -46,7 +46,7 @@ test('character overview groups own plans, history and development and forgets i
 test('photo motive control saves the selected preference and failures keep visible feedback',async()=>{
  const h=harness(false),checkboxes=all(h.root).filter(n=>n.type==='checkbox'&&n.value);for(const input of checkboxes)input.checked=['portrait','full_selfie'].includes(input.value);
  await all(h.root).find(n=>n.textContent==='Gesprächseinstellungen speichern').onclick();
- assert.deepEqual(h.requests[0].value.photoKinds,['full_selfie','portrait']);assert.equal(h.reloads(),0);assert.equal(h.status.at(-1),'Zustand geändert');
+ assert.deepEqual(h.requests[0].value.photoKinds,['full_selfie','portrait']);assert.equal(h.reloads(),0);assert.match(h.status.at(-1),/Noch nicht gespeichert/);
  assert.ok(all(h.root).some(n=>n['aria-label']==='Vorliebe: buch vergessen'));
 });
 
@@ -78,7 +78,7 @@ test('close flush waits for pending settings writes and sends the latest checkbo
 });
 test('failed automatic save prevents closing and keeps the changed selection for retry',async()=>{
  const h=harness(false),choices=all(h.root).filter(n=>n.type==='checkbox'&&n.value),portrait=choices.find(x=>x.value==='portrait');portrait.checked=true;
- assert.equal(await portrait.onchange(),false);assert.equal(await vm.runInContext('flushCharacterSettings()',h.context),false);assert.equal(portrait.checked,true);assert.equal(h.status.at(-1),'Zustand geändert');
+ assert.equal(await portrait.onchange(),false);assert.equal(await vm.runInContext('flushCharacterSettings()',h.context),false);assert.equal(portrait.checked,true);assert.match(h.status.at(-1),/Noch nicht gespeichert/);
 });
 test('settings retry a stale revision once using refreshed character state',async()=>{
  const h=harness();const revisions=[];let writes=0;
@@ -94,4 +94,34 @@ test('closing the real memory overlay waits for auto-save and stays open after f
   const portrait=all(h.root).find(n=>n.value==='portrait');portrait.checked=true;const pending=portrait.onchange(),close=h.context.closeMemoryView();assert.equal(overlay.style.display,'block');release();await pending;await close;
   assert.equal(overlay.style.display,succeeds?'none':'block');
  }
+});
+
+test('failed settings survive a rendered restart and successful retry clears only acknowledged draft',async()=>{
+ const h=harness(false),select=all(h.root).find(n=>n.tag==='select');select.value='active';await select.onchange();
+ assert.equal(JSON.parse(h.storage.get('sofia_character_settings_pending_v1')).value.initiative,'active');
+ h.root.children=[];h.context.renderCharacterMemories(h.state);
+ assert.equal(all(h.root).find(n=>n.tag==='select').value,'active');
+ h.context.fetch=async()=>({ok:true,status:200,json:async()=>({character:h.state})});
+ assert.equal(await vm.runInContext('flushCharacterSettings()',h.context),true);assert.equal(h.storage.size,0);
+});
+test('settings draft restores changed fields while preserving fresh server preferences',async()=>{
+ const h=harness(false);const select=all(h.root).find(n=>n.tag==='select');select.value='active';await select.onchange();
+ h.state.settings={initiative:'balanced',replyLength:'short',photos:false,photoKinds:['portrait']};
+ h.root.children=[];h.context.renderCharacterMemories(h.state);
+ const selects=all(h.root).filter(n=>n.tag==='select');assert.equal(selects[0].value,'active');assert.equal(selects[1].value,'short');
+ const checks=all(h.root).filter(n=>n.tag==='input');assert.equal(checks.find(n=>n.value==='portrait').checked,true);
+});
+test('invalid photo choice remains recoverable and does not issue a write',async()=>{
+ const h=harness();for(const n of all(h.root).filter(n=>n.tag==='input'&&n.value))n.checked=false;
+ assert.equal(await vm.runInContext('flushCharacterSettings()',h.context),false);assert.equal(h.requests.length,0);
+ assert.match(all(h.root).find(n=>n.role==='status').textContent,/mindestens einen Fototyp/);
+});
+
+test('revision retry merges just the changed setting into newer server choices',async()=>{
+ const h=harness();let attempt=0,last;
+ h.context.fetch=async(url,opts)=>{if(!opts?.method)return {ok:true,json:async()=>({character:{revision:9,settings:{initiative:'balanced',replyLength:'short',photos:false,photoKinds:['portrait']}}})};
+ last=JSON.parse(opts.body);return ++attempt===1?{status:409,ok:false,json:async()=>({error:'changed'})}:{status:200,ok:true,json:async()=>({character:h.state})};};
+ const value={initiative:'active',replyLength:'auto',photos:true,photoKinds:['selfie','environment']};
+ assert.equal(await h.context.saveCharacterEdit('settings',value,undefined,7,true,{...value,initiative:'balanced'}),true);
+ assert.equal(last.revision,9);assert.equal(last.value.initiative,'active');assert.equal(last.value.replyLength,'short');assert.equal(last.value.photos,false);assert.deepEqual(last.value.photoKinds,['portrait']);
 });
