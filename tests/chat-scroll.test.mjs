@@ -4,6 +4,12 @@ import vm from 'node:vm';
 import {readFile} from 'node:fs/promises';
 const app=await readFile(new URL('../app.js',import.meta.url),'utf8');
 const block=app.slice(app.indexOf('let chatScrollFrame ='),app.indexOf('function addMessage('));
+test('reading older turns suppresses automatic scrolling and an explicit latest action resumes following',()=>{
+ const frames=new Map(),events={},calls=[],button={hidden:true};let id=0;const messages={scrollHeight:2000,clientHeight:600,scrollTop:1400,addEventListener:(t,fn)=>events[t]=fn,scrollTo:o=>calls.push(o)};
+ const ctx=vm.createContext({window:{},document:{getElementById:()=>button},messages,requestAnimationFrame:fn=>{frames.set(++id,fn);return id;},cancelAnimationFrame:n=>frames.delete(n)});vm.runInContext(block,ctx);
+ messages.scrollTop=200;events.scroll();vm.runInContext("scrollChatToLatest('smooth')",ctx);assert.equal(frames.size,0);assert.equal(button.hidden,false);
+ ctx.window.SofiaChatViewport.latest();while(frames.size){const pending=[...frames];frames.clear();for(const [,f]of pending)f();}assert.equal(calls.length,2);assert.equal(button.hidden,true);
+});
 test('history positioning cancels queued smooth scrolls and follows late thumbnails unless user scrolls up',()=>{
  const frames=new Map(),events={},calls=[];let id=0;
  const messages={scrollHeight:2000,clientHeight:600,scrollTop:1400,addEventListener:(type,fn)=>events[type]=fn,scrollTo:o=>calls.push(o)};
@@ -81,4 +87,5 @@ test('local reload preserves unconfirmed delivery markers until a persisted rece
  const ctx=vm.createContext({MEMORY_KEY:'test',MAX_STORED_MESSAGES:100,console,localStorage:{getItem:()=>JSON.stringify([{role:'user',content:'pending',delivery:'unconfirmed'}])}});
  vm.runInContext(helper,ctx);assert.equal(ctx.loadMemory()[0].delivery,'unconfirmed');
 });
+
 

@@ -60,7 +60,7 @@
 
   <link
     rel="stylesheet"
-    href="./style.css?v=4439v1"
+    href="./style.css?v=4457v1"
   >
 </head>
 
@@ -340,7 +340,7 @@
 
           <strong id="sofiaLocation" role="status" aria-live="polite">…</strong>
 
-          <small id="mode">
+          <small id="mode" role="status" aria-live="polite">
             bereit
           </small>
 
@@ -393,13 +393,17 @@
       </div>
 
 
+      <button type="button" id="chatLatest" class="chat-latest" hidden aria-label="Zu den neuesten Nachrichten springen">↓ Neue Nachrichten</button>
+
       <form id="form">
 
-        <input
+        <textarea
           id="input"
+          rows="1"
+          aria-label="Nachricht an Sofia"
           autocomplete="off"
           placeholder="Schreib Sofia etwas …"
-        >
+        ></textarea>
 
 
         <button
@@ -422,7 +426,7 @@
          ACTIONS
     ====================================== -->
 
-    <div class="actions">
+    <div class="actions" role="group" aria-label="Werkzeuge">
 
       <button id="camera">
 
@@ -544,7 +548,7 @@
             window.SofiaTestMode=true;
             const banner=document.createElement('div');banner.id='sofia-test-banner';banner.setAttribute('role','status');
             banner.style.cssText='position:fixed;top:0;left:0;right:0;z-index:99999;padding:8px 12px;background:#694510;color:white;font-size:12px;display:flex;gap:12px;align-items:center;justify-content:center';
-            const label=document.createElement('span');label.textContent='TESTVERSION 4.43.9 · Nur Testdaten · '+(session.paidEnabled?'Begrenzte KI-Nutzung':'KI-Aufrufe deaktiviert');
+            const label=document.createElement('span');label.textContent='TESTVERSION 4.45.7 · Nur Testdaten · '+(session.paidEnabled?'Begrenzte KI-Nutzung':'KI-Aufrufe deaktiviert');
             const reset=document.createElement('button');reset.type='button';reset.textContent='Testdaten zurücksetzen';reset.onclick=async()=>{
               if(!window.confirm('Alle Chats, Fotos, Aufgaben und Erinnerungen dieser Testversion zurücksetzen? Nutzungsgrenzen bleiben erhalten.'))return;
               reset.disabled=true;
@@ -731,22 +735,23 @@
     window.SofiaAvatar verwenden.
   -->
 
-  <script src="./action-feedback.js?v=4439v1"></script>
-  <script src="./sofia-timeline.js?v=4439v1"></script>
-  <script src="./sofia-projects.js?v=4439v1"></script>
-  <script src="./sofia-images.js?v=4439v1"></script>
-  <script src="./sofia-social.js?v=4439v1"></script>
-  <script src="./app.js?v=4439v1"></script>
+  <script src="./sofia-ui.js?v=4457v1"></script>
+  <script src="./action-feedback.js?v=4457v1"></script>
+  <script src="./sofia-timeline.js?v=4457v1"></script>
+  <script src="./sofia-projects.js?v=4457v1"></script>
+  <script src="./sofia-images.js?v=4457v1"></script>
+  <script src="./sofia-social.js?v=4457v1"></script>
+  <script src="./app.js?v=4457v1"></script>
 
   <script src="./sofia-avatar.js?v=4192c1"></script>
 
   <script src="./avatar-presence.js?v=4193p3"></script>
 
   <script src="./avatar-gesture.js?v=4197m1"></script>
-  <script src="./avatar-expression.js?v=4439v1"></script>
-  <script src="./avatar-gaze.js?v=4439v1"></script>
+  <script src="./avatar-expression.js?v=4457v1"></script>
+  <script src="./avatar-gaze.js?v=4457v1"></script>
 
-  <script src="./live.js?v=4439v1"></script>
+  <script src="./live.js?v=4457v1"></script>
 
 
   <!-- Service Worker for offline assets and opt-in Web Push. -->
