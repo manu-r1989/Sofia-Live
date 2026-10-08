@@ -732,7 +732,7 @@ async function askSofia(userMessage, imageDataUrl = null, options = {}) {
       'sofia',
       data.imageRequest?.id,null,data.createdAt || new Date().toISOString()
     );
-    if (data.imageRequest) void window.SofiaImages?.generate(data.imageRequest);
+    if (data.imageRequest) void window.SofiaImages?.generate({...data.imageRequest,...(options.referenceImageId?{expectedSourceId:referenceImageId}:{})});
 
     if (thought) {
       thought.textContent = data.imageRequest && /^Gib mir einen kleinen Moment[.!]?$/i.test(reply.trim()) ? '' : reply;

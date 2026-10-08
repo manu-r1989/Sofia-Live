@@ -262,7 +262,8 @@
     if (image.status === 'failed') {
       const notice=document.createElement('div'); notice.id='portrait-' + image.id;
       notice.className='msg sofia'; notice.dataset.portraitStatus='failed';notice.dataset.presentation=mode; notice.textContent=image.failureCode==='test_image_limit'?'Das Foto-Limit der Testversion ist für heute erreicht. Morgen kann ich wieder ein Foto schicken.':typeof image.message==='string'&&image.message.trim()?image.message.trim().slice(0,500):failureReply;
-      const retry=document.createElement('button');retry.type='button';retry.className='photo-retry';retry.textContent='Erneut versuchen';retry.disabled=image.failureCode==='test_image_limit';retry.onclick=()=>{if(window.SofiaPhotoAction?.(image.requestMessage||'nochmal'))retry.disabled=true;};notice.append(retry);
+      if(image.failureCode==='portrait_reference_mismatch')notice.textContent='Die Bildreferenz passt nicht zum ausgewählten Foto. Bitte öffne das gewünschte Foto erneut und wähle dort die Perspektive.';
+      const retry=document.createElement('button');retry.type='button';retry.className='photo-retry';retry.textContent='Erneut versuchen';retry.disabled=['test_image_limit','portrait_reference_mismatch'].includes(image.failureCode);retry.onclick=()=>{if(window.SofiaPhotoAction?.(image.requestMessage||'nochmal',image.expectedSourceId||image.sourceId||undefined))retry.disabled=true;};notice.append(retry);
       window.SofiaTimeline?.decorate(notice,image.createdAt||new Date().toISOString());slot.append(notice); slot.hidden=false; window.SofiaChatViewport?.restore(viewport); return;
     }
     if(mode==='archived'||mode==='expired') {
@@ -327,16 +328,17 @@
       slotFor(request.id); // Reserve the original turn without showing progress UI.
       const job = (async () => {
         try {
+          if(request.expectedSourceId && request.sourceId!==request.expectedSourceId)throw Object.assign(new Error('portrait_reference_mismatch'),{code:'portrait_reference_mismatch'});
           const response = await fetch('/api/chat',{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json'},body:JSON.stringify({operation:'generate_image',requestId:request.id}),signal:typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function' ? AbortSignal.timeout(250000) : undefined});
           const data = await response.json();
-          if (!response.ok || !valid(data.image?.id) || data.image.id!==request.id) {const error=new Error('portrait_failed');error.code=data.code;throw error;}
+          if (!response.ok || !valid(data.image?.id) || data.image.id!==request.id || request.expectedSourceId && data.image.sourceId!==request.expectedSourceId) {const error=new Error('portrait_failed');error.code=data.image?.id===request.id && request.expectedSourceId && data.image.sourceId!==request.expectedSourceId?'portrait_reference_mismatch':data.code;throw error;}
           show(data.image); if(selectionVersion===selectionAtStart)rememberReference(data.image.id);
         } catch (error) {
           // A lost response may follow a successful write: reconcile by GET only.
           let recovered=null;
           try {
             const state=await fetch('/api/chat',{method:'GET',credentials:'same-origin',cache:'no-store',signal:typeof AbortSignal!=='undefined'&&typeof AbortSignal.timeout==='function'?AbortSignal.timeout(15000):undefined});
-            if(state.ok){const data=await state.json();recovered=data.images?.find(x=>x.id===request.id);}
+            if(state.ok){const data=await state.json();recovered=data.images?.find(x=>x.id===request.id && (!request.expectedSourceId || x.sourceId===request.expectedSourceId));}
           }catch{}
           if(recovered){show({...recovered,failureCode:recovered.failureCode||error?.code});if(recovered.status==='pending')remotePending.add(request.id);else if(recovered.status!=='failed' && selectionVersion===selectionAtStart)rememberReference(recovered.id);}
           else show({...request,anchorId:request.id,status:'failed',failureCode:error?.code});
