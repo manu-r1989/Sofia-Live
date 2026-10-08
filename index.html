@@ -60,7 +60,7 @@
 
   <link
     rel="stylesheet"
-    href="./style.css?v=4657v1"
+    href="./style.css?v=4657v2"
   >
 </head>
 
@@ -558,7 +558,7 @@
                 for(const key of ['sofia_memory','sofia-photo-reference','sofia_task_notices_v417','sofia_draft_v448','sofia_pins_v448','sofia_read_at_v448'])localStorage.removeItem(key);window.location.reload();
               }catch{label.textContent='Zurücksetzen nicht möglich. Bitte erneut versuchen.';}finally{reset.disabled=false;}
             };
-            banner.append(label,reset);document.body.append(banner);
+            const voicePreview=document.createElement('a');voicePreview.href='/voice-preview.html';voicePreview.textContent='Stimmen vergleichen';voicePreview.style.color='white';banner.append(label,voicePreview,reset);document.body.append(banner);
             const app=document.getElementById('app');if(app)app.style.paddingTop='44px';
           }
 
@@ -737,25 +737,25 @@
     window.SofiaAvatar verwenden.
   -->
 
-  <script src="./sofia-ui.js?v=4657v1"></script>
-  <script src="./sofia-workspace.js?v=4657v1"></script>
-  <script src="./action-feedback.js?v=4657v1"></script>
-  <script src="./sofia-timeline.js?v=4657v1"></script>
-  <script src="./sofia-projects.js?v=4657v1"></script>
-  <script src="./sofia-images.js?v=4657v1"></script>
-  <script src="./sofia-today.js?v=4657v1"></script>
-  <script src="./sofia-social.js?v=4657v1"></script>
-  <script src="./app.js?v=4657v1"></script>
+  <script src="./sofia-ui.js?v=4657v2"></script>
+  <script src="./sofia-workspace.js?v=4657v2"></script>
+  <script src="./action-feedback.js?v=4657v2"></script>
+  <script src="./sofia-timeline.js?v=4657v2"></script>
+  <script src="./sofia-projects.js?v=4657v2"></script>
+  <script src="./sofia-images.js?v=4657v2"></script>
+  <script src="./sofia-today.js?v=4657v2"></script>
+  <script src="./sofia-social.js?v=4657v2"></script>
+  <script src="./app.js?v=4657v2"></script>
 
   <script src="./sofia-avatar.js?v=4192c1"></script>
 
   <script src="./avatar-presence.js?v=4193p3"></script>
 
   <script src="./avatar-gesture.js?v=4197m1"></script>
-  <script src="./avatar-expression.js?v=4657v1"></script>
-  <script src="./avatar-gaze.js?v=4657v1"></script>
+  <script src="./avatar-expression.js?v=4657v2"></script>
+  <script src="./avatar-gaze.js?v=4657v2"></script>
 
-  <script src="./live.js?v=4657v1"></script>
+  <script src="./live.js?v=4657v2"></script>
 
 
   <!-- Service Worker for offline assets and opt-in Web Push. -->

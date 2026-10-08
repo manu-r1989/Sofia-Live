@@ -1040,3 +1040,5 @@ dialog legend,dialog label{font-size:13px;color:var(--ui-muted)}
 .today-dialog section{display:grid;gap:8px;margin:18px 0}
 .today-dialog section button{text-align:left;white-space:normal;overflow-wrap:anywhere;min-height:44px}
 .today-dialog label{display:flex;align-items:center;gap:8px;margin:14px 0}
+
+.sofia-photo-view .photo-follow-ups>button{flex-basis:160px;hyphens:auto}

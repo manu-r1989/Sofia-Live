@@ -42,3 +42,11 @@ Automated/mocked image tests do **not** verify real generated photo geometry. Be
 6. Multi-day quiet hours, contact variety and ongoing role continuity remain observational checks in normal use.
 
 Do not reset test data, bypass auth/isolation, lift budget limits or use Productiv credentials/data as a sandbox. If Test deployment, permissions or budget blocks verification, main stays unchanged. Retry Test hourly as authorized; only after meaningful Test verification apply these changed files to the then-current main with a branch lease, preserving its Production-only index differences, then deploy Productiv and verify exact version/hash. Disable the retry automation after successful Productiv release.
+
+## Initial browser acceptance, 08.10.2026 22:39–22:43 UTC
+
+Git-triggered deployment of e1e10363b3bf4eb6777411ad92ee8b5e5fa1e5fa succeeded on Test, confirmed by GitHub's Vercel status and the actual Test banner. The direct Vercel MCP deployment returned 403 and project inspection 404; these are connector permission limitations, not a failed running Test deploy. Productiv/main remains unchanged.
+
+Browser checks passed: Today load and Hamburg date (09.10.2026 after Hamburg midnight), section save feedback and persistence after reload, restoration to original section choices, photo source preview, compass directions and cancellation with no job, photo navigation, gallery date-only grouping, date filter/order persistence after close/reopen. No horizontal button overflow was observed. A narrow compound-button label was improved in the follow-up, and the existing Test-only voice comparison link was restored.
+
+521 automated tests passed. Actual photo generation/angle/posture and chain result inspection are still pending because the two image reservations for UTC 08.10.2026 were already consumed. The two existing Test photos sent at 08.10.2026 02:41 and 03:40 Hamburg time confirm today's used image budget. Do not bypass or reset it. After UTC day reset, the hourly continuation should verify a variant of a suitable retained photo and a second variant derived from that result, within two provider attempts, then proceed to Productiv only if actual results and UI checks pass. Ambiguous angles must be reported as uncertain rather than accepted as a verified geometry test.
