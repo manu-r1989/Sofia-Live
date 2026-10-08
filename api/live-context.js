@@ -118,7 +118,7 @@ export default async function handler(req, res) {
         if(taskAction?.ok)calendarAction=taskAction.calendarAction || (taskAction.action==='none'?await extractLiveCalendarAction(imageRequest.taskMessage,hamburgReferenceTime()):null);
       }
       const receipt=imageRequest.taskMessage?(calendarAction && taskAction.action==='none'?'Kalenderimport ist vorbereitet.':taskReceipt(taskAction)):'';
-      return res.status(200).json({context:(receipt?'AUFGABENTEILERGEBNIS: '+receipt+' Gib ausschließlich dieses Ergebnis wieder. ':'')+(imageRequest.correction?'BILDANFRAGE ANGENOMMEN: Sage auf Deutsch „Ich mache ein neues Foto, passend zu meiner aktuellen Situation.“ Das Bild wird separat erstellt. Noch keinen Bilderfolg behaupten.':'BILDANFRAGE ANGENOMMEN: Sage auf Deutsch „Gib mir einen kleinen Moment.“ Das Bild wird separat erstellt. Noch keinen Bilderfolg behaupten.'),imageRequest,life:await getSofiaLife(),taskAction,calendarAction});
+      return res.status(200).json({context:(receipt?'AUFGABENTEILERGEBNIS: '+receipt+' Gib ausschließlich dieses Ergebnis wieder. ':'')+(imageRequest.correction?'BILDANFRAGE ANGENOMMEN: Sage auf Deutsch „Ich korrigiere das Foto entsprechend deiner Beschreibung.“ Das Bild wird separat erstellt. Noch keinen Bilderfolg behaupten.':'BILDANFRAGE ANGENOMMEN: Sage auf Deutsch „Gib mir einen kleinen Moment.“ Das Bild wird separat erstellt. Noch keinen Bilderfolg behaupten.'),imageRequest,life:await getSofiaLife(),taskAction,calendarAction});
     }
   } catch (error) {
     return res.status(200).json({ context:'BILDANFRAGE: ' + portraitPreparationReply(error), taskAction:{ok:true,action:'none'}, calendarAction:null });

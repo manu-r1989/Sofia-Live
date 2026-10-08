@@ -42,6 +42,44 @@ test('Berlin date and time periods include summer and winter offsets',()=>{
  assert.equal(api.portraitPeriod(new Date('2026-12-06T10:30:00Z')),'2026-12-06:day');
 });
 test('ordinary conversation skips every network and classifier call',async()=>{reset();assert.equal(await api.preparePortrait('Wie geht es dir?'),null);assert.equal(calls.length,0);});
+function previousPhotograph(now=new Date()) {
+ const id='11111111-1111-4111-8111-111111111111',life=api.defaultSofiaLife(now);
+ life.lastPhoto={id};life.dialogue={at:now.toISOString(),lastUser:'Schick mir ein Foto an der Uni mit dem roten Schal.',lastAssistant:'Hier ist das Foto.'};
+ db.set(prefix+'life',JSON.stringify(life));db.set(prefix+'state',JSON.stringify({lastImageId:id}));
+ db.set(prefix+'image:'+id,JSON.stringify({id,createdAt:now.toISOString(),sentAt:now.toISOString(),outfit:'Green sweater with red scarf',hairstyle:'loose hair',kind:'selfie',base64:'/9j/AA==',scene:'At university',life,capturedAt:now.toISOString(),bodyPose:'sitting'}));
+ return id;
+}
+test('indirect perspective wishes force a real variant even when the planner says none or new',async()=>{
+ for(const action of ['none','new'])for(const text of ['Wie würde das Foto aus einer anderen Perspektive aussehen?','Wie würde es von der Seite aussehen?','Kannst du es aus einem anderen Blickwinkel zeigen?']) {
+  reset();const now=new Date(),old=previousPhotograph(now);plan.action=action;
+  const job=await api.preparePortrait(text,null,now),stored=JSON.parse(db.get(prefix+'request:'+job.id));
+  assert.equal(stored.variant,true,text);assert.equal(stored.sourceId,old);assert.ok(stored.dimensions.includes('camera-angle'));assert.equal(stored.outfit,'Green sweater with red scarf');assert.equal(stored.bodyPose,'sitting');assert.equal(stored.scene,text);
+  await api.generatePortrait(job.id);assert.equal(imageCalls.length,1);assert.equal(imageCalls[0].images.length,2);assert.match(imageCalls[0].prompt,/camera-angle/);
+ }
+});
+test('detail wishes create a source-bound photograph and requested crop rather than an empty promise',async()=>{
+ for(const text of ['Ich würde gern ein Detail genauer sehen.','Ich würde dein Oberteil gerne genauer sehen.','Das würde ich gern näher sehen.','Zeig mir bitte eine Nahaufnahme.','Kannst du näher herangehen?']) {
+  reset();const now=new Date(),old=previousPhotograph(now);plan.action='none';
+  const job=await api.preparePortrait(text,null,now),stored=JSON.parse(db.get(prefix+'request:'+job.id));assert.equal(stored.variant,true,text);assert.equal(stored.sourceId,old);assert.ok(stored.dimensions.includes('framing'));assert.ok(stored.dimensions.includes('distance'));assert.equal(stored.dimensions.includes('outfit'),false);assert.equal(stored.outfit,'Green sweater with red scarf');
+  await api.generatePortrait(job.id);assert.equal(imageCalls.length,1);assert.match(imageCalls[0].prompt,/framing/);
+ }
+});
+test('correction wording starts a fresh job and keeps both feedback and previous visual instructions',async()=>{
+ for(const text of ['Das wurde im Foto nicht korrekt umgesetzt.','Das entspricht nicht meiner vorherigen Beschreibung.','Nein, korrigiere das bitte.','Auf dem Foto fehlt der rote Schal.']) {
+  reset();const now=new Date(),old=previousPhotograph(now);plan.action='none';
+  const job=await api.preparePortrait(text,null,now);assert.equal(job.correction,true,text);const stored=JSON.parse(db.get(prefix+'request:'+job.id));assert.equal(stored.correctionOf,old);assert.equal(stored.variant,false);assert.equal(stored.sourceId,null);assert.ok(stored.scene.includes(text));assert.match(stored.scene,/roten Schal/);await api.generatePortrait(job.id);assert.equal(imageCalls.length,1);
+ }
+});
+test('visual follow-ups respect opt-outs, explanations, task scope and missing reference',async()=>{
+ reset();previousPhotograph();plan.action='none';
+ for(const text of ['Bitte nur beschreiben, wie das Foto aus einer anderen Perspektive aussieht.','Ich möchte das Detail nicht genauer sehen.','Bitte kein neues Foto aus anderer Perspektive.','Erinnere mich morgen daran, das Detail genauer zu sehen.','Ich würde den Vertrag gerne genauer sehen.','Wie funktioniert eine andere Perspektive?','Warum fehlt im Foto der Schal?','Sag „Ich würde das Detail gerne genauer sehen“.']) {
+  assert.equal(api.photoFollowUpIntent(text),null,text);assert.equal(await api.preparePortrait(text),null,text);
+ }
+ reset();plan.action='new';for(const text of ['Ich würde gern ein Detail genauer sehen.','Das entspricht nicht meiner Beschreibung.'])assert.equal(await api.preparePortrait(text),null,text);assert.equal(plannerInputs.length,0);
+});
+test('an unrelated stale correction does not attach to an old photograph',async()=>{
+ reset();const now=new Date(),old=new Date(+now-2*3600000);previousPhotograph(old);const life=JSON.parse(db.get(prefix+'life'));life.dialogue={at:now.toISOString(),lastUser:'Wie war dein Tag?',lastAssistant:'Ganz entspannt.'};db.set(prefix+'life',JSON.stringify(life));plan.action='new';assert.equal(await api.preparePortrait('Das entspricht nicht meiner Beschreibung.',null,now),null);assert.equal(plannerInputs.length,0);
+});
 test('appearance question offers a photograph without starting generation; no gives description',async()=>{
  reset();const now=new Date();const offer=await api.appearanceChoice('Wie siehst du aktuell aus?',now);assert.equal(offer.reply,'Möchtest du es sehen?');assert.equal(plannerInputs.length,0);assert.equal(imageCalls.length,0);
  await api.appendPortraitAcknowledgment('Wie siehst du aktuell aus?',offer.reply);
@@ -167,7 +205,7 @@ test('image delivery is private JPEG with download attachment and validated IDs'
 });
 test('UI integration loads shared renderer before app and does not alter avatar assets',async()=>{
  const root=new URL('../',import.meta.url);const index=await readFile(new URL('index.html',root),'utf8');
- assert.ok(index.indexOf('sofia-images.js?v=4438v1')<index.indexOf('app.js?v=4438v1'));
+ assert.ok(index.indexOf('sofia-images.js?v=4439v1')<index.indexOf('app.js?v=4439v1'));
  const chat=await readFile(new URL('api/chat.js',root),'utf8');
  assert.ok(chat.indexOf('!safeEqual(')<chat.indexOf('await servePortrait'));
  const ui=await readFile(new URL('sofia-images.js',root),'utf8');assert.match(ui,/dialog.showModal/);assert.match(ui,/link.download=/);assert.doesNotMatch(ui,/spinner|generating-status/);
