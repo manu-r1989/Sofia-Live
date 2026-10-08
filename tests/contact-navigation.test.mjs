@@ -28,3 +28,15 @@ test('hidden tabs and invalid contact ids never acknowledge unseen messages',asy
  h.document.visibilityState='hidden';h.events['sofia-contact-open']({detail:{contactId:id}});await Promise.resolve();assert.equal(h.dispatched.length,0);
  h.document.visibilityState='visible';vm.runInContext('focusPendingContact()',h.ctx);assert.equal(h.dispatched.length,1);
 });
+
+
+test('a retained contact absent from recent history is fetched, shown and acknowledged after insertion',async()=>{
+ const h=fixture(),inserted=[];h.ctx.fetch=async url=>{assert.equal(url,'/api/session?social=1&contact='+id);return {ok:true,json:async()=>({contact:{id,text:'Ein früherer Gruß.',createdAt:'2026-10-07T12:00Z'}})};};
+ h.ctx.addMessage=(...args)=>{inserted.push(args);h.node();return {};};h.ctx.messages.prepend=()=>{};
+ h.events['sofia-contact-open']({detail:{contactId:id}});await new Promise(setImmediate);
+ assert.equal(inserted.length,1);assert.equal(inserted[0][0],'Ein früherer Gruß.');assert.equal(inserted[0][3],id);assert.equal(h.dispatched[0].detail.contactId,id);
+});
+test('an unavailable retained contact gives feedback and never marks it read',async()=>{
+ const h=fixture(),feedback=[];h.ctx.fetch=async()=>({ok:false,json:async()=>({error:'gone'})});h.ctx.setThought=text=>feedback.push(text);
+ h.events['sofia-contact-open']({detail:{contactId:id}});await new Promise(setImmediate);assert.equal(h.dispatched.length,0);assert.match(feedback[0],/nicht mehr verfügbar/);
+});

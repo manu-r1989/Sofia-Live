@@ -16,11 +16,13 @@ function updateSofiaLocation(life) {
   if (latestSofiaLife && Number.isInteger(latestSofiaLife.revision) &&
       (!Number.isInteger(life.revision) || life.revision < latestSofiaLife.revision)) return;
   latestSofiaLife = life;
+  const scene=life.situation?.schema===1&&life.situation.revision===life.revision&&typeof life.situation.location==='string'?life.situation:life;
+  const face=typeof app!=='undefined'?app?.querySelector?.('.sofia-avatar-v435'):null;if(face)face.dataset.tone=life.responseTone||'natural';
   document.getElementById('moodAuto')?.classList?.toggle('active',life.moodMode!=='manual');
-  if (life.mood && app?.dataset.mood !== life.mood) applyMood(life.mood);
+  if (scene.mood && app?.dataset.mood !== scene.mood) applyMood(scene.mood);
   // The server supplies the same character state used by Text, Live and photos.
-  node.textContent = (life.statusLabel || life.location).trim().slice(0, 180);
-  node.title = typeof life.activity === 'string' ? life.activity.slice(0, 240) : '';
+  node.textContent = (scene===life?life.statusLabel||life.location:scene.location.replace(/\s+in Hamburg$/i,'').replace(/^an der Universität$/i,'an der Uni')).trim().slice(0, 180);
+  node.title = typeof scene.activity === 'string' ? scene.activity.slice(0, 240) : '';
 }
 window.SofiaLifeStatus = { update: updateSofiaLocation, get mood() { return undefined; } };
 
@@ -458,10 +460,26 @@ window.addEventListener('focus', () => {
 // Recovery reads shared state only; never resends a turn or starts Live.
 window.addEventListener('sofia-social-updated',()=>{syncConversationFromServer({silent:true});});
 let pendingContactOpen=null;
+let contactLoading=null;
+async function loadMissingContact(id){
+  if(contactLoading||typeof fetch==='undefined')return;
+  contactLoading=id;
+  try{
+    const response=await fetch('/api/session?social=1&contact='+encodeURIComponent(id),{credentials:'same-origin',cache:'no-store'});
+    const data=await response.json();if(pendingContactOpen!==id)return;
+    if(!response.ok||data.contact?.id!==id||typeof data.contact.text!=='string'){pendingContactOpen=null;if(typeof setThought==='function')setThought('Die Nachricht ist nicht mehr verfügbar.');return;}
+    if(!messages.querySelector('[data-contact-id="'+id+'"]')){
+      const node=addMessage(data.contact.text,'sofia',data.contact.imageId,id,data.contact.createdAt);
+      if(node)messages.prepend(node);
+    }
+  }catch{if(typeof setThought==='function')setThought('Die Nachricht konnte gerade nicht geladen werden.');}
+  finally{contactLoading=null;if(pendingContactOpen&&pendingContactOpen!==id)focusPendingContact();}
+  if(messages?.querySelector('[data-contact-id="'+pendingContactOpen+'"]'))focusPendingContact();
+}
 function focusPendingContact(){
   if(!pendingContactOpen||document.visibilityState!=='visible')return;
   const node=messages?.querySelector('[data-contact-id="'+pendingContactOpen+'"]');
-  if(!node)return;
+  if(!node){void loadMissingContact(pendingContactOpen);return;}
   const id=pendingContactOpen;pendingContactOpen=null;
   setChatMinimized(false);
   if(chatScrollFrame!==null)cancelAnimationFrame(chatScrollFrame);
@@ -552,7 +570,7 @@ async function speak(text) {
   if (!voiceOn || !text || window.SofiaLive?.isActive?.()) return;
   try {
     if (ttsAudio) { ttsAudio.pause(); ttsAudio=null; }
-    const response=await fetch('/api/tts',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({text,mood:app?.dataset.mood})});
+    const response=await fetch('/api/tts',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({text,mood:app?.dataset.mood,tone:latestSofiaLife?.responseTone})});
     if(!response.ok) throw new Error(`TTS ${response.status}`);
     const url=URL.createObjectURL(await response.blob());
     const audio=new Audio(url); ttsAudio=audio;
@@ -2041,6 +2059,7 @@ syncConversationFromServer().then(ok => {
 console.log(
   `Sofia V3.9 gestartet. Lokaler Chat: ${conversationHistory.length} Nachrichten.`
 );
+
 
 
 

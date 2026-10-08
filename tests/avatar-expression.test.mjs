@@ -83,3 +83,8 @@ test('serious mood suppresses listening smile without covering speech or changin
  h.root.dataset.mood='amüsiert';h.sync();assert.equal(h.img.hidden,false);
  h.root.dataset.state='speaking';h.sync();assert.equal(h.img.hidden,true);assert.equal(h.root.dataset.state,'speaking');
 });
+
+test('calm turn suppresses the listening smile while preserving manually selected mood',()=>{
+ const h=harness();h.events.load();h.root.dataset.state='listening';h.root.dataset.mood='amüsiert';h.root.dataset.tone='calm';h.sync();assert.equal(h.img.hidden,true);assert.equal(h.root.dataset.mood,'amüsiert');
+ h.root.dataset.tone='natural';h.sync();assert.equal(h.img.hidden,false);
+});

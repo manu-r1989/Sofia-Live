@@ -28,3 +28,12 @@ test('late context or history responses cannot roll the visible location or mood
  window.SofiaLifeStatus.update({revision:3,location:'im Café',mood:'amüsiert'});
  assert.equal(node.textContent,'zu Hause');assert.deepEqual(moods,['ernst']);
 });
+
+
+test('a valid canonical snapshot drives both location and mood, stale snapshot versions fall back safely',()=>{
+ const node={textContent:'…',title:''},window={},moods=[];
+ vm.runInNewContext(block,{window,app:{dataset:{}},applyMood:m=>moods.push(m),document:{getElementById:()=>node}});
+ window.SofiaLifeStatus.update({revision:10,location:'ältere Anzeige',mood:'amüsiert',situation:{schema:1,revision:10,location:'an der Universität in Hamburg',activity:'lernen',mood:'ernst'}});
+ assert.equal(node.textContent,'an der Uni');assert.equal(node.title,'lernen');assert.deepEqual(moods,['ernst']);
+ window.SofiaLifeStatus.update({revision:11,location:'zu Hause',activity:'auf dem Sofa',situation:{schema:1,revision:9,location:'im Café'}});assert.equal(node.textContent,'zu Hause');
+});

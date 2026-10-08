@@ -162,13 +162,17 @@ export default async function handler(
   try {
     // Optional context must not prevent microphone/session startup.
     const contextResults=await Promise.allSettled([
-      redisGetJSON(MEMORY_KEY, []),redisGetJSON(HISTORY_KEY, []),redisGetJSON(IDENTITY_KEY, [])
+      redisGetJSON(MEMORY_KEY, []),redisGetJSON(HISTORY_KEY, []),redisGetJSON(IDENTITY_KEY, []),redisGetJSON(dataPrefix()+'portrait:life',null)
     ]);
-    const [storedMemories,storedHistory,storedIdentity]=contextResults.map((result,index)=>{
+    const [storedMemories,storedHistory,storedIdentity,storedLife]=contextResults.map((result,index)=>{
       if(result.status==='fulfilled')return result.value;
-      console.warn('Realtime optional context unavailable',{part:['memory','history','identity'][index]});
+      console.warn('Realtime optional context unavailable',{part:['memory','history','identity','situation'][index]});
       return [];
     });
+    const lifeAge=Date.now()-Date.parse(storedLife?.situation?.at||storedLife?.updatedAt);
+    const initialSituation=lifeAge>=0&&lifeAge<90*60000&&(!storedLife.situation?.validUntil||Date.parse(storedLife.situation.validUntil)>Date.now())?storedLife.situation||{location:storedLife.location,activity:storedLife.activity,outfit:storedLife.outfit,hairstyle:storedLife.hairstyle,mood:storedLife.mood}:null;
+    const dialogueAge=Date.now()-Date.parse(storedLife?.dialogue?.at),dialogue=storedLife?.dialogue;
+    const initialDialogue=dialogueAge>=0&&dialogueAge<86400000?{topics:dialogue.topics,selectedTopic:dialogue.selectedTopic,intent:dialogue.intent,closedTopics:dialogue.closedTopics,pendingQuestion:dialogueAge<7200000&&dialogue.intent!=='closing'?dialogue.pendingQuestion:null}:null;
 
     const identityText = Array.isArray(storedIdentity) && storedIdentity.length
       ? storedIdentity.slice(-24).map(item => `- ${String(item?.text || item).trim()}`).filter(Boolean).join("\n")
@@ -244,6 +248,13 @@ export default async function handler(
 
     const instructions = `
 Du bist Sofia.
+
+SITUATION BEIM LIVE-START: ${JSON.stringify(initialSituation)}.
+GESPRÄCHSSTAND BEIM LIVE-START: ${JSON.stringify(initialDialogue)}.
+Dies ist ein Startbezug; neuerer Kontext im jeweiligen Turn hat Vorrang.
+Bei null keine aktuelle Situation aus einem alten Verlauf erraten.
+Offene Fragen und Abschlüsse aus Text gelten auch in Live. Bereits geschlossene
+Themen ohne ausdrückliche Wiederaufnahme ruhen lassen; keine Pflichtfrage.
 
 
 ALLTAG UND FOTOS
@@ -682,4 +693,5 @@ ${historyText}
     });
   }
 }
+
 

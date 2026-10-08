@@ -9,7 +9,7 @@ const portrait=url((await readFile(new URL('../lib/character-image.js',import.me
 const social=url((await readFile(new URL('../lib/social.js',import.meta.url),'utf8')).replace('./environment.js',env).replace('./character-image.js',portrait));
 const photo=await import(portrait),api=await import(social);
 const handler=(await import(url((await readFile(new URL('../lib/social-handler.js',import.meta.url),'utf8')).replace('./environment.js',env).replace('./social.js',social).replace('./character-image.js',portrait)))).default;
-const base=new Date('2026-10-07T08:00:00Z'),image={createdAt:base.toISOString()};
+const base=new Date('2026-10-07T10:00:00Z'),image={createdAt:base.toISOString()};
 for(const [hours,expected]of [[0,'chat'],[11.999,'chat'],[12,'archived'],[719.999,'archived'],[720,'expired'],[721,'expired']])test('photo retention at '+hours+' hours',()=>assert.equal(photo.photoAvailability(image,new Date(+base+hours*3600000)),expected));
 test('invalid creation date cannot retain a photograph indefinitely',()=>assert.equal(photo.photoAvailability({createdAt:'bad'},base),'expired'));
 test('Hamburg date, daylight saving and winter clock drive quiet hours',()=>{
@@ -23,12 +23,12 @@ test('push endpoint validation rejects SSRF destinations and malformed keys',()=
  for(const endpoint of ['http://web.push.apple.com/Q','https://127.0.0.1','https://web.push.apple.com.evil.test/Q','https://web.push.apple.com:8080/Q','https://x:secret@web.push.apple.com/Q'])assert.equal(api.validSubscription({...sub,endpoint}),false);
  assert.equal(api.validSubscription({...sub,keys:{auth:'bad',p256dh:'bad'}}),false);
 });
-const oldFetch=globalThis.fetch,oldEnv={...process.env};let db,modelCalls,changeDuringGeneration=false;
+const oldFetch=globalThis.fetch,oldEnv={...process.env};let db,modelCalls,changeDuringGeneration=false,changeScene=false,pauseDuringGeneration=false;
 const prefix='sofia:main:portrait:';
-function reset(){db=new Map();modelCalls=0;changeDuringGeneration=false;process.env.SOFIA_TEST_MODE='false';process.env.KV_REST_API_URL='https://redis.test';process.env.KV_REST_API_TOKEN='test';process.env.OPENAI_API_KEY='test';process.env.SOFIA_PASSWORD='test';delete process.env.CRON_SECRET;}
+function reset(){db=new Map();modelCalls=0;changeDuringGeneration=false;changeScene=false;pauseDuringGeneration=false;process.env.SOFIA_TEST_MODE='false';process.env.KV_REST_API_URL='https://redis.test';process.env.KV_REST_API_TOKEN='test';process.env.OPENAI_API_KEY='test';process.env.SOFIA_PASSWORD='test';delete process.env.CRON_SECRET;}
 globalThis.fetch=async(u,o)=>{
  const a=JSON.parse(o.body);
- if(String(u).includes('openai.com')){modelCalls++;if(changeDuringGeneration)db.set('sofia:main:history',JSON.stringify([{role:'user',content:'A newer turn'}]));return {ok:true,json:async()=>({choices:[{message:{content:JSON.stringify({text:'Ich genieße gerade meine Pause. Kaffee tut gut.',photo:false})}}]})};}
+ if(String(u).includes('openai.com')){modelCalls++;if(changeScene){const life=JSON.parse(db.get(prefix+'life'));await photo.editCharacterState({revision:life.revision,field:'location',value:'auf dem Sofa zu Hause'},base);}if(pauseDuringGeneration)db.set(prefix+'contact-prefs',JSON.stringify({level:'natural',photos:true,pausedUntil:new Date(+base+3600000).toISOString()}));if(changeDuringGeneration)db.set('sofia:main:history',JSON.stringify([{role:'user',content:'A newer turn'}]));return {ok:true,json:async()=>({choices:[{message:{content:JSON.stringify({text:'Ich genieße gerade meine Pause. Kaffee tut gut.',photo:false})}}]})};}
  const [op,k,v,...rest]=a;let result=null;
  if(op==='GET')result=db.get(k)||null;
  else if(op==='SET'){if(!rest.includes('NX')||!db.has(k)){db.set(k,v);result='OK';}}
@@ -155,4 +155,42 @@ test('notification deep link opens exactly the local contact and forwards it to 
  click();await work;assert.deepEqual(opened,['/?contact='+id]);
  clients=[{url:'https://sofia.test/',focus:async()=>{},postMessage:x=>messages.push(x)}];click();await work;
  assert.equal(opened.length,1);assert.equal(messages[0].contactId,id);
+});
+
+
+test('focused activity and fresh transitions postpone own contact before billing',()=>{
+ assert.equal(api.contactOpportunity({location:'an der Uni',activity:'an einem Studienprojekt arbeiten'},base),'occupied');
+ assert.equal(api.contactOpportunity({location:'beim Sport',activity:'Training'},base),'occupied');
+ assert.equal(api.contactOpportunity({location:'auf dem Weg zur Uni',activity:'unterwegs'},base),'occupied');
+ assert.equal(api.contactOpportunity({location:'an der Uni',activity:'eine Kaffeepause'},base),null);
+ assert.equal(api.contactOpportunity({location:'an der Alster',activity:'nach dem Lernen spazieren'},base),null);
+ assert.equal(api.contactOpportunity({transition:{at:new Date(+base-1000).toISOString()}},base),'transition');
+});
+test('contact kinds vary, suppress unanswered photos and use only available threads',()=>{
+ const box={sequence:0,read:0,items:[{contactKind:'observation'},{contactKind:'opinion'}]},prefs={photos:false};
+ assert.equal(api.contactKind({},box,[{topic:'projekt'}],prefs,()=>0),'thread');
+ assert.ok(['observation','opinion'].includes(api.contactKind({},box,[],prefs,()=>0)));
+ box.sequence=1;assert.ok(['observation','opinion'].includes(api.contactKind({},box,[{topic:'projekt'}],{photos:true},()=>0)));
+});
+test('pause settings expire, resume preserves quiet time and invalid clocks are rejected',async()=>{
+ reset();let response=await settingsCall({operation:'preferences',preferences:{level:'quiet',photos:false,quietStart:'22:30',quietEnd:'07:15'}});
+ assert.equal(response.status,200);assert.equal(response.data.preferences.quietStart,'22:30');
+ response=await settingsCall({operation:'pause',duration:'hour'});assert.equal(response.status,200);assert.equal(response.data.preferences.level,'quiet');assert.ok(Date.parse(response.data.preferences.pausedUntil)>Date.now());
+ response=await settingsCall({operation:'pause',duration:'resume'});assert.equal(response.data.preferences.pausedUntil,null);assert.equal(response.data.preferences.quietEnd,'07:15');
+ for(const extra of [{quietStart:'24:00',quietEnd:'08:00'},{quietStart:'08:00',quietEnd:'08:00'}])assert.equal((await settingsCall({operation:'preferences',preferences:{level:'natural',photos:true,...extra}})).status,400);
+ assert.equal((await settingsCall({operation:'pause',duration:'forever'})).status,400);
+});
+test('configured quiet windows and explicit pause block ticks without model calls',async()=>{
+ reset();db.set(prefix+'contact-prefs',JSON.stringify({level:'natural',photos:true,quietStart:'12:00',quietEnd:'13:00'}));assert.equal((await api.socialTick(base)).reason,'quiet');assert.equal(modelCalls,0);
+ db.set(prefix+'contact-prefs',JSON.stringify({level:'natural',photos:true,pausedUntil:new Date(+base+3600000).toISOString()}));assert.equal((await api.socialTick(base)).reason,'paused');assert.equal(modelCalls,0);
+});
+
+test('a scene correction or pause arriving during generation prevents stale contact delivery',async()=>{
+ reset();changeScene=true;assert.equal((await api.socialTick(base)).reason,'scene_changed');assert.equal(db.has(prefix+'contact-inbox'),false);
+ reset();pauseDuringGeneration=true;assert.equal((await api.socialTick(base)).reason,'paused');assert.equal(db.has(prefix+'contact-inbox'),false);
+});
+
+test('retained own-contact lookup returns only that message and rejects unknown ids',async()=>{
+ reset();const id='11111111-1111-4111-8111-111111111111';db.set(prefix+'contact-inbox',JSON.stringify({sequence:1,read:0,items:[{id,sequence:1,text:'Ein alter Gruß.',createdAt:base.toISOString(),privateDebug:'hidden'}]}));
+ const contact=await api.socialContact(id);assert.equal(contact.text,'Ein alter Gruß.');assert.equal(contact.privateDebug,undefined);assert.equal(await api.socialContact('invalid'),null);assert.equal(await api.socialContact('22222222-2222-4222-8222-222222222222'),null);
 });
