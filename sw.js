@@ -1,8 +1,8 @@
 /* =========================================================
-   SOFIA V4.34.3 — SERVICE WORKER
+   SOFIA V4.37.7 — SERVICE WORKER
    ========================================================= */
 
-const CACHE = "sofia-live-v4343v1";
+const CACHE = "sofia-live-v4377v1";
 
 
 const ASSETS = [
@@ -11,25 +11,25 @@ const ASSETS = [
 
   "./index.html",
 
-  "./style.css?v=4343v1",
+  "./style.css?v=4377v1",
 
-  "./action-feedback.js?v=4343v1",
-  "./sofia-timeline.js?v=4343v1",
-  "./sofia-images.js?v=4343v1",
-  "./sofia-social.js?v=4343v1",
-  "./app.js?v=4343v1",
+  "./action-feedback.js?v=4377v1",
+  "./sofia-timeline.js?v=4377v1",
+  "./sofia-images.js?v=4377v1",
+  "./sofia-social.js?v=4377v1",
+  "./app.js?v=4377v1",
 
-  "./live.js?v=4343v1",
+  "./live.js?v=4377v1",
 
   "./sofia-avatar.js?v=4192c1",
 
   "./avatar-presence.js?v=4193p3",
   "./avatar-gesture.js?v=4197m1",
-  "./avatar-expression.js?v=4197m1",
+  "./avatar-expression.js?v=4377v1",
   "./avatar/sofia-friendly-mouth.png?v=4194e1",
   "./avatar/sofia-thoughtful-mouth.png?v=4194e2",
 
-  "./avatar-gaze.js?v=4197m1",
+  "./avatar-gaze.js?v=4377v1",
 
   "./avatar/sofia-gaze-left.png?v=4192g3",
 
@@ -301,13 +301,15 @@ self.addEventListener('push',event=>{
   let data={};try{data=event.data?.json()||{};}catch{}
   const unread=Number.isSafeInteger(data.unread)&&data.unread>=0?data.unread:1;
   try{if(unread)await self.navigator?.setAppBadge?.(unread);else await self.navigator?.clearAppBadge?.();}catch{}
-  await self.registration.showNotification('Sofia',{body:'Du hast eine neue Nachricht von Sofia.',icon:'/icons/icon-192.png',badge:'/icons/icon-192.png',tag:'sofia-chat',data:{url:'/'}});
+  const contactId=/^[0-9a-f-]{36}$/i.test(data.contactId||'')?data.contactId:null;
+  await self.registration.showNotification('Sofia',{body:'Du hast eine neue Nachricht von Sofia.',icon:'/icons/icon-192.png',badge:'/icons/icon-192.png',tag:'sofia-chat',data:{url:'/',contactId}});
  })());
 });
 self.addEventListener('notificationclick',event=>{
  event.notification.close();event.waitUntil((async()=>{
+  const contactId=/^[0-9a-f-]{36}$/i.test(event.notification.data?.contactId||'')?event.notification.data.contactId:null;
   const windows=await self.clients.matchAll({type:'window',includeUncontrolled:true});
-  for(const client of windows){if(new URL(client.url).origin===self.location.origin){await client.focus();client.postMessage({type:'sofia-chat-open'});return;}}
-  await self.clients.openWindow('/');
+  for(const client of windows){if(new URL(client.url).origin===self.location.origin){await client.focus();client.postMessage({type:'sofia-chat-open',contactId});return;}}
+  await self.clients.openWindow(contactId?'/?contact='+contactId:'/');
  })());
 });

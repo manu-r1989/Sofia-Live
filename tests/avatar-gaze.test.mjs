@@ -49,3 +49,10 @@ test('gaze observer disconnects in background and observes current state on retu
   h.root.dataset.state='speaking';h.document.hidden=false;h.events.visibilitychange();assert.equal(h.observing(),true);assert.equal(h.img.hidden,true);
   h.page.pagehide();assert.equal(h.observing(),false);h.page.pageshow();assert.equal(h.observing(),true);
 });
+
+
+test('entering thinking schedules a brief glance promptly, speech still cancels it',()=>{
+ const h=setup();h.imageEvents.load();h.root.dataset.state='thinking';h.sync();
+ assert.equal(h.timers.size,1);const delay=h.next();assert.ok(delay>=5000&&delay<=8000);assert.equal(h.img.hidden,false);
+ h.root.dataset.state='speaking';h.sync();assert.equal(h.img.hidden,true);assert.equal(h.right.hidden,true);
+});

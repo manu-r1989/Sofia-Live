@@ -856,6 +856,7 @@
   body:has(#sofia-test-banner) .moodPanel { top:110px!important; }
 }
 /* Sofia 4.34.2: persistent, unobtrusive Hamburg message times. */
+.contact-highlight { outline: 1px solid #b6a387; outline-offset: 3px; }
 .message-time {
   display: block;
   margin-top: 5px;

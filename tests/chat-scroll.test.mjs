@@ -22,7 +22,7 @@ test('parallel history reads are coalesced and delayed history cannot replace a 
  const ctx=vm.createContext({isResponding:false,historySyncInFlight:false,messages:null,
   lastServerHistorySignature:'',MAX_STORED_MESSAGES:100,window:{},console,
   fetch:()=>{calls++;return new Promise(resolve=>release=resolve);},
-  updateSofiaLocation(){},historySignature:JSON.stringify,saveMemory:()=>saves++});
+  focusPendingContact(){},updateSofiaLocation(){},historySignature:JSON.stringify,saveMemory:()=>saves++});
  vm.runInContext(sync,ctx);
  const first=ctx.syncConversationFromServer({silent:true});
  assert.equal(await ctx.syncConversationFromServer({silent:true}),false);assert.equal(calls,1);
@@ -57,7 +57,7 @@ test('server history cannot erase an unconfirmed local user turn',async()=>{
  const sync=app.slice(app.indexOf('async function syncConversationFromServer'),app.indexOf('function startConversationSync'));
  let saves=0;const local=[{role:'user',content:'Erstelle Aufgabe TEST',delivery:'unconfirmed'}];
  const ctx=vm.createContext({isResponding:false,historySyncInFlight:false,conversationHistory:local,messages:null,MAX_STORED_MESSAGES:100,
- window:{},fetch:async()=>({ok:true,status:200,json:async()=>({history:[{role:'assistant',content:'old'}],images:[]})}),updateSofiaLocation(){},saveMemory:()=>saves++});
+ window:{},fetch:async()=>({ok:true,status:200,json:async()=>({history:[{role:'assistant',content:'old'}],images:[]})}),focusPendingContact(){},updateSofiaLocation(){},saveMemory:()=>saves++});
  vm.runInContext(sync,ctx);assert.equal(await ctx.syncConversationFromServer({silent:true}),false);assert.equal(saves,0);assert.equal(ctx.conversationHistory[0].content,'Erstelle Aufgabe TEST');
 });
 
@@ -81,3 +81,4 @@ test('local reload preserves unconfirmed delivery markers until a persisted rece
  const ctx=vm.createContext({MEMORY_KEY:'test',MAX_STORED_MESSAGES:100,console,localStorage:{getItem:()=>JSON.stringify([{role:'user',content:'pending',delivery:'unconfirmed'}])}});
  vm.runInContext(helper,ctx);assert.equal(ctx.loadMemory()[0].delivery,'unconfirmed');
 });
+

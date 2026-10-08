@@ -431,6 +431,7 @@ async function syncConversationFromServer({ silent = false } = {}) {
     return false;
   } finally {
     historySyncInFlight = false;
+    focusPendingContact();
   }
 }
 
@@ -456,6 +457,25 @@ window.addEventListener('focus', () => {
 
 // Recovery reads shared state only; never resends a turn or starts Live.
 window.addEventListener('sofia-social-updated',()=>{syncConversationFromServer({silent:true});});
+let pendingContactOpen=null;
+function focusPendingContact(){
+  if(!pendingContactOpen||document.visibilityState!=='visible')return;
+  const node=messages?.querySelector('[data-contact-id="'+pendingContactOpen+'"]');
+  if(!node)return;
+  const id=pendingContactOpen;pendingContactOpen=null;
+  setChatMinimized(false);
+  if(chatScrollFrame!==null)cancelAnimationFrame(chatScrollFrame);
+  chatScrollFrame=null;chatPinnedToLatest=false;
+  node.scrollIntoView({block:'center',behavior:window.matchMedia?.('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});
+  node.classList.add('contact-highlight');setTimeout(()=>node.classList.remove('contact-highlight'),5000);
+  window.dispatchEvent(new CustomEvent('sofia-contact-visible',{detail:{contactId:id}}));
+  const url=new URL(window.location.href);if(url.searchParams.get('contact')===id){url.searchParams.delete('contact');window.history.replaceState(window.history.state,'',url.pathname+url.search+url.hash);}
+}
+window.addEventListener('sofia-contact-open',event=>{
+  const id=event.detail?.contactId;if(!/^[0-9a-f-]{36}$/i.test(id||''))return;
+  pendingContactOpen=id;void syncConversationFromServer({silent:true}).then(()=>focusPendingContact());
+});
+window.addEventListener('load',()=>{const id=new URL(window.location.href).searchParams.get('contact');if(id)window.dispatchEvent(new CustomEvent('sofia-contact-open',{detail:{contactId:id}}));});
 window.addEventListener('online', () => { syncConversationFromServer({silent:true}); });
 window.addEventListener('pageshow', () => { syncConversationFromServer({silent:true}); });
 
@@ -532,7 +552,7 @@ async function speak(text) {
   if (!voiceOn || !text || window.SofiaLive?.isActive?.()) return;
   try {
     if (ttsAudio) { ttsAudio.pause(); ttsAudio=null; }
-    const response=await fetch('/api/tts',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({text})});
+    const response=await fetch('/api/tts',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({text,mood:app?.dataset.mood})});
     if(!response.ok) throw new Error(`TTS ${response.status}`);
     const url=URL.createObjectURL(await response.blob());
     const audio=new Audio(url); ttsAudio=audio;
