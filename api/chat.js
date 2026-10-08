@@ -1,5 +1,5 @@
 import { dataPrefix, testModeRequested, publicTestMode, guardTestRequest } from "../lib/environment.js";
-import { appearanceChoice, conversationClarification, guardPermanentMemory, compactConversationHistory, safeDiagnostic, taskReceipt, hamburgReferenceTime, portraitPreparationReply, preparePortrait, generatePortrait, servePortrait, portraitGallery, appendPortraitAcknowledgment, PORTRAIT_FAILURE_REPLY, getSofiaLife, learnSofiaLife, lifeContext, prepareProactivePortrait, PROACTIVE_PHOTO_ANNOUNCEMENT } from '../lib/character-image.js';
+import { persistMemorySnapshot, executeProjectCommand, executeMemoryCommand, projectState, projectContext, projectBinding, linkProjectResult, appearanceChoice, conversationClarification, guardPermanentMemory, compactConversationHistory, safeDiagnostic, taskReceipt, hamburgReferenceTime, portraitPreparationReply, preparePortrait, generatePortrait, servePortrait, portraitGallery, appendPortraitAcknowledgment, PORTRAIT_FAILURE_REPLY, getSofiaLife, learnSofiaLife, lifeContext, prepareProactivePortrait, PROACTIVE_PHOTO_ANNOUNCEMENT } from '../lib/character-image.js';
 import crypto from "node:crypto";
 import { executeUnifiedAction, getActionState, getResearchState } from "./action-engine.js";
 
@@ -596,6 +596,9 @@ export default async function handler(req, res) {
     }
 
 
+    const directCommand=await executeMemoryCommand(message) || await executeProjectCommand(message);
+    if(directCommand){const createdAt=await appendPortraitAcknowledgment(message,directCommand.reply);const life=await getSofiaLife();return res.status(200).json({reply:directCommand.reply,createdAt,life,mood:life.mood,taskAction:{ok:true,action:'none'}});}
+
     try {
       const appearance=await appearanceChoice(message,new Date(),req.body?.mood);
       if(appearance?.reply){const createdAt=await appendPortraitAcknowledgment(message,appearance.reply);return res.status(200).json({reply:appearance.reply,createdAt,life:appearance.life,mood:appearance.life.mood,taskAction:{ok:true,action:'none'}});}
@@ -752,10 +755,13 @@ export default async function handler(req, res) {
 
 
     let sofiaLife = await getSofiaLife(new Date(), req.body?.mood);
+    const sharedProjects=await projectState();
+    const projectTask=projectBinding(message,sharedProjects);
     const SOFIA_PROMPT = `
 Du bist Sofia.
 
 ${lifeContext(sofiaLife,message)}
+${projectContext(sharedProjects)}
 LANGZEITGEDÄCHTNIS: Vorläufige, hypothetische, zitierte und kurzfristige Aussagen bleiben nur Gesprächskontext. Eine dauerhafte Erinnerung muss ausdrücklich vom Nutzer belegte stabile Angaben enthalten; Korrekturen ersetzen genau die bezeichnete bestehende Angabe. Bei nicht speicherwürdiger Aussage keine dauerhafte Speicherung behaupten.
 
 
@@ -1605,8 +1611,8 @@ Kein Markdown außerhalb des JSON-Objekts.
 
     let taskAction = { ok: true, action: "none" };
     try {
-      const unifiedAction = await executeUnifiedAction(message.trim(), hamburgNow, { mode: "text" });
-      taskAction = unifiedAction.taskAction;
+      const unifiedAction = projectTask?.missing ? {taskAction:{ok:false,action:"none",status:"project_missing",error:"Dieses aktive Vorhaben wurde nicht gefunden. Keine Aufgabe erstellt."}} : await executeUnifiedAction(projectTask?.taskMessage || message.trim(), hamburgNow, { mode: "text" });
+      taskAction = await linkProjectResult(projectTask,unifiedAction.taskAction);
       completedTaskAction=taskAction;
     } catch (taskError) {
       taskAction = { ok: false, action: "none", status: "execution_failed" };
@@ -1914,6 +1920,11 @@ Kein Markdown außerhalb des JSON-Objekts.
     const proposedMemory=memoryAction;
     memoryAction=guardPermanentMemory(message,memoryAction,memories);
     if(proposedMemory.action!=="none" && memoryAction.action==="none" && /(?:habe|hab|ist|wurde).{0,45}(?:dauerhaft gespeichert|im langzeitgedächtnis|als erinnerung gespeichert)/i.test(reply))reply="Das behalte ich zunächst nur für dieses Gespräch im Blick.";
+    if(memoryAction.action!=='none') {
+      const next=applyMemoryAction(memories,memoryAction);
+      if(await persistMemorySnapshot(storedMemories,next))memories=next;
+      else {memoryAction={action:'none',old_memory:null,new_memory:null,category:null};reply=(taskAction?.ok&&taskAction.action!=='none'?taskReceipt(taskAction)+' ':'')+'Der Erinnerungsstand hat sich inzwischen geändert. Die Änderung konnte ich nicht bestätigen; bitte prüfe die Erinnerungsübersicht.';}
+    }
     sofiaLife = await learnSofiaLife(message, reply, new Date(), mood, sofiaLife.revision);
     let spontaneousImageRequest = null;
     if (taskAction?.ok && taskAction.action === "none" && !calendarAction && !image) {
@@ -1955,34 +1966,8 @@ Kein Markdown außerhalb des JSON-Objekts.
        LANGZEITGEDÄCHTNIS V3.8
     ======================================== */
 
-    memories =
-      applyMemoryAction(
-        memories,
-        memoryAction
-      );
-
-
-    /* ========================================
-       REDIS SPEICHERN
-    ======================================== */
-
     failureStage="chat_store_unconfirmed";
-    await redisPipeline([
-
-      [
-        "SET",
-        HISTORY_KEY,
-        JSON.stringify(history)
-      ],
-
-      [
-        "SET",
-        MEMORY_KEY,
-        JSON.stringify(memories)
-      ]
-
-    ]);
-
+    await redisPipeline([["SET",HISTORY_KEY,JSON.stringify(history)]]);
 
     // V4.12.5: Sofia's own continuity is stored separately from user memory.
     try {

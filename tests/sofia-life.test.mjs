@@ -24,7 +24,7 @@ globalThis.fetch=async(endpoint,options)=>{
   if(op==='GET')return response({result:db.get(key)||null});
   if(op==='SET'){db.set(key,value);return response({result:'OK'});}
   if(op==='EVAL' && key.includes('sofia-portrait-jobs')) {const target=body[3],id=body[4];let jobs=JSON.parse(db.get(target)||'[]').filter(x=>x.id!==id);if(body[5])jobs.push(JSON.parse(body[5]));db.set(target,JSON.stringify(jobs.slice(-20)));return response({result:1});}
-  if(op==='EVAL' && key.includes('sofia-life-cas')) {
+  if(op==='EVAL' && ['sofia-life-cas','sofia-project-cas','sofia-memory-cas'].some(x=>key.includes(x))) {
    const target=body[3];if((db.get(target)||'')!==body[4])return response({result:0});
    db.set(target,body[5]);return response({result:1});
   }

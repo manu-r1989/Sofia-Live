@@ -1,5 +1,5 @@
 import { dataPrefix, testModeRequested, publicTestMode, guardTestRequest } from "../lib/environment.js";
-import { guardPermanentMemory, permanentMemoryCandidate, safeDiagnostic, learnSofiaLife, getSofiaLife } from '../lib/character-image.js';
+import { persistMemorySnapshot, guardPermanentMemory, permanentMemoryCandidate, safeDiagnostic, learnSofiaLife, getSofiaLife } from '../lib/character-image.js';
 import crypto from "node:crypto";
 
 const HISTORY_KEY = dataPrefix() + 'history';
@@ -730,31 +730,12 @@ ${cleanUser}
     ======================================== */
 
     memoryAction=guardPermanentMemory(cleanUser,memoryAction,memories);
-    memories =
-      applyMemoryAction(
-        memories,
-        memoryAction
-      );
-
-
-    /* ========================================
-       REDIS
-    ======================================== */
-
-    await redisPipeline([
-      [
-        "SET",
-        HISTORY_KEY,
-        JSON.stringify(history)
-      ],
-
-      [
-        "SET",
-        MEMORY_KEY,
-        JSON.stringify(memories)
-      ]
-    ]);
-
+    if(memoryAction.action!=='none') {
+      const next=applyMemoryAction(memories,memoryAction);
+      if(await persistMemorySnapshot(storedMemories,next))memories=next;
+      else {memoryAction={action:'none',old_memory:null,new_memory:null,category:null};memoryWarning='Der Erinnerungsstand hat sich geändert. Bitte prüfe die Erinnerungsübersicht; die Änderung wurde nicht bestätigt.';}
+    }
+    await redisPipeline([["SET",HISTORY_KEY,JSON.stringify(history)]]);
 
     const life = Number.isInteger(req.body?.lifeRevision)
       ? await learnSofiaLife(cleanUser, cleanAssistant, new Date(), undefined, req.body.lifeRevision)
