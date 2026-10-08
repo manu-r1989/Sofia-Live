@@ -60,7 +60,7 @@
 
   <link
     rel="stylesheet"
-    href="./style.css?v=4457v2"
+    href="./style.css?v=4487v1"
   >
 </head>
 
@@ -348,6 +348,7 @@
 
 
         <div class="chatHeadActions">
+          <button id="workspaceAction" type="button" aria-label="Chatwerkzeuge und Einstellungen" title="Chatwerkzeuge und Einstellungen">⋯</button>
           <button id="toolsToggle" type="button" aria-label="Werkzeugleiste ein-/ausblenden" aria-expanded="true" title="Werkzeuge">☷</button>
 <button
             type="button"
@@ -393,6 +394,7 @@
       </div>
 
 
+      <p id="connectionStatus" class="connection-status" role="status" aria-live="polite" hidden></p>
       <button type="button" id="chatLatest" class="chat-latest" hidden aria-label="Zu den neuesten Nachrichten springen">↓ Neue Nachrichten</button>
 
       <form id="form">
@@ -548,12 +550,12 @@
             window.SofiaTestMode=true;
             const banner=document.createElement('div');banner.id='sofia-test-banner';banner.setAttribute('role','status');
             banner.style.cssText='position:fixed;top:0;left:0;right:0;z-index:99999;padding:8px 12px;background:#694510;color:white;font-size:12px;display:flex;gap:12px;align-items:center;justify-content:center';
-            const label=document.createElement('span');label.textContent='TESTVERSION 4.45.7 · Nur Testdaten · '+(session.paidEnabled?'Begrenzte KI-Nutzung':'KI-Aufrufe deaktiviert');
+            const label=document.createElement('span');label.textContent='TESTVERSION 4.48.7 · Nur Testdaten · '+(session.paidEnabled?'Begrenzte KI-Nutzung':'KI-Aufrufe deaktiviert');
             const reset=document.createElement('button');reset.type='button';reset.textContent='Testdaten zurücksetzen';reset.onclick=async()=>{
               if(!window.confirm('Alle Chats, Fotos, Aufgaben und Erinnerungen dieser Testversion zurücksetzen? Nutzungsgrenzen bleiben erhalten.'))return;
               reset.disabled=true;
               try{const response=await fetch('/api/session',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({operation:'reset_test'}),credentials:'same-origin',cache:'no-store'});if(!response.ok){const data=await response.json();label.textContent=data.error||'Zurücksetzen nicht möglich.';return;}
-                for(const key of ['sofia_memory','sofia-photo-reference','sofia_task_notices_v417'])localStorage.removeItem(key);window.location.reload();
+                for(const key of ['sofia_memory','sofia-photo-reference','sofia_task_notices_v417','sofia_draft_v448','sofia_pins_v448','sofia_read_at_v448'])localStorage.removeItem(key);window.location.reload();
               }catch{label.textContent='Zurücksetzen nicht möglich. Bitte erneut versuchen.';}finally{reset.disabled=false;}
             };
             banner.append(label,reset);document.body.append(banner);
@@ -735,23 +737,24 @@
     window.SofiaAvatar verwenden.
   -->
 
-  <script src="./sofia-ui.js?v=4457v2"></script>
-  <script src="./action-feedback.js?v=4457v2"></script>
-  <script src="./sofia-timeline.js?v=4457v2"></script>
-  <script src="./sofia-projects.js?v=4457v2"></script>
-  <script src="./sofia-images.js?v=4457v2"></script>
-  <script src="./sofia-social.js?v=4457v2"></script>
-  <script src="./app.js?v=4457v2"></script>
+  <script src="./sofia-ui.js?v=4487v1"></script>
+  <script src="./sofia-workspace.js?v=4487v1"></script>
+  <script src="./action-feedback.js?v=4487v1"></script>
+  <script src="./sofia-timeline.js?v=4487v1"></script>
+  <script src="./sofia-projects.js?v=4487v1"></script>
+  <script src="./sofia-images.js?v=4487v1"></script>
+  <script src="./sofia-social.js?v=4487v1"></script>
+  <script src="./app.js?v=4487v1"></script>
 
   <script src="./sofia-avatar.js?v=4192c1"></script>
 
   <script src="./avatar-presence.js?v=4193p3"></script>
 
   <script src="./avatar-gesture.js?v=4197m1"></script>
-  <script src="./avatar-expression.js?v=4457v2"></script>
-  <script src="./avatar-gaze.js?v=4457v2"></script>
+  <script src="./avatar-expression.js?v=4487v1"></script>
+  <script src="./avatar-gaze.js?v=4487v1"></script>
 
-  <script src="./live.js?v=4457v2"></script>
+  <script src="./live.js?v=4487v1"></script>
 
 
   <!-- Service Worker for offline assets and opt-in Web Push. -->

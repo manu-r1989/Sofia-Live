@@ -129,9 +129,9 @@ function scrollChatToLatest(behavior = 'auto', force = false) {
   if (!messages || restoringChat) return;
   if(!chatPinnedToLatest&&!force){updateLatestButton();return;}
   if(force)chatPinnedToLatest=true;chatAutoScroll=true;updateLatestButton();
-  if(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches)behavior='auto';
+  if(window.SofiaWorkspace?.motion?.()==='auto'||window.matchMedia?.('(prefers-reduced-motion: reduce)').matches)behavior='auto';
   if (chatScrollFrame !== null) cancelAnimationFrame(chatScrollFrame);
-  const run = () => messages.scrollTo({ top: messages.scrollHeight, behavior });
+  const run = () => {messages.scrollTo({ top: messages.scrollHeight, behavior });window.SofiaWorkspace?.readVisible();};
   chatScrollFrame = requestAnimationFrame(() => {
     run();
     chatScrollFrame = requestAnimationFrame(() => {
@@ -184,6 +184,7 @@ function addMessage(text, who = 'sofia', imageRequestId = null, contactId = null
   }
   window.SofiaTimeline?.decorate(div,createdAt);
   window.SofiaUI?.refreshDays(messages);
+  window.SofiaWorkspace?.added(div,restoringChat);
   scrollChatToLatest('smooth');
   return div;
 }
@@ -420,6 +421,7 @@ async function syncConversationFromServer({ silent = false } = {}) {
     const signature = historySignature(serverHistory);
     if (signature === lastServerHistorySignature) { window.SofiaImages?.restore(data.images); return true; }
 
+    window.SofiaWorkspace?.reconcile(serverHistory,conversationHistory);
     lastServerHistorySignature = signature;
     conversationHistory = serverHistory;
     saveMemory();
@@ -436,6 +438,7 @@ async function syncConversationFromServer({ silent = false } = {}) {
       window.SofiaImages?.restore(data.images);
       } finally { restoringChat = false; }
       restoreChatViewport(viewport);
+      window.SofiaWorkspace?.refresh();
       void window.SofiaSocial?.sync();
     }
 
@@ -700,6 +703,7 @@ async function askSofia(userMessage, imageDataUrl = null) {
       const error=new Error('Sofia konnte nicht antworten.');error.status=response.status;error.code=response.status===429 && /^Ein Testaufruf läuft bereits/.test(data.error||'')?'test_busy':data.code;throw error;
     }
 
+    window.SofiaWorkspace?.confirmSubmission(userMessage);
     updateSofiaLocation(data.life);
     actionResultReceived = true;
     window.SofiaActionFeedback?.show(data.taskAction);
@@ -774,10 +778,9 @@ async function askSofia(userMessage, imageDataUrl = null) {
 
     const errorMessage = failure.message;
 
-    addMessage(
-      errorMessage,
-      'sofia'
-    );
+    window.SofiaWorkspace?.failSubmission(userMessage);
+    const failureNode=addMessage(errorMessage,'sofia');
+    window.SofiaWorkspace?.failed(failureNode,userMessage,{uncertain:failure.uncertainAction,image:!!imageDataUrl,knownRejected:error?.status===429});
 
     if (thought) {
       thought.textContent =
@@ -820,6 +823,7 @@ function submitChatMessage(event) {
 
   addMessage(imageForRequest ? `📷 ${messageText}` : messageText, 'user');
   input.value = '';
+  window.SofiaWorkspace?.beginSubmission(messageText);
   window.SofiaUI?.resizeComposer(input);
   pendingCameraImage = null;
   document.querySelector('#cameraAttachment')?.remove();
@@ -848,6 +852,10 @@ if (form && input) {
 
 if (sendButton) {
   document.getElementById('chatLatest')?.addEventListener('click',()=>scrollChatToLatest('smooth',true));
+  window.SofiaChatSend=message=>{
+    if(isResponding||window.SofiaImages?.isGenerating||navigator.onLine===false||!String(message||'').trim())return false;
+    chatPinnedToLatest=true;addMessage(message,'user');void askSofia(message);return true;
+  };
   window.SofiaPhotoAction=message=>{
     if(isResponding||window.SofiaImages?.isGenerating||!String(message||'').trim())return false;
     if(typeof navigator!=='undefined'&&navigator.onLine===false)return false;

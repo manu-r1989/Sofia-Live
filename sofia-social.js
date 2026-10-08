@@ -82,7 +82,7 @@
   };
   disable.onclick=async()=>{disable.disabled=true;try{const sub=await registration.pushManager.getSubscription();if(sub){await request('unsubscribe',{subscription:sub.toJSON()});await sub.unsubscribe();}state=await request();paintDevices();status.textContent='Mitteilungen auf diesem Gerät deaktiviert.';}catch(e){status.textContent=e.message;}finally{disable.disabled=false;}};
  }
- window.SofiaSocial={sync};
+ window.SofiaSocial={sync,preferences};
  document.getElementById('galleryAction')?.addEventListener('click',()=>window.SofiaImages?.openGallery());
  document.getElementById('socialAction')?.addEventListener('click',preferences);
  document.getElementById('messages')?.addEventListener('scroll',()=>void markRead(),{passive:true});
