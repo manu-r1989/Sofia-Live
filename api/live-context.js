@@ -1,5 +1,5 @@
 import { dataPrefix, testModeRequested, publicTestMode, guardTestRequest } from "../lib/environment.js";
-import { executeProjectCommand, executeMemoryCommand, projectState, projectContext, projectBinding, linkProjectResult, appearanceChoice, taskReceipt, hamburgReferenceTime, portraitPreparationReply, preparePortrait, getSofiaLife, lifeContext, prepareProactivePortrait, PROACTIVE_PHOTO_ANNOUNCEMENT } from '../lib/character-image.js';
+import { executeProjectCommand, executeMemoryCommand, projectState, projectContext, projectBinding, linkProjectResult, appearanceChoice, taskReceipt, hamburgReferenceTime, portraitPreparationReply, preparePortrait, getSofiaLife, currentSituationCorrection, synchronizeSituation, lifeContext, prepareProactivePortrait, PROACTIVE_PHOTO_ANNOUNCEMENT } from '../lib/character-image.js';
 import crypto from "node:crypto";
 import { executeUnifiedAction, getActionState, getResearchState } from "./action-engine.js";
 
@@ -103,6 +103,8 @@ export default async function handler(req, res) {
 
   const message = String(req.body?.message || "").trim().slice(0, 2000);
   if (!message) return res.status(200).json({ context: "", calendarAction: null });
+
+  if(currentSituationCorrection(message))await synchronizeSituation(message,new Date(),req.body?.mood);
 
   const directCommand=await executeMemoryCommand(message) || await executeProjectCommand(message);
   if(directCommand)return res.status(200).json({context:'TATSÄCHLICHES ERGEBNIS: Antworte ausschließlich und wörtlich auf Deutsch: '+directCommand.reply,life:await getSofiaLife(),taskAction:{ok:true,action:'none'},calendarAction:null});

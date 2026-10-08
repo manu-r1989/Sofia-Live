@@ -64,6 +64,10 @@ function redis(command) {
     const keys = args.slice(1, count + 1);
     const argv = args.slice(count + 1);
     const [resultKey, lockKey] = keys;
+    if(key.includes('sofia-life-cas')) {
+      if((db.get(resultKey)||'')!==argv[0])return 0;
+      db.set(resultKey,argv[1]);return 1;
+    }
     if (count === 1) {
       if (finishFailure) throw new Error('lock release failed');
       if (db.get(resultKey) !== argv[0]) return 0;
@@ -513,3 +517,12 @@ test('text endpoint clarifies multiple topics without asking its answer model to
  modelHook=()=>{throw new Error('Answer model must not run for local clarification');};
  const result=await endpoint('chat','Warum?');assert.match(result.reply,/Projekt.*oder.*Auto/);assert.equal(result.taskAction.action,'none');assert.equal(writes,0);
 });
+
+test('text reply model receives a current correction already committed to the shared situation',async()=>{
+ reset();let saw=false;modelHook=body=>{saw=true;assert.match(JSON.stringify(body.input),/in der Uni/);const life=JSON.parse(db.get('sofia:main:portrait:life'));assert.equal(life.location,'in der Uni');assert.equal(life.situation.sources.location.source,'correction');};
+ const result=await endpoint('chat','Du bist doch gerade in der Uni.');assert.equal(saw,true);assert.equal(result.life.location,'in der Uni');assert.equal(writes,0);
+});
+test('live context shares the same preflight correction without touching voice transport',async()=>{
+ reset();const result=await endpoint('live-context','Du sitzt doch gerade auf dem Sofa.');assert.equal(result.life.location,'auf dem Sofa');assert.match(result.context,/auf dem Sofa/);assert.equal(result.life.situation.sources.location.source,'correction');assert.equal(writes,0);
+});
+

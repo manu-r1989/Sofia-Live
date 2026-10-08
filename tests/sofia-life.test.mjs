@@ -453,3 +453,59 @@ test('photo-only revision change permits own-contact continuity but a newer user
  await api.recordOwnContact(after,'Eine verspätete Nachricht.','stale',now);
  assert.equal(JSON.parse(db.get(prefix+'life')).dialogue.lastUser,'Neuer Nutzerturn');assert.notEqual(JSON.parse(db.get(prefix+'life')).dialogue.contactId,'stale');
 });
+
+test('present correction is authoritative before the reply and shared by status and next photo',async()=>{
+ reset();const now=new Date('2026-10-08T12:15Z'),before=await api.getSofiaLife(now);
+ const corrected=await api.synchronizeSituation('Du bist doch gerade in der Uni. Schick mir ein Selfie.',now);
+ assert.equal(corrected.location,'in der Uni');assert.match(corrected.activity,/Lernen/);
+ assert.equal(corrected.situation.location,corrected.location);assert.equal(corrected.statusLabel,'in der Uni');
+ assert.equal(corrected.situation.sources.location.source,'correction');
+ assert.equal(corrected.outfit,before.outfit);assert.equal(corrected.hairstyle,before.hairstyle);
+ const job=await api.preparePortrait('Ein Selfie bitte',null,now),request=JSON.parse(db.get(prefix+'request:'+job.id));
+ assert.equal(request.life.location,corrected.location);assert.equal(request.life.situation.posture,'sitzend');
+ assert.match(api.lifeContext(corrected,'Wo bist du?'),/in der Uni/);
+});
+test('corrections are conservative for negation, history, hypothetical scenes and multiple places',()=>{
+ for(const text of ['Du bist doch nicht in der Uni.','Du warst doch gestern in der Uni.','Angenommen, du bist doch gerade in der Uni.','Du bist doch in der Uni oder im Café.','Du bist doch in der Uni und im Café.','Sie sagte: "Du bist doch in der Uni."','Du bist doch vielleicht in der Uni.'])assert.equal(api.currentSituationCorrection(text),null,text);
+ assert.equal(api.currentSituationCorrection('Korrektur: Du liegst gerade im Bett.').location,'im Bett');
+ assert.equal(api.currentSituationCorrection('Nein, du sitzt gerade auf dem Sofa zu Hause.').location,'auf dem Sofa zu Hause');
+});
+test('night corrections cannot send Sofia to university and ordinary talk does not alter her scene',async()=>{
+ reset();const now=new Date('2026-10-08T23:00Z');const life=await api.synchronizeSituation('Du bist doch gerade in der Uni.',now);
+ assert.match(life.location,/Bett/);
+ assert.equal(api.currentSituationCorrection('Ich bin gerade in der Uni.'),null);
+ assert.equal(api.currentSituationCorrection('Wie würde ein Foto in der Uni aussehen?'),null);
+});
+test('preflight corrections expire and do not overwrite permanent identity or preferences',async()=>{
+ reset();const now=new Date('2026-10-08T12:15Z');await api.synchronizeSituation('Du liegst doch gerade im Bett.',now);
+ const soon=await api.getSofiaLife(new Date(+now+60000));assert.match(soon.location,/Bett/);assert.match(soon.situation.posture,/liegend/);
+ const later=await api.getSofiaLife(new Date(+now+91*60000));assert.doesNotMatch(later.location,/Bett/);assert.equal(later.situation.location,later.location);
+});
+test('a contradictory classifier cannot undo an explicit correction from the same turn',async()=>{
+ reset();const now=new Date('2026-10-08T12:15Z'),message='Du bist doch gerade in der Uni.';
+ await api.synchronizeSituation(message,now);narrative={location:'im Café',activity:'Kaffee trinken'};
+ const learned=await api.learnSofiaLife(message,'Ich trinke gerade Kaffee im Café.',now);
+ assert.equal(learned.location,'in der Uni');assert.equal(learned.situation.sources.location.source,'correction');
+});
+test('conversation moves vary without turning every answer into a question',()=>{
+ const now=new Date('2026-10-08T12:00Z');let life=api.defaultSofiaLife(now);
+ const moves=[];
+ for(let i=0;i<4;i++){const at=new Date(+now+i*60000),move=api.conversationMove(life,'Erzähl mir etwas über deinen Alltag.',at);moves.push(move.kind);life=api.updateDialogue(life,'Erzähl mir etwas über deinen Alltag.',move.question?'Und wie ist dein Tag?':'Ich mag solche kleinen Pausen.',at);}
+ assert.ok(moves.includes('opinion'));assert.ok(moves.includes('reaction'));assert.ok(moves.includes('question'));
+ assert.notEqual(moves[0],moves[1]);assert.equal(moves.filter(x=>x==='question').length,1);
+});
+test('listening, short replies, sensitive turns and quiet settings suppress voluntary questions',()=>{
+ const now=new Date('2026-10-08T12:00Z'),life=api.defaultSofiaLife(now);
+ for(const text of ['Hör mir einfach zu','Nur kurz: Wo bist du?','Ich bin traurig','Gute Nacht','Okay.'])assert.deepEqual(api.conversationMove(life,text,now),{kind:'respond',question:false,thread:null});
+ assert.equal(api.conversationMove({...life,settings:{initiative:'quiet'}},'Was denkst du?',now).kind,'respond');
+ assert.match(api.lifeContext(life,'Wie geht es dir?'),/GESPRÄCHSIMPULS DIESES TURNS/);
+});
+test('only relevant open, unasked threads can be brought back into conversation',()=>{
+ const now=new Date('2026-10-08T12:00Z'),thread={topic:'prüfung',text:'Deine Prüfung am Freitag',status:'open',expiresAt:new Date(+now+86400000).toISOString()};
+ const life={...api.defaultSofiaLife(now),threads:[thread]};
+ assert.equal(api.conversationMove(life,'Meine Prüfung beschäftigt mich.',now).kind,'reference');
+ assert.equal(api.conversationMove(life,'Was trinkst du?',now).thread,null);
+ assert.equal(api.conversationMove({...life,threads:[{...thread,status:'resolved'}]},'Meine Prüfung',now).thread,null);
+ assert.equal(api.conversationMove({...life,threads:[{...thread,lastAskedAt:now.toISOString()}]},'Meine Prüfung',now).thread,null);
+ assert.equal(api.conversationMove({...life,dialogue:{at:now.toISOString(),closedTopics:[{topic:'prüfung'}]}},'Meine Prüfung',now).thread,null);
+});

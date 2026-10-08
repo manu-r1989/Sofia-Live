@@ -185,6 +185,26 @@ test('configured quiet windows and explicit pause block ticks without model call
  db.set(prefix+'contact-prefs',JSON.stringify({level:'natural',photos:true,pausedUntil:new Date(+base+3600000).toISOString()}));assert.equal((await api.socialTick(base)).reason,'paused');assert.equal(modelCalls,0);
 });
 
+test('contact status explains actual pauses, unread contacts, daily budget and spacing',()=>{
+ const prefs={level:'natural',photos:true},box={sequence:0,read:0,items:[]};
+ assert.equal(api.contactStatus({...prefs,level:'off'},{},box,{},base).reason,'off');
+ assert.equal(api.contactStatus({...prefs,pausedUntil:new Date(+base+3600000).toISOString()},{},box,{},base).reason,'paused');
+ assert.equal(api.contactStatus({...prefs,quietStart:'12:00',quietEnd:'15:00'},{},box,{},base).reason,'quiet');
+ assert.equal(api.contactStatus(prefs,{}, {...box,sequence:2},{},base).reason,'unread');
+ assert.equal(api.contactStatus(prefs,{},box,{limit:3,count:3},base).reason,'daily_budget');
+ assert.equal(api.contactStatus(prefs,{},box,{limit:3,count:1,nextAt:+base+60000},base).reason,'spacing');
+ assert.equal(api.contactStatus(prefs,{},box,{},base).reason,'ready');
+});
+test('inbox state exposes bounded previews and photo references without internal fields',async()=>{
+ reset();const id='11111111-1111-4111-8111-111111111111';db.set(prefix+'contact-inbox',JSON.stringify({sequence:1,read:0,items:[{id,sequence:1,text:'x'.repeat(700),createdAt:base.toISOString(),imageId:id,privateDetail:'hidden'}]}));
+ const state=await api.socialState(base);assert.equal(state.contacts[0].text.length,180);assert.equal(state.contacts[0].createdAt,base.toISOString());assert.equal(state.contacts[0].imageId,id);assert.equal(state.contacts[0].privateDetail,undefined);assert.equal(state.unread,1);assert.ok(state.contactStatus.text);
+});
+test('partial quiet changes cannot silently collapse the saved quiet window',async()=>{
+ reset();await settingsCall({operation:'preferences',preferences:{level:'natural',photos:true,quietStart:'22:30',quietEnd:'07:15'}});
+ assert.equal((await settingsCall({operation:'preferences',preferences:{level:'natural',photos:true,quietStart:'07:15'}})).status,400);
+ assert.equal((await api.socialState()).preferences.quietStart,'22:30');
+});
+
 test('a scene correction or pause arriving during generation prevents stale contact delivery',async()=>{
  reset();changeScene=true;assert.equal((await api.socialTick(base)).reason,'scene_changed');assert.equal(db.has(prefix+'contact-inbox'),false);
  reset();pauseDuringGeneration=true;assert.equal((await api.socialTick(base)).reason,'paused');assert.equal(db.has(prefix+'contact-inbox'),false);
