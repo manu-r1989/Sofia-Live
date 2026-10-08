@@ -999,3 +999,15 @@ dialog legend,dialog label{font-size:13px;color:var(--ui-muted)}
 #mode[data-phase="thinking"]::before,#mode[data-phase="photo"]::before{background:var(--ui-accent)}
 #mode[data-phase="listening"]::before,#mode[data-phase="speaking"]::before{background:#a7c8b1}
 #mode[data-phase="attention"]::before{background:#d9b58e}
+
+/* V4.55.8: one initial/compact height, closed tools at every fresh launch. */
+@media (max-width:850px) and (orientation:portrait){
+ .chatPanel:not(.minimized):not(.chat-hidden):not(.chat-full),.chatPanel.minimized{height:var(--sofia-chat-height)!important;max-height:var(--sofia-chat-height)!important;min-height:0!important;box-sizing:border-box!important}
+ .chatPanel:not(.chat-hidden)~.actions{bottom:calc(var(--sofia-keyboard-inset,0px) + max(12px,env(safe-area-inset-bottom)) + var(--sofia-chat-height) + 8px)!important}
+}
+.app.tools-closed .actions{opacity:0!important;visibility:hidden!important;pointer-events:none!important}
+@media (orientation:landscape) and (min-width:851px){
+ #toolsToggle{display:inline-flex!important}
+ .app.tools-closed .chatPanel{top:max(18px,env(safe-area-inset-top))!important}
+ body:has(#sofia-test-banner) .app.tools-closed .chatPanel{top:44px!important}
+}

@@ -31,7 +31,7 @@ test('conversation settings use revision guarded character API and habits can be
  const selects=controls.children.flatMap(n=>n.children).filter(n=>n.tag==='select');selects[0].value='quiet';selects[1].value='short';
  const photos=controls.children.flatMap(n=>n.children).find(n=>n.type==='checkbox');photos.checked=false;
  await controls.children.find(n=>n.textContent==='Gesprächseinstellungen speichern').onclick();
- assert.deepEqual(h.requests[0].value,{initiative:'quiet',replyLength:'short',photos:false,photoMix:'mixed'});assert.equal(h.requests[0].revision,7);
+ assert.deepEqual(h.requests[0].value,{initiative:'quiet',replyLength:'short',photos:false,photoKinds:['selfie','environment']});assert.equal(h.requests[0].revision,7);
  assert.equal(all(h.root).find(n=>n.textContent==='Gespräch und Fotos').tag,'summary');
 });
 
@@ -44,8 +44,21 @@ test('character overview groups own plans, history and development and forgets i
 
 
 test('photo motive control saves the selected preference and failures keep visible feedback',async()=>{
- const h=harness(false),selects=all(h.root).filter(n=>n.tag==='select');selects[2].value='moments';
+ const h=harness(false),checkboxes=all(h.root).filter(n=>n.type==='checkbox'&&n.value);for(const input of checkboxes)input.checked=['portrait','full_selfie'].includes(input.value);
  await all(h.root).find(n=>n.textContent==='Gesprächseinstellungen speichern').onclick();
- assert.equal(h.requests[0].value.photoMix,'moments');assert.equal(h.reloads(),0);assert.equal(h.status.at(-1),'Zustand geändert');
+ assert.deepEqual(h.requests[0].value.photoKinds,['full_selfie','portrait']);assert.equal(h.reloads(),0);assert.equal(h.status.at(-1),'Zustand geändert');
  assert.ok(all(h.root).some(n=>n['aria-label']==='Vorliebe: buch vergessen'));
+});
+
+test('five photo options allow multiple selections and reject enabled photos with no selected kind',async()=>{
+ const h=harness(),choices=all(h.root).filter(n=>n.type==='checkbox'&&n.value);assert.equal(choices.length,5);
+ for(const choice of choices)choice.checked=false;
+ await all(h.root).find(n=>n.textContent==='Gesprächseinstellungen speichern').onclick();assert.equal(h.requests.length,0);assert.match(h.status.at(-1),/mindestens einen Fototyp/);
+});
+test('toolbar starts closed despite stored open preference and toggles explicitly',()=>{
+ const code=source.slice(source.indexOf('const toolsToggle ='),source.indexOf('const moodToggle ='));
+ const classes=new Set(),attrs={},stored={sofia_tools_open:'1'};let click;
+ const toggle={setAttribute:(k,v)=>attrs[k]=v,classList:{toggle(){}},addEventListener:(type,fn)=>click=fn};
+ const ctx=vm.createContext({document:{querySelector:selector=>selector==='#toolsToggle'?toggle:{}},app:{classList:{toggle:(key,on)=>on?classes.add(key):classes.delete(key),contains:key=>classes.has(key)}},localStorage:{setItem:(k,v)=>stored[k]=v,getItem:k=>stored[k]}});
+ vm.runInContext(code,ctx);assert.equal(classes.has('tools-closed'),true);assert.equal(attrs['aria-expanded'],'false');click();assert.equal(classes.has('tools-closed'),false);assert.equal(attrs['aria-expanded'],'true');
 });

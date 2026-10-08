@@ -205,7 +205,7 @@ test('image delivery is private JPEG with download attachment and validated IDs'
 });
 test('UI integration loads shared renderer before app and does not alter avatar assets',async()=>{
  const root=new URL('../',import.meta.url);const index=await readFile(new URL('index.html',root),'utf8');
- assert.ok(index.indexOf('sofia-images.js?v=4557v1')<index.indexOf('app.js?v=4557v1'));
+ assert.ok(index.indexOf('sofia-images.js?v=4559v1')<index.indexOf('app.js?v=4559v1'));
  const chat=await readFile(new URL('api/chat.js',root),'utf8');
  assert.ok(chat.indexOf('!safeEqual(')<chat.indexOf('await servePortrait'));
  const ui=await readFile(new URL('sofia-images.js',root),'utf8');assert.match(ui,/dialog.showModal/);assert.match(ui,/link.download=/);assert.doesNotMatch(ui,/spinner|generating-status/);
@@ -478,4 +478,18 @@ test('everyday detail generation keeps canonical reference and current scene wit
  await api.generatePortrait(job.id);assert.equal(imageCalls.length,1);assert.equal(imageCalls[0].images.length,1);
  assert.match(imageCalls[0].prompt,/close-up everyday detail snapshot/);assert.match(imageCalls[0].prompt,/no Sofia or identifiable people/);assert.doesNotMatch(imageCalls[0].prompt,/NEW PHOTO POSE:/);
  const image=await api.portraitGallery(now).then(rows=>rows.find(x=>x.id===job.id));assert.equal(image.kind,'detail');const gallery=await api.portraitGallery(now);assert.ok(gallery.some(x=>x.id===job.id));
+});
+
+test('explicit new photo kinds work independently of initiative preferences and preserve bed posture',async()=>{
+ for(const [message,kind]of [['Schick mir ein Ganzkörperselfie','full_selfie'],['Schick mir ein Porträtfoto von dir','portrait'],['Schick mir ein Ganzkörperfoto von dir','full_portrait']]){
+  reset();plan={action:'none'};const now=new Date('2026-10-08T22:30Z'),life=await api.getSofiaLife(now);db.set(prefix+'life',JSON.stringify({...life,settings:{initiative:'balanced',photos:false,photoKinds:[]}}));
+  const job=await api.preparePortrait(message,null,now);assert.ok(job?.id);const request=JSON.parse(db.get(prefix+'request:'+job.id));assert.equal(request.kind,kind);assert.match(request.life.location,/Bett/);
+  await api.generatePortrait(job.id);assert.match(imageCalls[0].prompt,/lying in bed stays lying/);assert.match(imageCalls[0].prompt,/FIRST reference/);
+  if(kind!=='full_selfie'){assert.match(imageCalls[0].prompt,/Sofia is NOT holding the camera/);assert.doesNotMatch(imageCalls[0].prompt,/"camera":"phone held at/);}
+ }
+});
+
+test('new photo fallback does not turn explanations, negations or reminders into images',()=>{
+ for(const text of ['Warum möchtest du ein Porträtfoto?','Bitte kein Ganzkörperfoto','Erinnere mich morgen, ein Ganzkörperfoto zu machen','Sag „Schick mir ein Porträtfoto“'])assert.equal(api.explicitNewPhotoRequest(text),false,text);
+ assert.equal(api.explicitNewPhotoRequest('Schick mir ein Porträtfoto'),true);
 });

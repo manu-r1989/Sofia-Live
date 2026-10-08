@@ -552,7 +552,7 @@ test('photo motive preference persists and details stay grounded in the present 
  const saved=await api.editCharacterState({field:'settings',value:{initiative:'balanced',replyLength:'auto',photos:true,photoMix:'moments'},revision:base.revision},now);
  assert.equal((await api.getSofiaLife(new Date('2026-10-09T12:00Z'))).settings.photoMix,'moments');
  const cafe={...saved,location:'im Café',activity:'Kaffee trinken'};
- assert.equal(api.chooseEverydayPhotoKind(cafe,'environment','',()=>0),'detail');assert.equal(api.chooseEverydayPhotoKind(cafe,null,'Schick mir ein Selfie',()=>0),'selfie');
+ assert.equal(api.chooseEverydayPhotoKind(cafe,'environment','',()=>0),'detail');assert.equal(api.chooseEverydayPhotoKind(cafe,null,'Schick mir ein Selfie',()=>0),'environment');
  assert.equal(api.explicitDetailRequest('Zeig mir deinen Kaffee'),true);assert.equal(api.explicitDetailRequest('Zeig mir nicht deinen Kaffee'),false);assert.equal(api.explicitDetailRequest('Erinnere mich später: Zeig mir deinen Kaffee'),false);
  assert.equal(api.everydayPhotoSubject({...cafe,location:'zu Hause',activity:'auf dem Sofa ausruhen'}),null);
  assert.match(api.photoSceneContext({kind:'detail',life:cafe,requestedAt:now.toISOString()}),/behind the camera/);
@@ -562,4 +562,14 @@ test('explicit detail commands prepare a current photo and scheduled details ret
  const job=await api.preparePortrait('Zeig mir deinen Kaffee',null,now);const stored=JSON.parse(db.get(prefix+'request:'+job.id));assert.equal(stored.kind,'detail');assert.equal(stored.variant,false);assert.equal(stored.life.location,(await api.getSofiaLife(now)).location);
  const life={...await api.getSofiaLife(now),location:'im Café',activity:'Kaffee trinken'};
  const scheduled=await api.prepareScheduledPortrait(life,now,'detail');const request=JSON.parse(db.get(prefix+'request:'+scheduled.id));assert.equal(request.kind,'detail');assert.match(request.scene,/coffee/);assert.equal(request.life.location,'im Café');
+});
+
+test('five photo kinds persist across days and unsolicited selection respects the allowed set',async()=>{
+ reset();const now=new Date('2026-10-08T12:00Z'),base=await api.getSofiaLife(now);
+ const settings={initiative:'balanced',replyLength:'auto',photos:true,photoKinds:['full_selfie','portrait','full_portrait']};
+ const saved=await api.editCharacterState({field:'settings',value:settings,revision:base.revision},now);
+ assert.deepEqual((await api.getSofiaLife(new Date('2026-10-09T12:00Z'))).settings.photoKinds,settings.photoKinds);
+ for(let n=0;n<3;n++)assert.ok(settings.photoKinds.includes(api.chooseEverydayPhotoKind(saved,null,'Zeig mir ein Selfie',()=>n)));
+ assert.equal(api.chooseEverydayPhotoKind({...saved,settings:{...settings,photoKinds:[]}},null),null);
+ for(const kinds of [[],['bad'],['selfie','selfie']])await assert.rejects(api.editCharacterState({field:'settings',value:{...settings,photoKinds:kinds},revision:(await api.getSofiaLife(now)).revision},now),/character_invalid/);
 });
