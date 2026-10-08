@@ -105,6 +105,23 @@ test('seeing the just described appearance creates a real job even when planner 
  assert.ok(job?.id);assert.equal(JSON.parse(db.get(prefix+'request:'+job.id)).status,'ready');
  assert.equal(await api.preparePortrait('Das würde ich gern sehen',null,new Date(now.getTime()+601000)),null);
 });
+test('accepting a recent explicit assistant photo offer prepares a new picture',async()=>{
+ reset();const now=new Date();plan.action='none';
+ const life=api.defaultSofiaLife(now);life.dialogue={at:now.toISOString(),lastUser:'Was machst du gerade?',lastAssistant:'Ich schicke dir ein Selfie vom Sofa.'};db.set(prefix+'life',JSON.stringify(life));
+ const job=await api.preparePortrait('Das würde ich gern sehen',null,now);
+ assert.ok(job?.id);assert.equal(JSON.parse(db.get(prefix+'request:'+job.id)).status,'ready');
+ assert.equal(await api.preparePortrait('Das würde ich gern sehen',null,new Date(+now+600001)),null);
+});
+test('unrelated or refused photo offers do not create jobs from an ambiguous confirmation',async()=>{
+ for(const lastAssistant of ['Ich kann dir kein Foto schicken.','Ich würde dir ein Selfie schicken.','Ich zeige dir die Stadt auf einer Karte.']){
+  reset();const now=new Date(),life=api.defaultSofiaLife(now);life.dialogue={at:now.toISOString(),lastUser:'Hallo',lastAssistant};db.set(prefix+'life',JSON.stringify(life));
+  assert.equal(await api.preparePortrait('Das würde ich gern sehen',null,now),null);assert.equal(plannerInputs.length,0);
+ }
+});
+test('seeing confirmation accepts a stored appearance offer',async()=>{
+ reset();const now=new Date();const offer=await api.appearanceChoice('Wie siehst du gerade aus?',now);await api.appendPortraitAcknowledgment('Wie siehst du gerade aus?',offer.reply);
+ const answer=await api.appearanceChoice('Das würde ich gern sehen',now);assert.ok(answer.imageRequest?.id);assert.equal(JSON.parse(db.get(prefix+'request:'+answer.imageRequest.id)).outfit,offer.life.outfit);
+});
 test('repeat after a failed photo creates a fresh job without sharing error context',async()=>{
  reset();const now=new Date(),life=api.defaultSofiaLife(now);life.dialogue={at:now.toISOString(),lastUser:'Ich warte'};db.set(prefix+'life',JSON.stringify(life));
  const old='11111111-1111-4111-8111-111111111111';db.set(prefix+'request:'+old,JSON.stringify({id:old,status:'failed',failureCode:'portrait_moderated'}));
@@ -205,7 +222,7 @@ test('image delivery is private JPEG with download attachment and validated IDs'
 });
 test('UI integration loads shared renderer before app and does not alter avatar assets',async()=>{
  const root=new URL('../',import.meta.url);const index=await readFile(new URL('index.html',root),'utf8');
- assert.ok(index.indexOf('sofia-images.js?v=4617v1')<index.indexOf('app.js?v=4617v1'));
+ assert.ok(index.indexOf('sofia-images.js?v=4618v1')<index.indexOf('app.js?v=4618v1'));
  const chat=await readFile(new URL('api/chat.js',root),'utf8');
  assert.ok(chat.indexOf('!safeEqual(')<chat.indexOf('await servePortrait'));
  const ui=await readFile(new URL('sofia-images.js',root),'utf8');assert.match(ui,/dialog.showModal/);assert.match(ui,/link.download=/);assert.doesNotMatch(ui,/spinner|generating-status/);
