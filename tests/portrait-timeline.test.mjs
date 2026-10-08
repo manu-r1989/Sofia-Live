@@ -36,8 +36,23 @@ test('gallery closes from both its top and bottom buttons',()=>{
 test('photo follow-up controls submit the selected source and preserve the dialog on a busy refusal',()=>{
  const h=harness(async()=>preparedPhoto()),sent=[];h.api.restore([{...image(id),createdAt:new Date().toISOString()}]);h.api.openGallery(id);
  let view=h.document.getElementById('sofia-photo-'+id);h.window.SofiaPhotoAction=()=>false;view.all().find(x=>x.textContent==='Andere Perspektive').onclick();assert.ok(h.document.getElementById(view.id));
- h.window.SofiaPhotoAction=text=>{sent.push({text,reference:h.api.referenceId});return true;};view.all().find(x=>x.textContent==='Andere Perspektive').onclick();assert.equal(h.document.getElementById('sofia-gallery'),null);assert.equal(sent[0].reference,id);assert.match(sent[0].text,/anderen Perspektive/);
+ view.all().find(x=>x.textContent==='180° · Von hinten').onclick();assert.ok(h.document.getElementById(view.id));
+ h.window.SofiaPhotoAction=text=>{sent.push({text,reference:h.api.referenceId});return true;};view.all().find(x=>x.textContent==='180° · Von hinten').onclick();assert.equal(h.document.getElementById('sofia-gallery'),null);assert.equal(sent[0].reference,id);assert.match(sent[0].text,/anderen Perspektive/);assert.match(sent[0].text,/180°.*gegenüberliegende Seite/);
  h.api.openGallery(id);view=h.document.getElementById('sofia-photo-'+id);view.all().find(x=>x.tag==='button'&&x.textContent==='Detail ansehen').onclick();const input=view.all().find(x=>x['aria-label']==='Gewünschtes Fotodetail');input.value='dein Oberteil';view.all().find(x=>x.tag==='button'&&x.textContent==='Detail zeigen').onclick();assert.equal(sent[1].reference,id);assert.match(sent[1].text,/Nahaufnahme.*dein Oberteil.*genauer/);
+});
+test('perspective compass opens without submitting, cancels safely and offers six distinct side angles',()=>{
+ const h=harness(async()=>preparedPhoto()),sent=[];h.window.SofiaPhotoAction=(text,reference)=>{sent.push({text,reference});return true;};h.api.restore([{...image(id),createdAt:new Date().toISOString()}]);h.api.openGallery(id);
+ const view=h.document.getElementById('sofia-photo-'+id),toggle=view.all().find(x=>x.textContent==='Andere Perspektive'),compass=view.all().find(x=>x.className==='photo-perspective-controls');
+ assert.equal(compass.hidden,true);toggle.onclick();assert.equal(compass.hidden,false);assert.equal(toggle['aria-expanded'],'true');assert.equal(sent.length,0);
+ const choices=compass.all().filter(x=>x.tag==='button'&&x.textContent!=='Abbrechen');assert.equal(choices.length,7);
+ compass.all().find(x=>x.textContent==='Abbrechen').onclick();assert.equal(compass.hidden,true);assert.equal(sent.length,0);assert.ok(h.document.getElementById(view.id));
+ toggle.onclick();choices.find(x=>x.className==='photo-perspective-left').onclick();assert.equal(sent[0].reference,id);assert.match(sent[0].text,/90° nach links/);assert.equal(sent.length,1);
+});
+test('compass uses the current gallery photo after navigating and escaping does not send',()=>{
+ const h=harness(async()=>preparedPhoto()),sent=[];h.window.SofiaPhotoAction=(text,reference)=>{sent.push({text,reference});return true;};const at=new Date().toISOString();h.api.restore([{...image(id),createdAt:at},{...image(id2),createdAt:at}]);h.api.openGallery(id2);
+ const view=h.document.getElementById('sofia-photo-'+id2);view.all().find(x=>x['aria-label']==='Nächstes Foto').onclick();
+ const compass=view.all().find(x=>x.className==='photo-perspective-controls');view.all().find(x=>x.textContent==='Andere Perspektive').onclick();compass.events.keydown({key:'Escape',preventDefault(){},stopPropagation(){}});assert.equal(compass.hidden,true);assert.equal(sent.length,0);
+ view.all().find(x=>x.textContent==='Andere Perspektive').onclick();compass.all().find(x=>x.className==='photo-perspective-back-right').onclick();assert.equal(sent[0].reference,id);assert.match(sent[0].text,/135° nach rechts/);
 });
 test('failed photos offer an explicit retry while quota failures cannot launch another attempt',()=>{
  const h=harness(),sent=[];h.window.SofiaPhotoAction=text=>{sent.push(text);return true;};h.api.restore([{...image(id),status:'failed',requestMessage:'Schick mir ein Selfie.'}]);let retry=h.document.getElementById('portrait-'+id).all().find(x=>x.textContent==='Erneut versuchen');retry.onclick();assert.deepEqual(sent,['Schick mir ein Selfie.']);assert.equal(retry.disabled,true);

@@ -960,6 +960,15 @@ dialog legend,dialog label{font-size:13px;color:var(--ui-muted)}
 .sofia-photo-view .photo-toolbar button,.sofia-photo-view .photo-follow-ups button{flex:1 1 130px;min-width:0}
 .sofia-photo-view .photo-detail-controls button{flex:0 1 auto;min-width:0}
 #sofia-gallery .gallery-filters>*{min-width:0;max-width:100%}
+.photo-perspective-controls{width:100%;padding:12px;border:1px solid var(--ui-border);border-radius:14px;box-sizing:border-box;background:var(--ui-raised)}
+.photo-perspective-controls[hidden]{display:none}
+.photo-perspective-controls p{margin:0 0 10px;line-height:1.45}
+.photo-perspective-note{font-size:12px;color:var(--ui-muted)}
+.photo-perspective-compass{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-areas:"front-left origin front-right" "left rear right" "back-left . back-right";gap:8px;margin:14px 0}
+.photo-perspective-compass button{width:100%;padding:10px 6px;font-size:13px;min-height:60px}
+.photo-perspective-origin{grid-area:origin;align-self:center;text-align:center;font-size:11px;color:var(--ui-muted)}
+.photo-perspective-front-left{grid-area:front-left}.photo-perspective-front-right{grid-area:front-right}.photo-perspective-left{grid-area:left}.photo-perspective-right{grid-area:right}.photo-perspective-back-left{grid-area:back-left}.photo-perspective-back-right{grid-area:back-right}
+.photo-perspective-rear{grid-area:rear;border-color:var(--ui-accent)!important;font-weight:600}
 .photo-header{position:sticky;top:-16px;z-index:2;background:var(--ui-surface);padding:8px 0;margin-top:0}
 
 /* V4.46–4.48: reading tools and device presentation preferences. */
