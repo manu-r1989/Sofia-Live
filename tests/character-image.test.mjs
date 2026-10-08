@@ -164,8 +164,8 @@ test('variant keeps selected outfit across dates and uses master first plus sour
  assert.equal(image.url,'/api/chat?image='+r.id);
  assert.equal(imageCalls[0].images.length,2);
  const master=await readFile(new URL('../sofia-avatar.PNG',import.meta.url));
- assert.equal(imageCalls[0].images[0].image_url,'data:image/png;base64,'+master.toString('base64'));
- assert.equal(imageCalls[0].images[1].image_url,'data:image/jpeg;base64,/9j/AA==');
+ assert.equal(imageCalls[0].images[1].image_url,'data:image/png;base64,'+master.toString('base64'));
+ assert.equal(imageCalls[0].images[0].image_url,'data:image/jpeg;base64,/9j/AA==');
  assert.equal((await api.portraitGallery()).length,1);
 });
 test('overlapping generation and completed retry issue only one paid provider request',async()=>{
@@ -222,7 +222,7 @@ test('image delivery is private JPEG with download attachment and validated IDs'
 });
 test('UI integration loads shared renderer before app and does not alter avatar assets',async()=>{
  const root=new URL('../',import.meta.url);const index=await readFile(new URL('index.html',root),'utf8');
- assert.ok(index.indexOf('sofia-images.js?v=4619v1')<index.indexOf('app.js?v=4619v1'));
+ assert.ok(index.indexOf('sofia-images.js?v=46110v1')<index.indexOf('app.js?v=46110v1'));
  const chat=await readFile(new URL('api/chat.js',root),'utf8');
  assert.ok(chat.indexOf('!safeEqual(')<chat.indexOf('await servePortrait'));
  const ui=await readFile(new URL('sofia-images.js',root),'utf8');assert.match(ui,/dialog.showModal/);assert.match(ui,/link.download=/);assert.doesNotMatch(ui,/spinner|generating-status/);
@@ -479,6 +479,15 @@ test('compass camera selections generate referenced variants with only the camer
   const prepared=await api.preparePortrait(message,old,now),job=JSON.parse(db.get(prefix+'request:'+prepared.id));assert.equal(job.variant,true);assert.equal(job.sourceId,old);assert.deepEqual(job.dimensions,['camera-angle']);assert.equal(job.outfit,'Green sweater with red scarf');assert.equal(job.bodyPose,'sitting');
   await api.generatePortrait(prepared.id);const prompt=imageCalls[0].prompt;assert.match(prompt,/CAMERA POSITION OVERRIDE/);assert.ok(prompt.includes(angle+' degrees'));assert.match(prompt,/Move the camera, NOT the subject/);assert.match(prompt,/NOT a horizontal flip/);if(angle===180){assert.match(prompt,/actual rear view/);assert.match(prompt,/Do not force her face/);}assert.equal(imageCalls[0].images.length,2);
  }
+});
+test('a chained compass variant edits the selected variant rather than an ancestor or unrelated latest image',async()=>{
+ reset();const now=new Date(),old=previousPhotograph(now);plan.action='none';
+ const message='Zeig dieses Foto bitte aus einer anderen Perspektive. Kamerastandpunkt: 90° nach links um das Motiv, relativ zur ursprünglichen Kamera. Nur den Kamerastandpunkt ändern.';
+ const first=await api.preparePortrait(message,old,now);assert.equal(first.sourceId,old);await api.generatePortrait(first.id);
+ const variant=JSON.parse(db.get(prefix+'image:'+first.id));variant.base64='/9j/BB==';db.set(prefix+'image:'+first.id,JSON.stringify(variant));
+ const latest='33333333-3333-4333-8333-333333333333';db.set(prefix+'image:'+latest,JSON.stringify({...variant,id:latest,base64:'/9j/CC==',outfit:'Other outfit'}));db.set(prefix+'state',JSON.stringify({lastImageId:latest}));
+ const second=await api.preparePortrait(message,first.id,now);assert.equal(second.sourceId,first.id);const job=JSON.parse(db.get(prefix+'request:'+second.id));assert.equal(job.sourceId,first.id);assert.equal(job.seriesId,old);assert.equal(job.outfit,variant.outfit);
+ await api.generatePortrait(second.id);assert.equal(imageCalls[1].images[0].image_url,'data:image/jpeg;base64,/9j/BB==');assert.match(imageCalls[1].images[1].image_url,/^data:image\/png/);assert.match(imageCalls[1].prompt,/FIRST reference is the explicitly selected source photograph/);assert.match(imageCalls[1].prompt,/SECOND reference is her canonical face/);assert.equal(JSON.parse(db.get(prefix+'image:'+second.id)).sourceId,first.id);
 });
 test('camera position overrides are limited to explicit compass variants',()=>{
  assert.equal(api.photoCameraPositionPrompt({variant:false,dimensions:['camera-angle'],scene:'Kamerastandpunkt: 180° auf die gegenüberliegende Seite'}),'');

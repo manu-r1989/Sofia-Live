@@ -277,6 +277,14 @@ test('failure notices display supplied safe server feedback as text rather than 
  const h=harness();h.api.restore([{...image(id),status:'failed',message:'Mit meinen Fotos hakt es gerade.'}]);assert.match(h.document.getElementById('portrait-'+id).textContent,/hakt es gerade/);
 });
 
+test('wrong source receipt stops a selected-photo job before any paid generation request',async()=>{
+ const calls=[],h=harness(async(url,options)=>{calls.push({url,options});return{ok:true,json:async()=>({images:[]})};});
+ await h.api.generate({id:id2,sourceId:id2,expectedSourceId:id,requestMessage:'Andere Perspektive'});
+ assert.equal(calls.filter(x=>x.options.method==='POST').length,0);const notice=h.document.getElementById('portrait-'+id2);assert.match(notice.textContent,/Bildreferenz passt nicht/);assert.equal(notice.all().find(n=>n.textContent==='Erneut versuchen').disabled,true);
+});
+test('a failed photo variant retries with its selected source id',()=>{
+ const h=harness(),sent=[];h.window.SofiaPhotoAction=(message,reference)=>{sent.push({message,reference});return true;};h.api.restore([{...image(id2),status:'failed',sourceId:id,requestMessage:'Andere Perspektive'}]);h.document.getElementById('portrait-'+id2).all().find(n=>n.textContent==='Erneut versuchen').onclick();assert.equal(sent[0].reference,id);
+});
 test('old photograph with identical request text never attaches to a new photo turn',()=>{
  const h=harness();const oldAt=new Date(Date.now()-24*3600000).toISOString();
  const user=h.message('Schick mir ein Selfie.','user');user.dataset.createdAt=new Date().toISOString();

@@ -518,7 +518,8 @@ test('text endpoint clarifies multiple topics without asking its answer model to
  const result=await endpoint('chat','Warum?');assert.match(result.reply,/Projekt.*oder.*Auto/);assert.equal(result.taskAction.action,'none');assert.equal(writes,0);
 });
 
-test('text reply model receives a current correction already committed to the shared situation',async()=>{
+test('text reply model receives a current correction already committed to the shared situation',async(t)=>{
+ t.mock.timers.enable({apis:['Date'],now:new Date('2026-10-08T12:00:00Z')});
  reset();let saw=false;modelHook=body=>{saw=true;assert.match(JSON.stringify(body.input),/in der Uni/);const life=JSON.parse(db.get('sofia:main:portrait:life'));assert.equal(life.location,'in der Uni');assert.equal(life.situation.sources.location.source,'correction');};
  const result=await endpoint('chat','Du bist doch gerade in der Uni.');assert.equal(saw,true);assert.equal(result.life.location,'in der Uni');assert.equal(writes,0);
 });
