@@ -108,8 +108,8 @@ test('retained old images outside trimmed history appear before newer conversati
  assert.deepEqual(older.children.map(n=>n.id),['portrait-slot-'+id,'portrait-slot-'+id2]);
 });
 test('legacy pictures attach to old moment acknowledgments rather than the chat end',()=>{
- const h=harness();const ack=h.message('Gib mir einen kleinen Moment.');const later=h.message('Danach','user');
- h.api.restore([{id,caption:'Altes Selfie'}]);assert.deepEqual(h.messages.children,[ack,h.document.getElementById('portrait-slot-'+id),later]);
+ const h=harness(),at=new Date().toISOString();const user=h.message('Selfie','user');user.dataset.createdAt=at;const ack=h.message('Gib mir einen kleinen Moment.');ack.dataset.createdAt=at;const later=h.message('Danach','user');
+ h.api.restore([{id,caption:'Altes Selfie',requestMessage:'Selfie',requestedAt:at}]);assert.deepEqual(h.messages.children,[user,ack,h.document.getElementById('portrait-slot-'+id),later]);
 });
 
 test('late server success replaces a transport-failure notice without changing the turn position',async()=>{
@@ -260,4 +260,26 @@ test('gallery chronology can reverse while keeping date grouping and no situatio
 });
 test('failure notices display supplied safe server feedback as text rather than HTML',()=>{
  const h=harness();h.api.restore([{...image(id),status:'failed',message:'Mit meinen Fotos hakt es gerade.'}]);assert.match(h.document.getElementById('portrait-'+id).textContent,/hakt es gerade/);
+});
+
+test('old photograph with identical request text never attaches to a new photo turn',()=>{
+ const h=harness();const oldAt=new Date(Date.now()-24*3600000).toISOString();
+ const user=h.message('Schick mir ein Selfie.','user');user.dataset.createdAt=new Date().toISOString();
+ const ack=h.message('Neues Foto angefragt.','sofia',id2);ack.dataset.createdAt=new Date().toISOString();
+ const currentSlot=h.document.getElementById('portrait-slot-'+id2);
+ h.api.restore([{...image(id),status:'done',requestMessage:user.textContent,requestedAt:oldAt,sentAt:oldAt,createdAt:oldAt}]);
+ assert.equal(ack.hidden,false);assert.equal(currentSlot.parentNode,h.messages);
+ const older=h.document.getElementById('portrait-older');assert.ok(older);assert.equal(h.document.getElementById('portrait-slot-'+id).parentNode,older);
+ h.api.openGallery(id);const view=h.document.getElementById('sofia-photo-'+id);
+ assert.equal(view.all().find(n=>n.textContent==='Zur Nachricht im Chat').disabled,true);
+});
+test('a new successful picture stays inline while an older identical request remains archived',()=>{
+ const h=harness();const at=new Date().toISOString(),oldAt=new Date(Date.now()-13*3600000).toISOString();
+ h.message('Schick mir ein Selfie.','user');const ack=h.message('Gib mir einen kleinen Moment.','sofia',id2);ack.dataset.createdAt=at;
+ h.api.restore([{...image(id),status:'done',requestMessage:'Schick mir ein Selfie.',requestedAt:oldAt,sentAt:oldAt},{...image(id2),status:'done',sentAt:at,requestedAt:at}]);
+ assert.equal(h.document.getElementById('portrait-'+id2).tag,'figure');assert.equal(h.document.getElementById('portrait-'+id).parentNode.parentNode.id,'portrait-older');
+});
+
+test('legacy photos without timestamp evidence cannot hide a fresh acknowledgment',()=>{
+ const h=harness();const ack=h.message('Gib mir einen kleinen Moment.');h.api.restore([{id,caption:'Altes Selfie'}]);assert.equal(ack.hidden,false);assert.equal(h.document.getElementById('portrait-slot-'+id).parentNode.id,'portrait-older');
 });

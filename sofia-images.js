@@ -37,16 +37,24 @@
     if (slot && node?.parentNode && (!first || first===node)) node.parentNode.insertBefore(slot,node.nextSibling);
     hideAcknowledgment({id},node);
   }
+  function legacyPhotoAnchor(image){
+    // Modern photos have an exact receipt; never replace it with text matching.
+    if(image.anchorId)return null;
+    const requestedAt=Date.parse(image.requestedAt);
+    if(!Number.isFinite(requestedAt))return null;
+    const messages=document.getElementById('messages');if(!messages)return null;
+    const candidates=[...messages.querySelectorAll('.msg.user')].filter(node=>image.requestMessage&&(node.dataset.messageText||node.textContent)===image.requestMessage&&Number.isFinite(Date.parse(node.dataset.createdAt))&&Math.abs(Date.parse(node.dataset.createdAt)-requestedAt)<=120000);
+    if(candidates.length!==1)return null;
+    const user=candidates[0],reply=user.nextSibling;
+    if(reply?.classList?.contains('sofia'))return !reply.dataset.portraitRequestId||reply.dataset.portraitRequestId===image.id?reply:null;
+    return user;
+  }
   function locate(event) {
     const messages=document.getElementById('messages');
     if (!messages) return null;
     const slot=slotFor(event.id);
     let node=messages.querySelector(`[data-portrait-request-id="${event.anchorId || event.id}"]`);
-    if (!node && event.requestMessage) {
-      const users=[...messages.querySelectorAll('.msg.user')];
-      node=users.reverse().find(x=>(x.dataset.messageText||x.textContent) === event.requestMessage);
-      if (node?.nextSibling?.classList?.contains('sofia')) node=node.nextSibling;
-    }
+    if(!node)node=legacyPhotoAnchor(event);
     if (node) anchor(event.id,node);
     else if (!pending.has(event.id)) {
       // Truncated history: retained older photographs belong BEFORE newer turns.
@@ -142,7 +150,7 @@
       customSend.onclick=()=>{const text=customInput.value.trim().replace(/[„“\"»«]/g,'');if(!text){customInput.focus();return;}requestPhoto('Dieses Foto bitte entsprechend anpassen: '+text+'. Alle nicht genannten Merkmale beibehalten.');};
       const chat=document.createElement('button');chat.type='button';chat.textContent='Zur Nachricht im Chat';
       function chatTarget(){const messages=document.getElementById('messages');if(!messages)return null;
-        return messages.querySelector(`[data-portrait-request-id="${image.anchorId||image.id}"]`)||[...messages.querySelectorAll('.msg.user')].reverse().find(n=>image.requestMessage&&(n.dataset.messageText||n.textContent)===image.requestMessage)||null;}
+        return messages.querySelector(`[data-portrait-request-id="${image.anchorId||image.id}"]`)||legacyPhotoAnchor(image);}
       function updateChat(){chat.disabled=!chatTarget();chat.title=chat.disabled?'Die ursprüngliche Nachricht ist nicht mehr im geladenen Verlauf.':'Zur ursprünglichen Fotoanfrage';}
       chat.onclick=()=>{const target=chatTarget();if(!target){status.textContent='Die ursprüngliche Nachricht ist nicht mehr im geladenen Verlauf.';updateChat();return;}
         dialog.close();document.getElementById('sofia-gallery')?.close();window.SofiaChatViewport?.reveal?.();target.scrollIntoView?.({block:'center',behavior:'smooth'});target.setAttribute('tabindex','-1');target.focus?.({preventScroll:true});};
@@ -287,9 +295,7 @@
       events.filter(x=>x.status==='pending' && valid(x.id)).forEach(x=>remotePending.add(x.id));
       // Associate legacy photographs with their old acknowledgments where possible.
       const old=events.filter(x=>!x.anchorId && valid(x.id));
-      const acknowledgments=[...document.getElementById('messages')?.querySelectorAll('.msg.sofia') || []]
-        .filter(x=>(x.dataset.messageText||x.textContent) === 'Gib mir einen kleinen Moment.' && !x.dataset.portraitRequestId).slice(-old.length);
-      old.forEach((image,index)=>{const node=acknowledgments[index];if(node)node.dataset.portraitRequestId=image.id;});
+      old.forEach(image=>{const node=legacyPhotoAnchor(image);if(node&&!node.dataset.portraitRequestId)node.dataset.portraitRequestId=image.id;});
       events.forEach(show);
       events.filter(x=>x.status==='pending' && x.jobStatus==='ready').forEach(x=>window.SofiaImages.generate(x));
       updatePhotoStatus();
@@ -309,7 +315,7 @@
         try {
           const response = await fetch('/api/chat',{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json'},body:JSON.stringify({operation:'generate_image',requestId:request.id}),signal:typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function' ? AbortSignal.timeout(250000) : undefined});
           const data = await response.json();
-          if (!response.ok || !valid(data.image?.id)) {const error=new Error('portrait_failed');error.code=data.code;throw error;}
+          if (!response.ok || !valid(data.image?.id) || data.image.id!==request.id) {const error=new Error('portrait_failed');error.code=data.code;throw error;}
           show(data.image); if(selectionVersion===selectionAtStart)rememberReference(data.image.id);
         } catch (error) {
           // A lost response may follow a successful write: reconcile by GET only.

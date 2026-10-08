@@ -956,6 +956,10 @@ dialog legend,dialog label{font-size:13px;color:var(--ui-muted)}
 @media (prefers-reduced-motion:reduce){dialog::backdrop{backdrop-filter:none}.chat-latest{scroll-behavior:auto}}
 
 .sofia-dialog button,#sofiaMemoryOverlay button{min-width:44px}
+#sofia-gallery button,.sofia-photo-view button{height:auto;min-height:44px;max-width:100%;white-space:normal;overflow-wrap:anywhere;line-height:1.3;box-sizing:border-box}
+.sofia-photo-view .photo-toolbar button,.sofia-photo-view .photo-follow-ups button{flex:1 1 130px;min-width:0}
+.sofia-photo-view .photo-detail-controls button{flex:0 1 auto;min-width:0}
+#sofia-gallery .gallery-filters>*{min-width:0;max-width:100%}
 .photo-header{position:sticky;top:-16px;z-index:2;background:var(--ui-surface);padding:8px 0;margin-top:0}
 
 /* V4.46–4.48: reading tools and device presentation preferences. */
