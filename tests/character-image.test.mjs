@@ -8,11 +8,11 @@ import crypto from 'node:crypto';
 const source = await readFile(new URL('../lib/character-image.js',import.meta.url),'utf8');
 const api = await import('data:text/javascript;base64,' + Buffer.from(source).toString('base64'));
 const prefix='sofia:main:portrait:';
-let db, plan, calls, imageCalls, failImage, failRedis, plannerInputs, textInputs, reviewQueue, weatherData, weatherCalls;
+let db, plan, calls, imageCalls, failImage, failRedis, plannerInputs, textInputs, reviewQueue, reviewInputs, weatherData, weatherCalls;
 const savedFetch=globalThis.fetch;
 const envKeys=['KV_REST_API_URL','KV_REST_API_TOKEN','OPENAI_API_KEY','SOFIA_PASSWORD'];
 const env=Object.fromEntries(envKeys.map(k=>[k,process.env[k]]));
-function reset(){reviewQueue=[];weatherData=null;weatherCalls=0;db=new Map();plan={action:'new',outfit:'Blue sweater',scene:'Selfie outdoors',caption:'Mein Selfie'};calls=[];imageCalls=[];plannerInputs=[];textInputs=[];failImage=false;failRedis=false;process.env.KV_REST_API_URL='https://redis.test';process.env.KV_REST_API_TOKEN='test';process.env.OPENAI_API_KEY='test';}
+function reset(){reviewQueue=[];reviewInputs=[];weatherData=null;weatherCalls=0;db=new Map();plan={action:'new',outfit:'Blue sweater',scene:'Selfie outdoors',caption:'Mein Selfie'};calls=[];imageCalls=[];plannerInputs=[];textInputs=[];failImage=false;failRedis=false;process.env.KV_REST_API_URL='https://redis.test';process.env.KV_REST_API_TOKEN='test';process.env.OPENAI_API_KEY='test';}
 const response = (data,ok=true)=>({ok,json:async()=>data});
 globalThis.fetch=async(url,options)=>{
  if(String(url).startsWith('https://api.open-meteo.com/')){weatherCalls++;return response(weatherData,!!weatherData);}
@@ -31,7 +31,7 @@ globalThis.fetch=async(url,options)=>{
   if(op==='EVAL'){const lock=body[3],id=body[4]; if(lock === 'sofia:main:history') { const history=JSON.parse(db.get(lock)||'[]'); history.push({role:'user',content:body[4],createdAt:body[7]},{role:'assistant',content:body[5],...(body[6]?{imageRequestId:body[6]}:{}),createdAt:body[7]});db.set(lock,JSON.stringify(history.slice(-40))); } else if(db.get(lock)===id)db.delete(lock);return response({result:1});}
   throw Error('Unexpected Redis '+op);
  }
- if(String(url).endsWith('/chat/completions') && Array.isArray(body.messages[1].content))return response({choices:[{message:{content:JSON.stringify(reviewQueue.shift()||{ok:true,confidence:0.95,mismatches:[]})}}]});
+ if(String(url).endsWith('/chat/completions') && Array.isArray(body.messages[1].content)){reviewInputs.push(body.messages);return response({choices:[{message:{content:JSON.stringify(reviewQueue.shift()||{ok:true,confidence:0.95,mismatches:[]})}}]});}
  if(String(url).endsWith('/chat/completions')) { plannerInputs.push(JSON.parse(body.messages[1].content)); return response({choices:[{message:{content:JSON.stringify(plan)}}]}); }
  if(String(url).endsWith('/images/edits')){imageCalls.push(body);return response({data:[{b64_json:'/9j/AA=='}]},!failImage);}
  throw Error('Unexpected URL');
@@ -222,7 +222,7 @@ test('image delivery is private JPEG with download attachment and validated IDs'
 });
 test('UI integration loads shared renderer before app and does not alter avatar assets',async()=>{
  const root=new URL('../',import.meta.url);const index=await readFile(new URL('index.html',root),'utf8');
- assert.ok(index.indexOf('sofia-images.js?v=46110v1')<index.indexOf('app.js?v=46110v1'));
+ assert.ok(index.indexOf('sofia-images.js?v=46111v1')<index.indexOf('app.js?v=46111v1'));
  const chat=await readFile(new URL('api/chat.js',root),'utf8');
  assert.ok(chat.indexOf('!safeEqual(')<chat.indexOf('await servePortrait'));
  const ui=await readFile(new URL('sofia-images.js',root),'utf8');assert.match(ui,/dialog.showModal/);assert.match(ui,/link.download=/);assert.doesNotMatch(ui,/spinner|generating-status/);
@@ -488,6 +488,21 @@ test('a chained compass variant edits the selected variant rather than an ancest
  const latest='33333333-3333-4333-8333-333333333333';db.set(prefix+'image:'+latest,JSON.stringify({...variant,id:latest,base64:'/9j/CC==',outfit:'Other outfit'}));db.set(prefix+'state',JSON.stringify({lastImageId:latest}));
  const second=await api.preparePortrait(message,first.id,now);assert.equal(second.sourceId,first.id);const job=JSON.parse(db.get(prefix+'request:'+second.id));assert.equal(job.sourceId,first.id);assert.equal(job.seriesId,old);assert.equal(job.outfit,variant.outfit);
  await api.generatePortrait(second.id);assert.equal(imageCalls[1].images[0].image_url,'data:image/jpeg;base64,/9j/BB==');assert.match(imageCalls[1].images[1].image_url,/^data:image\/png/);assert.match(imageCalls[1].prompt,/FIRST reference is the explicitly selected source photograph/);assert.match(imageCalls[1].prompt,/SECOND reference is her canonical face/);assert.equal(JSON.parse(db.get(prefix+'image:'+second.id)).sourceId,first.id);
+});
+test('camera variants give visible source posture priority over stale sitting metadata and review both images',async()=>{
+ reset();const now=new Date(),old=previousPhotograph(now);plan.action='none';
+ const job=await api.preparePortrait('Zeig dieses Foto bitte aus einer anderen Perspektive. Kamerastandpunkt: 90° nach links um das Motiv.',old,now);
+ const request=JSON.parse(db.get(prefix+'request:'+job.id));assert.equal(request.bodyPose,'sitting');const context=api.photoSceneContext(request);assert.match(context,/VISIBLE posture/);assert.doesNotMatch(context,/"posture":"sitting"/);
+ reviewQueue=[{ok:false,confidence:.97,mismatches:['posture','camera-angle']},{ok:true,confidence:.95,mismatches:[]}];await api.generatePortrait(job.id);assert.equal(imageCalls.length,2);assert.match(imageCalls[1].prompt,/CORRECTION.*posture, camera-angle/);assert.doesNotMatch(imageCalls[0].prompt,/"activity":"sit/);
+ const content=reviewInputs[0][1].content,pictures=content.filter(x=>x.type==='image_url');assert.equal(pictures.length,2);assert.equal(pictures[0].image_url.url,'data:image/jpeg;base64,/9j/AA==');assert.match(reviewInputs[0][0].content,/SOURCE and RESULT directly/);assert.match(reviewInputs[0][0].content,/standing-to-sitting/);assert.match(reviewInputs[0][0].content,/uncertain camera geometry must not cause a retry/);
+});
+test('repeated clear perspective or posture failure stays unpublished',async()=>{
+ reset();const now=new Date(),old=previousPhotograph(now);plan.action='none';const job=await api.preparePortrait('Zeig dieses Foto bitte aus einer anderen Perspektive. Kamerastandpunkt: 90° nach links um das Motiv.',old,now);reviewQueue=[{ok:false,confidence:.95,mismatches:['camera-angle']},{ok:false,confidence:.97,mismatches:['posture']}];await assert.rejects(api.generatePortrait(job.id),/portrait_context_mismatch/);assert.equal(imageCalls.length,2);assert.equal(db.has(prefix+'image:'+job.id),false);
+});
+test('uncertain camera geometry and an explicitly changed pose do not cause unnecessary regeneration',async()=>{
+ reset();reviewQueue=[{ok:false,confidence:.4,mismatches:['camera-angle']}];let result=await api.reviewPortrait('/9j/BB==',{variant:true,dimensions:['camera-angle'],scene:'Kamerastandpunkt: 90° nach links'},12000,'/9j/AA==');assert.equal(result.status,'uncertain');
+ reviewQueue=[{ok:false,confidence:.95,mismatches:['posture']}];result=await api.reviewPortrait('/9j/BB==',{variant:true,dimensions:['pose'],scene:'Setz dich bitte'},12000,'/9j/AA==');assert.equal(result.status,'uncertain');assert.deepEqual(result.mismatches,[]);
+ reviewQueue=[{ok:false,confidence:.95,mismatches:['camera-angle']}];result=await api.reviewPortrait('/9j/BB==',{variant:false,dimensions:[],scene:'Selfie'},12000);assert.equal(result.status,'uncertain');assert.equal(reviewInputs.at(-1)[1].content.filter(x=>x.type==='image_url').length,1);
 });
 test('camera position overrides are limited to explicit compass variants',()=>{
  assert.equal(api.photoCameraPositionPrompt({variant:false,dimensions:['camera-angle'],scene:'Kamerastandpunkt: 180° auf die gegenüberliegende Seite'}),'');
