@@ -18,7 +18,7 @@ function harness(){
   if(data?.operation==='read'){state.read=Math.max(state.read,data.sequence);state.unread=state.sequence-state.read;}
   return {ok:true,json:async()=>structuredClone(state)};
  }});
- return {nodes,events,calls,photos,state,messages,document,open:()=>action.events.click(),visible:v=>messagesVisible=v,find:text=>nodes.find(n=>n.textContent===text),label:text=>nodes.find(n=>n.attrs['aria-label']===text)};
+ return {window,api:window.SofiaSocial,nodes,events,calls,photos,state,messages,document,open:()=>action.events.click(),visible:v=>messagesVisible=v,find:text=>nodes.find(n=>n.textContent===text),label:text=>nodes.find(n=>n.attrs['aria-label']===text)};
 }
 test('unread preview opens its exact message without acknowledging the settings view',async()=>{
  const h=harness();h.state.contacts[0].text='Ein Gruß aus dem Café.';h.state.contacts[0].createdAt='2026-10-08T12:15:00Z';h.state.contactStatus={text:'Sofia lässt dir Zeit zum Antworten.'};let opened;
@@ -58,3 +58,5 @@ test('late state reads cannot roll back read cursor, badge count or newer settin
  ctx.state=ctx.acceptState({sequence:4,read:3,preferences:{level:'quiet'},requestSequence:6});
  ctx.state=ctx.acceptState({sequence:3,read:3,preferences:{level:'natural'},requestSequence:7});assert.equal(ctx.state.sequence,4);assert.equal(ctx.state.unread,1);
 });
+
+test('Today and app badge share contact counts and exclude duplicated contact turns',async()=>{const h=harness();h.window.SofiaWorkspace={unreadMessages:()=>[{content:'normal'},{content:'contact',contactId:'11111111-1111-4111-8111-111111111111'}]};h.messages.scrollTop=-200;await h.api.sync();assert.equal(h.api.unreadCount(),2);assert.equal(h.api.unreadMessages().length,1);h.messages.scrollTop=0;await h.api.sync();assert.equal(h.api.unreadCount(),1);assert.equal(h.api.unreadMessages().length,0);});

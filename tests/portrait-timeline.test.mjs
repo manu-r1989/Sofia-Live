@@ -254,7 +254,7 @@ test('custom visual change requires input and preserves source selection',()=>{
  const h=harness(async()=>preparedPhoto()),sent=[];h.window.SofiaPhotoAction=text=>{sent.push({text,reference:h.api.referenceId});return true;};h.api.restore([{...image(id),createdAt:new Date().toISOString()}]);h.api.openGallery(id);const view=h.document.getElementById('sofia-photo-'+id),input=view.all().find(n=>n['aria-label']==='Änderungswunsch zum Foto'),send=view.all().find(n=>n.tag==='button'&&n.textContent==='Foto anpassen');input.value='';send.onclick();assert.equal(sent.length,0);input.value='etwas seitlicher';send.onclick();assert.equal(sent[0].reference,id);assert.match(sent[0].text,/seitlicher.*nicht genannten Merkmale beibehalten/);
 });
 test('a retained source offers comparison, while an expired source does not',()=>{
- const h=harness(async()=>preparedPhoto());h.api.restore([{...image(id),createdAt:new Date().toISOString()},{...image(id2),sourceId:id,createdAt:new Date().toISOString()}]);h.api.openGallery(id2);const view=h.document.getElementById('sofia-photo-'+id2),compare=view.all().find(n=>n.tag==='button'&&n.textContent==='Mit Original vergleichen');assert.equal(compare.hidden,false);compare.onclick();assert.ok(h.body.all().some(n=>n.className==='photo-comparison'));const pair=h.body.all().find(n=>n.className==='photo-comparison-pair');assert.deepEqual(pair.all().filter(n=>n.tag==='img').map(n=>n.src),['/api/chat?image='+id,'/api/chat?image='+id2]);
+ const h=harness(async()=>preparedPhoto());h.api.restore([{...image(id),createdAt:new Date().toISOString()},{...image(id2),sourceId:id,createdAt:new Date().toISOString()}]);h.api.openGallery(id2);const view=h.document.getElementById('sofia-photo-'+id2),compare=view.all().find(n=>n.tag==='button'&&n.textContent==='Mit Original vergleichen');assert.equal(compare.hidden,false);compare.onclick();assert.ok(h.body.all().some(n=>n.className==='photo-comparison'));const pair=h.body.all().find(n=>n.className==='photo-comparison-slider');assert.deepEqual(pair.all().filter(n=>n.tag==='img').map(n=>n.src),['/api/chat?image='+id,'/api/chat?image='+id2]);
 });
 
 test('photo actions pass a fixed source ID and gallery can return to its original message',()=>{
@@ -305,4 +305,21 @@ test('a new successful picture stays inline while an older identical request rem
 
 test('legacy photos without timestamp evidence cannot hide a fresh acknowledgment',()=>{
  const h=harness();const ack=h.message('Gib mir einen kleinen Moment.');h.api.restore([{id,caption:'Altes Selfie'}]);assert.equal(ack.hidden,false);assert.equal(h.document.getElementById('portrait-slot-'+id).parentNode.id,'portrait-older');
+});
+
+test('a chained variant defaults to itself and lets the user explicitly choose its parent or root',()=>{
+ const third='33333333-3333-4333-8333-333333333333',now=new Date().toISOString(),h=harness(async()=>preparedPhoto()),sent=[];
+ h.window.SofiaPhotoAction=(text,reference)=>{sent.push(reference);return false;};
+ h.api.restore([{...image(id),createdAt:now},{...image(id2),sourceId:id,seriesId:id,createdAt:now},{...image(third),sourceId:id2,seriesId:id,createdAt:now}]);h.api.openGallery(third);
+ const view=h.document.getElementById('sofia-photo-'+third),select=view.all().find(n=>n['aria-label']==='Ausgangsfoto auswählen'),preview=view.all().find(n=>n.className==='photo-source-preview'),light=view.all().find(n=>n.textContent==='Anderes Licht');
+ assert.deepEqual(select.children.map(n=>n.value),[third,id2,id]);light.onclick();assert.equal(sent.at(-1),third);
+ select.value=id2;select.onchange();assert.equal(preview.src,'/api/chat?image='+id2);light.onclick();assert.equal(sent.at(-1),id2);
+ select.value=id;select.onchange();light.onclick();assert.equal(sent.at(-1),id);
+});
+test('comparison slider exposes both boundaries and is keyboard accessible',()=>{
+ const h=harness(async()=>preparedPhoto()),now=new Date().toISOString();h.api.restore([{...image(id),createdAt:now},{...image(id2),sourceId:id,createdAt:now}]);h.api.openGallery(id2);h.document.getElementById('sofia-photo-'+id2).all().find(n=>n.textContent==='Mit Original vergleichen').onclick();
+ const dialog=h.body.all().find(n=>n.className==='photo-comparison'),range=dialog.all().find(n=>n.type==='range'),after=dialog.all().filter(n=>n.tag==='img')[1];assert.equal(range.focused,true);range.value='0';range.oninput();assert.equal(after.style.clipPath,'inset(0 0 0 0%)');range.value='100';range.oninput();assert.equal(after.style.clipPath,'inset(0 0 0 100%)');assert.equal(range['aria-valuetext'],'100 Prozent Ausgangsfoto');
+});
+test('gallery keeps date filter and scroll when closed and reopened',()=>{
+ const h=harness(async()=>preparedPhoto());h.api.openGallery();const first=h.document.getElementById('sofia-gallery'),date=first.all().find(n=>n.type==='date');date.value='2026-10-07';date.onchange();first.scrollTop=315;first.close();h.api.openGallery();const second=h.document.getElementById('sofia-gallery');assert.equal(second.all().find(n=>n.type==='date').value,'2026-10-07');assert.equal(second.scrollTop,315);
 });

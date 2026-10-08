@@ -26,11 +26,13 @@
   function canRead(){return document.visibilityState==='visible'&&viewportAtLatest()&&!document.querySelector('dialog[open],.memoryOverlay.open,.chatPanel.chat-hidden');}
   function paintUnread(){
     root?.querySelectorAll('.message-unread').forEach(n=>n.remove());
+    if(typeof Event!=='undefined')window.dispatchEvent?.(new Event('sofia-unread-updated'));
     const first=turnNodes().find(n=>unread.has(keyFor(nodeTurn(n))));
     if(first){const line=document.createElement('div');line.className='message-unread';line.textContent='Neue Nachrichten';root.insertBefore(line,first);}
     const button=document.getElementById('chatLatest');if(button){button.textContent=unread.size?'↓ '+unread.size+' neue Nachricht'+(unread.size===1?'':'en'):'↓ Neueste Nachricht';button.hidden=viewportAtLatest()&&unread.size===0;}
   }
   function readVisible(){if(!canRead())return;unread.clear();lastRead=Math.max(lastRead,...turnNodes().map(n=>Date.parse(n.dataset.createdAt)||0));put(KEYS.read,lastRead);paintUnread();}
+  function acknowledgeContacts(ids){const read=new Set(ids);let changed=false;for(const [key,turn]of unread){if(turn.contactId&&read.has(turn.contactId)){unread.delete(key);changed=true;}}if(changed)paintUnread();}
   function reconcile(next,previous){
     const known=new Set((previous||[]).map(keyFor));
     for(const turn of next||[]){if(turn.role!=='assistant')continue;const time=Date.parse(turn.createdAt);if(Number.isFinite(time)&&time>lastRead&&(!initialized||!known.has(keyFor(turn))))unread.set(keyFor(turn),turn);}
@@ -82,10 +84,10 @@
   window.addEventListener('offline',connection);window.addEventListener('online',()=>{connection();const mode=document.getElementById('mode');if(mode?.textContent.trim()==='Verbindungsfehler')mode.textContent='bereit';notice('Wieder verbunden. Ausstehende Nachrichten werden nicht automatisch erneut gesendet.');});connection();
   function notice(text){const node=document.getElementById('connectionStatus');if(node){node.hidden=false;node.textContent=text;}}
   function failed(node,text,{uncertain=false,image=false,knownRejected=false}={}){if(!node)return;const retry=safeRetry(text,uncertain,image)&&knownRejected;const action=button(retry?'Nachricht erneut senden':'Entwurf wiederherstellen',()=>{if(retry){if(window.SofiaChatSend?.(text)){action.disabled=true;}}else if(input){if(input.value.trim()){notice('Es ist bereits ein Entwurf vorhanden. Kopiere bei Bedarf die frühere Nachricht.');return;}input.value=text;saveDraft();window.SofiaUI?.resizeComposer(input);input.focus();notice(uncertain?'Ausgang unbestätigt. Aufgabenstand vor einer Wiederholung prüfen.':'Entwurf wiederhergestellt. Prüfe vor dem Senden den bisherigen Gesprächsstand.');}});action.className='message-retry';node.append(action);}
-  const menuButton=document.getElementById('workspaceAction');menuButton?.addEventListener('click',()=>{const d=panel('Chatwerkzeuge');d.append(button('Einstellungen',()=>{d.close();settings();}),button('Im Chat suchen',()=>{d.close();search();}),button('Angeheftete Nachrichten',()=>{d.close();pinned();}));});
+  const menuButton=document.getElementById('workspaceAction');menuButton?.addEventListener('click',()=>{const d=panel('Chatwerkzeuge');d.append(button('Heute',()=>{d.close();window.SofiaToday?.open();}),button('Einstellungen',()=>{d.close();settings();}),button('Im Chat suchen',()=>{d.close();search();}),button('Angeheftete Nachrichten',()=>{d.close();pinned();}));});
   const mode=document.getElementById('mode');
   function paintPhase(){if(!mode)return;const text=mode.textContent.trim();mode.dataset.phase=/Foto/.test(text)?'photo':/denkt/.test(text)?'thinking':/hört/.test(text)?'listening':/spricht/.test(text)?'speaking':/fehl|Fehler|Pause|warten/i.test(text)?'attention':'ready';}
   if(mode&&typeof MutationObserver!=='undefined')new MutationObserver(paintPhase).observe(mode,{childList:true,characterData:true,subtree:true});paintPhase();
-  window.SofiaWorkspace={motion,clearDraft,beginSubmission,confirmSubmission,failSubmission,saveDraft,refresh,reconcile,added,readVisible,notice,failed,settings,search,pinned,normalize,keyFor,safeRetry};
+  window.SofiaWorkspace={acknowledgeContacts,messages:()=>turnNodes().map(nodeTurn),unreadMessages:()=>[...unread.values()],showMessage:turn=>{window.SofiaChatViewport?.reveal?.();return jump(turn);},motion,clearDraft,beginSubmission,confirmSubmission,failSubmission,saveDraft,refresh,reconcile,added,readVisible,notice,failed,settings,search,pinned,normalize,keyFor,safeRetry};
   refresh();
 })();
