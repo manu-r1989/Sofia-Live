@@ -76,3 +76,10 @@ test('unchanged state does not rewrite mouth visibility',()=>{
   Object.defineProperty(h.img,'hidden',{get:()=>hidden,set:value=>{hidden=value;writes++;}});
   h.events.load();h.root.dataset.state='listening';h.sync();const before=writes;h.sync();h.sync();assert.equal(writes,before);
 });
+
+
+test('serious mood suppresses listening smile without covering speech or changing core state',()=>{
+ const h=harness();h.events.load();h.root.dataset.state='listening';h.root.dataset.mood='ernst';h.sync();assert.equal(h.img.hidden,true);
+ h.root.dataset.mood='amüsiert';h.sync();assert.equal(h.img.hidden,false);
+ h.root.dataset.state='speaking';h.sync();assert.equal(h.img.hidden,true);assert.equal(h.root.dataset.state,'speaking');
+});

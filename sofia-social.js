@@ -3,14 +3,15 @@
  const deviceLabel=()=>/iPhone|iPad/.test(navigator.userAgent)?'iPhone / iPad':/Android/.test(navigator.userAgent)?'Android':/Mac/.test(navigator.userAgent)?'Mac':'Web-App';
  async function localDeviceId(endpoint){return [...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(endpoint)))].map(x=>x.toString(16).padStart(2,'0')).join('').slice(0,24);}
  const visible=()=>document.visibilityState==='visible';
+ const chatVisible=()=>visible()&&!document.querySelector('.chatPanel.chat-hidden, dialog[open]');
  async function request(operation,extra={}){
   const r=await fetch('/api/session?social=1',{method:operation?'POST':'GET',credentials:'same-origin',cache:'no-store',headers:operation?{'Content-Type':'application/json'}:undefined,body:operation?JSON.stringify({operation,...extra}):undefined});
   const d=await r.json();if(!r.ok)throw Error(d.error||'Nicht erreichbar.');return d;
  }
  async function badge(count){try{if(count>0)await navigator.setAppBadge?.(count);else await navigator.clearAppBadge?.();}catch{}}
  async function markRead(){
-  if(!state?.unread||reading||!visible())return;
-  const messages=document.getElementById('messages');if(!messages||messages.scrollHeight-messages.scrollTop-messages.clientHeight>100)return;
+  if(!state?.unread||reading||!chatVisible())return;
+  const messages=document.getElementById('messages');if(!messages||(messages.getClientRects&&messages.getClientRects().length===0)||messages.scrollHeight-messages.scrollTop-messages.clientHeight>100)return;
   const ids=new Set([...messages.querySelectorAll('[data-contact-id]')].map(x=>x.dataset.contactId));
   const seq=Math.max(0,...(state.contacts||[]).filter(x=>ids.has(x.id)).map(x=>x.sequence));
   if(!seq||seq<=state.read)return;
@@ -24,7 +25,7 @@
   const label=document.createElement('label');label.textContent='Wie häufig darf Sofia sich melden?';const select=document.createElement('select');select.setAttribute('aria-label',label.textContent);select.style.cssText='display:block;width:100%;margin:12px 0;padding:10px';
   for(const [value,text]of [['off','Aus'],['quiet','Zurückhaltend · 1–3 pro Tag'],['natural','Natürlich · 3–7 pro Tag'],['active','Aktiv · 5–9 pro Tag']]){const o=document.createElement('option');o.value=value;o.textContent=text;select.append(o);}
   const photoLabel=document.createElement('label');const photos=document.createElement('input');photos.type='checkbox';photos.setAttribute('aria-label','Eigenständige Fotos erlauben');photoLabel.append(photos,document.createTextNode(' Eigenständige Fotos erlauben'));
-  const note=document.createElement('p');note.style.fontSize='13px';note.textContent='Mindestens zwei Stunden Abstand. Ruhezeit 23–8 Uhr (Hamburg). Fotos zählen mit; das Tagesbudget muss nicht ausgeschöpft werden.';
+  const note=document.createElement('p');note.style.fontSize='13px';note.textContent='Zwei bis drei Stunden variierender Abstand; bei unbeantworteten Nachrichten längere Pausen. Ruhezeit 23–8 Uhr (Hamburg). Fotos zählen mit; das Tagesbudget muss nicht ausgeschöpft werden.';
   const status=document.createElement('p');status.id='sofia-push-status';status.setAttribute('role','status');status.setAttribute('aria-live','polite');status.setAttribute('aria-atomic','true');status.style.cssText='display:block;min-height:44px;padding:12px;background:#252535;color:#fff;border-radius:10px;font-size:14px;line-height:1.4';status.textContent='Mitteilungsstatus wird geprüft …';const save=document.createElement('button');save.textContent='Speichern';save.type='button';save.disabled=true;select.disabled=true;photos.disabled=true;
   const push=document.createElement('button');push.textContent='Mitteilungen auf diesem Gerät aktivieren';push.type='button';push.style.cssText='display:block;margin:16px 0';
   const disable=document.createElement('button');disable.textContent='Mitteilungen auf diesem Gerät deaktivieren';disable.type='button';disable.style.cssText='display:block;margin:12px 0';
@@ -40,10 +41,11 @@
    const help=document.createElement('p');help.style.fontSize='12px';help.textContent='Bei abgelaufenem Abonnement auf dem betroffenen Gerät erneut aktivieren. Eine Gerätefreigabe allein bestätigt noch keine tatsächliche Zustellung.';devices.append(help);
   }
   const close=document.createElement('button');close.textContent='Schließen';close.type='button';close.onclick=()=>dialog.close();
-  dialog.append(title,label,select,photoLabel,note,today,status,save,push,disable,devices,close);document.body.append(dialog);dialog.addEventListener('close',()=>dialog.remove(),{once:true});dialog.showModal();close.focus();
+  const openUnread=document.createElement('button');openUnread.type='button';openUnread.textContent='Neue Nachrichten ansehen';openUnread.disabled=true;openUnread.onclick=()=>{const contact=state?.contacts?.find(x=>x.sequence>state.read);dialog.close();if(contact)window.dispatchEvent(new CustomEvent('sofia-contact-open',{detail:{contactId:contact.id}}));};
+  dialog.append(title,openUnread,label,select,photoLabel,note,today,status,save,push,disable,devices,close);document.body.append(dialog);dialog.addEventListener('close',()=>dialog.remove(),{once:true});dialog.showModal();close.focus();
   let registration=null;push.disabled=true;disable.disabled=true;
   const within=(promise)=>{let timer;return Promise.race([promise,new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('Die Einrichtung dauert zu lange. Bitte schließe dieses Fenster und versuche es erneut.')),20000);})]).finally(()=>clearTimeout(timer));};
-  try{state=await request();select.value=state.preferences.level;photos.checked=state.preferences.photos;save.disabled=false;select.disabled=false;photos.disabled=false;paintToday();paintDevices();
+  try{state=await request();openUnread.disabled=!state.unread;select.value=state.preferences.level;photos.checked=state.preferences.photos;save.disabled=false;select.disabled=false;photos.disabled=false;paintToday();paintDevices();
    if('serviceWorker' in navigator)registration=await within(navigator.serviceWorker.ready);
    const sub=registration?.pushManager?await within(registration.pushManager.getSubscription()):null;
    status.textContent=typeof Notification!=='undefined'&&Notification.permission==='denied'?'Mitteilungen sind im Browser blockiert. Bitte erlaube sie in den Website-Einstellungen.':sub&&Notification.permission==='granted'?'Mitteilungen auf diesem Gerät eingerichtet.':'Mitteilungen auf diesem Gerät noch nicht aktiviert.';
@@ -72,7 +74,8 @@
  document.getElementById('messages')?.addEventListener('scroll',()=>void markRead(),{passive:true});
  document.addEventListener('visibilitychange',()=>{if(visible())void sync();});
  window.addEventListener('online',()=>void sync());
- navigator.serviceWorker?.addEventListener('message',event=>{if(event.data?.type==='sofia-chat-open'){void sync();window.dispatchEvent(new Event('sofia-social-updated'));}});
+ navigator.serviceWorker?.addEventListener('message',event=>{if(event.data?.type==='sofia-chat-open'){void sync();window.dispatchEvent(new Event('sofia-social-updated'));if(/^[0-9a-f-]{36}$/i.test(event.data.contactId||''))window.dispatchEvent(new CustomEvent('sofia-contact-open',{detail:{contactId:event.data.contactId}}));}});
+ window.addEventListener('sofia-contact-visible',event=>{const id=event.detail?.contactId;void (async()=>{try{if(!state?.contacts?.some(x=>x.id===id))state=await request();const contact=state?.contacts?.find(x=>x.id===id);if(contact&&chatVisible()){state=await request('read',{sequence:contact.sequence});await badge(state.unread);renderBadge();}}catch{}})();});
  setInterval(()=>{if(visible())void sync();},60000);
  // Fallback while open; no automatic replay of a failed paid request.
  setInterval(()=>{if(visible())void request('tick').then(()=>window.dispatchEvent(new Event('sofia-social-updated'))).catch(()=>{});},30*60000);

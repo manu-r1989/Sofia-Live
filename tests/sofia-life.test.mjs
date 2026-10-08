@@ -396,3 +396,24 @@ test('expired mood evidence cannot cause an immediate mood jump',()=>{
  assert.equal(next.mood,'neutral');assert.equal(next.moodCandidate.count,1);
 });
 
+
+test('shared expression respects manual mood and Hamburg night energy',()=>{
+ const life={mood:'ernst',moodMode:'manual'};
+ assert.match(api.expressionContext(life,new Date('2026-10-08T23:00Z')).energy,/ruhig/);
+ assert.match(api.expressionContext(life).source,/ausdrücklich/);
+ assert.match(api.expressionContext({mood:'entspannt'},new Date('2026-10-08T23:00Z')).energy,/leiser/);
+ assert.match(api.expressionContext({mood:'entspannt'},new Date('2026-10-08T10:00Z')).energy,/lebendig/);
+});
+test('pose history avoids last three poses without changing explicit variants',()=>{
+ const reference={photoPose:{index:0,head:'original'}};
+ const recent=[0,1,2].map(index=>({photoPose:{index}}));
+ assert.equal(api.photoPose(reference,false,'entspannt',recent).index,3);
+ assert.equal(api.photoPose(reference,true,'ernst',recent),reference.photoPose);
+ assert.doesNotMatch(api.photoPose(null,false,'ernst',recent).expression,/smile/);
+});
+test('conversation context carries recent own phrases and only relevant preferences',()=>{
+ const life={dialogue:{recentTurns:[{assistant:'Ich mag das ruhige Café.'}]},preferences:[{topic:'kaffee',value:'kräftiger Kaffee'},{topic:'reise',value:'Berge'}]};
+ const context=api.conversationStyleContext(life,'Wie trinkst du Kaffee?');
+ assert.match(context,/Ich mag das ruhige Café/);assert.match(context,/kräftiger Kaffee/);assert.doesNotMatch(context,/Berge/);
+ assert.match(context,/keine gemeinsam erlebten Ereignisse erfinden/);
+});

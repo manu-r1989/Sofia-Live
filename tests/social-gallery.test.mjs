@@ -37,7 +37,7 @@ globalThis.fetch=async(u,o)=>{
   if(k.includes('sofia-life-cas')){if((db.get(target)||'')===a[4])db.set(target,a[5]);else result=0;}
   if(k.includes('b.read=math.max')){const b=JSON.parse(db.get(target)||'{"sequence":0,"read":0,"items":[]}');b.read=Math.max(b.read,Math.min(b.sequence,Number(a[4])));db.set(target,JSON.stringify(b));result=b.read;}
   if(k.includes('sofia-photo-favorite')){const list=JSON.parse(db.get(target)||'[]');for(const x of list)if(x.id===a[4])x.favorite=a[5]==='1';db.set(target,JSON.stringify(list));}
-  if(k.includes('sofia-contact-budget')){const s=JSON.parse(db.get(target)||'{"count":0,"last":0}'),baseLimit=s.baseLimit??s.limit??Number(a[5]),base=Math.min(baseLimit,Number(a[6])),limit=a[8]==='more'?Math.min(9,base+2):a[8]==='less'?Math.max(0,base-2):base,now=Number(a[4]);if(s.count>=limit||now-s.last<7200000)result=0;else db.set(target,JSON.stringify({count:s.count+1,last:now,limit,baseLimit}));}
+  if(k.includes('sofia-contact-budget')){const s=JSON.parse(db.get(target)||'{"count":0,"last":0}'),baseLimit=s.baseLimit??s.limit??Number(a[5]),base=Math.min(baseLimit,Number(a[6])),limit=a[8]==='more'?Math.min(9,base+2):a[8]==='less'?Math.max(0,base-2):base,now=Number(a[4]);if(s.count>=limit||now-s.last<7200000||now<(s.nextAt||0))result=0;else db.set(target,JSON.stringify({count:s.count+1,last:now,nextAt:now+Number(a[9]),limit,baseLimit}));}
   if(k.includes('sofia-social-deliver')){const expected=a[5];if((db.get(target)||'[]')!==expected)result=0;else{const inboxKey=a[4],b=JSON.parse(db.get(inboxKey)||'{"sequence":0,"read":0,"items":[]}'),item=JSON.parse(a[6]);b.sequence++;item.sequence=b.sequence;b.items.push(item);const h=JSON.parse(expected);h.push({role:'assistant',content:item.text,contactId:item.id});db.set(target,JSON.stringify(h));db.set(inboxKey,JSON.stringify(b));result=b.sequence;}}
  }
  return {ok:true,json:async()=>({result})};
@@ -60,7 +60,7 @@ test('unread contacts suppress further unanswered questions',async()=>{
 });
 test('daily random budget remains fixed and never exceeds selected range',async()=>{
  reset();let successes=0;for(let i=0;i<7;i++)if(await photo.reserveDailyContact(String(i),new Date(+base+i*7200000)))successes++;
- const s=JSON.parse(db.get(prefix+'contact-day:2026-10-07'));assert.ok(successes>=3&&successes<=7);assert.equal(successes,s.limit);assert.equal(await photo.reserveDailyContact('later',new Date(+base+13*3600000)),false);
+ const s=JSON.parse(db.get(prefix+'contact-day:2026-10-07'));assert.ok(successes>=3&&successes<=7);assert.ok(successes<=s.limit);assert.equal(successes,s.count);assert.equal(await photo.reserveDailyContact('tooSoon',new Date(s.last+7199999)),false);
 });
 test('cron rejects missing secret and production endpoint rejects missing session',async()=>{
  reset();const call=async(req)=>{let status,data;await handler({...req,headers:req.headers||{}},{setHeader(){},status(n){status=n;return this;},json(d){data=d;return this;}});return {status,data};};
@@ -110,4 +110,49 @@ test('favorite changes preserve original creation and expiry; expired picture re
 });
 test('temporary feedback is isolated from permanent preferences and rejects unknown values',async()=>{
  reset();db.set(prefix+'contact-prefs',JSON.stringify({level:'natural',photos:true}));assert.equal((await settingsCall({operation:'today',mode:'more'})).status,200);assert.equal(JSON.parse(db.get(prefix+'contact-prefs')).level,'natural');assert.equal(JSON.parse(db.get(prefix+'contact-today')).mode,'more');assert.equal((await settingsCall({operation:'today',mode:'always'})).status,400);
+});
+
+test('unanswered contact pauses four hours, two unread contacts stop further initiative',()=>{
+ const now=new Date('2026-10-08T12:00Z'),box={sequence:1,read:0,items:[{createdAt:new Date(+now-3*3600000).toISOString()}]};
+ assert.equal(api.contactReadiness({},box,now),'unanswered_pause');
+ box.items[0].createdAt=new Date(+now-4*3600000).toISOString();assert.equal(api.contactReadiness({},box,now),null);
+ box.sequence=2;assert.equal(api.contactReadiness({},box,now),'unread');
+});
+test('active conversation and fresh requests for distance suppress own messages without permanent blocking',()=>{
+ const box={sequence:0,read:0,items:[]},now=new Date('2026-10-08T12:00Z');
+ assert.equal(api.contactReadiness({dialogue:{at:new Date(+now-60000).toISOString(),lastUser:'Hallo'}},box,now),'active_conversation');
+ assert.equal(api.contactReadiness({dialogue:{at:new Date(+now-3600000).toISOString(),lastUser:'Lass mich bitte in Ruhe'}},box,now),'distance');
+ assert.equal(api.contactReadiness({dialogue:{at:new Date(+now-9*3600000).toISOString(),lastUser:'Lass mich bitte in Ruhe'}},box,now),null);
+});
+test('object-form closed topics cannot be reopened by proactive delivery',()=>{
+ const life={dialogue:{closedTopics:[{topic:'prüfung',at:base.toISOString()}]},threads:[{topic:'prüfung',text:'Prüfung?',status:'open',expiresAt:new Date(+base+86400000).toISOString()}]};
+ assert.deepEqual(api.contactThreads(life,{items:[]},base),[]);
+ assert.equal(api.repeatedContact('Kaffee tut gut!',[{text:'Kaffee tut gut.'}]),true);
+ assert.equal(api.repeatedContact('Sport tut gut.',[{text:'Kaffee tut gut.'}]),false);
+});
+test('reserved spacing is atomic, varies within two to three hours and survives later calls',async()=>{
+ reset();assert.equal(await photo.reserveDailyContact('one',base),true);
+ const state=JSON.parse(db.get(prefix+'contact-day:2026-10-07'));
+ assert.ok(state.nextAt>=+base+7200000&&state.nextAt<=+base+10800000);
+ assert.equal(await photo.reserveDailyContact('early',new Date(state.nextAt-1)),false);
+ assert.equal(JSON.parse(db.get(prefix+'contact-day:2026-10-07')).nextAt,state.nextAt);
+ assert.equal(await photo.reserveDailyContact('next',new Date(state.nextAt)),true);
+});
+test('three simulated days keep independent daily budgets and suppress every quiet-hour tick',async()=>{
+ reset();for(let day=7;day<=9;day++){
+  const morning=new Date(`2026-10-${String(day).padStart(2,'0')}T06:00Z`);
+  assert.equal(await photo.reserveDailyContact('morning',morning),true);
+  const state=JSON.parse(db.get(prefix+'contact-day:2026-10-'+String(day).padStart(2,'0')));
+  assert.equal(state.count,1);assert.ok(state.limit>=3&&state.limit<=7);
+  const before=modelCalls;assert.equal((await api.socialTick(new Date(`2026-10-${String(day).padStart(2,'0')}T22:00Z`))).reason,'quiet');assert.equal(modelCalls,before);
+ }
+});
+test('notification deep link opens exactly the local contact and forwards it to an existing client',async()=>{
+ const id='11111111-1111-4111-8111-111111111111',handlers={},opened=[],messages=[];let clients=[];
+ const self={location:{origin:'https://sofia.test'},clients:{matchAll:async()=>clients,openWindow:u=>opened.push(u)},addEventListener:(n,f)=>handlers[n]=f};
+ vm.runInNewContext(await readFile(new URL('../sw.js',import.meta.url),'utf8'),{self,URL});
+ let work;const click=()=>handlers.notificationclick({notification:{data:{contactId:id,url:'https://evil.test'},close(){}},waitUntil:p=>work=p});
+ click();await work;assert.deepEqual(opened,['/?contact='+id]);
+ clients=[{url:'https://sofia.test/',focus:async()=>{},postMessage:x=>messages.push(x)}];click();await work;
+ assert.equal(opened.length,1);assert.equal(messages[0].contactId,id);
 });

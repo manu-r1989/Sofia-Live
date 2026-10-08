@@ -25,14 +25,14 @@
     right.hidden = true;
     let rightReady = false, useRight = false;
     // The same root and object-fit rules keep the source coordinates aligned.
-    let root, ready = false, active = false, timer = null, destroyed = false;
+    let root, ready = false, active = false, timer = null, destroyed = false, lastState;
     function attach() {
       const next = host.querySelector(".sofia-avatar-v435");
       if (next && next !== root) { root = next; root.appendChild(img); root.appendChild(right); }
     }
     function allowed() {
       return ready && root && !document.hidden && !reduced.matches &&
-        ["idle", "listening"].includes(root.dataset.state) &&
+        ["idle", "listening", "thinking"].includes(root.dataset.state) &&
         !root.querySelector('.active[data-frame="blink"], .active[data-frame="wink"], .active[data-frame="small"], .active[data-frame="medium"], .active[data-frame="wide"]');
     }
     function hide() { active = false; img.hidden = true; right.hidden = true; }
@@ -46,11 +46,14 @@
           useRight = !useRight;
           timer = setTimeout(() => { hide(); schedule(); }, 850);
         } else schedule();
-      }, 18000 + Math.random() * 12000);
+      }, root?.dataset.state === 'thinking' ? 5000 + Math.random() * 3000 : 18000 + Math.random() * 12000);
     }
     function sync() {
       attach();
+      const state = root?.dataset.state, changed = state !== lastState;
+      lastState = state;
       if (active && !allowed()) { hide(); schedule(); }
+      else if (changed && !active) schedule();
     }
     const observer = new MutationObserver(sync);
 
@@ -72,3 +75,4 @@
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init, { once: true });
   else init();
 })();
+
