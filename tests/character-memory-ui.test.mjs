@@ -3,12 +3,12 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {readFile} from 'node:fs/promises';
 const source=await readFile(new URL('../app.js',import.meta.url),'utf8');
-const block=source.slice(source.indexOf('async function saveCharacterEdit'),source.indexOf('function renderEmptyMemory'));
+const block=source.slice(source.indexOf('let flushCharacterSettings'),source.indexOf('function renderEmptyMemory'));
 function harness(responseOk=true){
  class Node{constructor(tag){this.tag=tag;this.children=[];this.style={};this.textContent='';}append(...nodes){this.children.push(...nodes);}setAttribute(key,value){this[key]=value;}}
  const root=new Node('div'),requests=[],status=[];let reloads=0;
  const state={revision:7,location:'zu Hause',activity:'lesen',outfit:'Pullover',hairstyle:'Haare offen',mood:'entspannt',moodMode:'auto',preferences:[{topic:'buch',value:'<img src=x onerror=bad>'}],threads:[{topic:'arbeit',text:'Ein schwieriger Arbeitstag',status:'open'}]};
- const context=vm.createContext({memoryList:root,latestSofiaLife:state,document:{createElement:tag=>new Node(tag),getElementById:()=>null},window:{prompt:()=>null,location:{reload(){throw Error('unexpected reload');}}},updateSofiaLocation(){},setMemoryStatus:text=>status.push(text),loadLongTermMemories:async()=>reloads++,fetch:async(url,opts)=>{requests.push({url,...JSON.parse(opts.body)});return {status:responseOk?200:409,ok:responseOk,json:async()=>responseOk?{character:state}:{error:'Zustand geändert'}};}});
+ const context=vm.createContext({memoryList:root,latestSofiaLife:state,document:{createElement:tag=>new Node(tag),getElementById:()=>null},window:{prompt:()=>null,location:{reload(){throw Error('unexpected reload');}}},updateSofiaLocation(){},setMemoryStatus:text=>status.push(text),loadLongTermMemories:async()=>reloads++,fetch:async(url,opts)=>{if(!opts?.method)return {ok:true,json:async()=>({character:state})};requests.push({url,...JSON.parse(opts.body)});return {status:responseOk?200:409,ok:responseOk,json:async()=>responseOk?{character:state}:{error:'Zustand geändert'}};}});
  vm.runInContext(block,context);context.renderCharacterMemories(state);
  return {root,requests,status,state,context,reloads:()=>reloads};
 }
@@ -61,4 +61,37 @@ test('toolbar starts closed despite stored open preference and toggles explicitl
  const toggle={setAttribute:(k,v)=>attrs[k]=v,classList:{toggle(){}},addEventListener:(type,fn)=>click=fn};
  const ctx=vm.createContext({document:{querySelector:selector=>selector==='#toolsToggle'?toggle:{}},app:{classList:{toggle:(key,on)=>on?classes.add(key):classes.delete(key),contains:key=>classes.has(key)}},localStorage:{setItem:(k,v)=>stored[k]=v,getItem:k=>stored[k]}});
  vm.runInContext(code,ctx);assert.equal(classes.has('tools-closed'),true);assert.equal(attrs['aria-expanded'],'false');click();assert.equal(classes.has('tools-closed'),false);assert.equal(attrs['aria-expanded'],'true');
+});
+
+test('photo selection saves automatically without the separate save button or rerendering controls',async()=>{
+ const h=harness(),choices=all(h.root).filter(n=>n.type==='checkbox'&&n.value);
+ choices.find(x=>x.value==='portrait').checked=true;await choices.find(x=>x.value==='portrait').onchange();
+ assert.deepEqual(h.requests[0].value.photoKinds,['selfie','portrait','environment']);assert.equal(h.status.at(-1),'Gespeichert.');assert.equal(h.reloads(),0);
+ assert.equal(await vm.runInContext('flushCharacterSettings()',h.context),true);assert.equal(h.requests.length,1);
+});
+test('close flush waits for pending settings writes and sends the latest checkbox state serially',async()=>{
+ const h=harness(),choices=all(h.root).filter(n=>n.type==='checkbox'&&n.value);let release,calls=0;
+ h.context.fetch=async()=>{calls++;if(calls===1)await new Promise(resolve=>release=resolve);return {ok:true,status:200,json:async()=>({character:{...h.state,revision:7+calls}})};};
+ choices.find(x=>x.value==='portrait').checked=true;const first=choices.find(x=>x.value==='portrait').onchange();
+ choices.find(x=>x.value==='full_selfie').checked=true;const closed=vm.runInContext('flushCharacterSettings()',h.context);release();
+ assert.equal(await first,true);assert.equal(await closed,true);assert.equal(calls,2);assert.equal(h.status.at(-1),'Gespeichert.');
+});
+test('failed automatic save prevents closing and keeps the changed selection for retry',async()=>{
+ const h=harness(false),choices=all(h.root).filter(n=>n.type==='checkbox'&&n.value),portrait=choices.find(x=>x.value==='portrait');portrait.checked=true;
+ assert.equal(await portrait.onchange(),false);assert.equal(await vm.runInContext('flushCharacterSettings()',h.context),false);assert.equal(portrait.checked,true);assert.equal(h.status.at(-1),'Zustand geändert');
+});
+test('settings retry a stale revision once using refreshed character state',async()=>{
+ const h=harness();const revisions=[];let writes=0;
+ h.context.fetch=async(url,opts)=>{if(!opts.method)return {ok:true,json:async()=>({character:{...h.state,revision:9}})};revisions.push(JSON.parse(opts.body).revision);writes++;return {ok:writes>1,status:writes>1?200:409,json:async()=>writes>1?{character:{...h.state,revision:10}}:{error:'Zustand geändert'}};};
+ assert.equal(await h.context.saveCharacterEdit('settings',{initiative:'balanced',replyLength:'auto',photos:true,photoKinds:['portrait']},undefined,7,true),true);assert.deepEqual(revisions,[7,9]);
+});
+
+test('closing the real memory overlay waits for auto-save and stays open after failure',async()=>{
+ const closing=source.slice(source.indexOf('async function closeMemoryView()'),source.indexOf('async function loadLongTermMemories()'));
+ for(const succeeds of [true,false]){
+  const h=harness(),overlay={style:{display:'block'},_restoreUI:()=>{}};h.context.memoryOverlay=overlay;h.context.document.body={style:{overflow:'hidden'}};vm.runInContext(closing,h.context);
+  let release;h.context.fetch=async()=>{await new Promise(resolve=>release=resolve);return {ok:succeeds,status:succeeds?200:500,json:async()=>succeeds?{character:h.state}:{error:'Speichern fehlgeschlagen'}};};
+  const portrait=all(h.root).find(n=>n.value==='portrait');portrait.checked=true;const pending=portrait.onchange(),close=h.context.closeMemoryView();assert.equal(overlay.style.display,'block');release();await pending;await close;
+  assert.equal(overlay.style.display,succeeds?'none':'block');
+ }
 });
