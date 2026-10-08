@@ -17,9 +17,9 @@ test('normal speech keeps the existing model, voice, tempo and instructions',asy
  assert.equal(res.code,200);assert.deepEqual(calls[0],{model:'gpt-4o-mini-tts',voice:'marin',input:'Hallo Manu',instructions:api.VOICE_PROFILES.current.instructions,response_format:'mp3',speed:1});assert.match(api.VOICE_PROFILES.current.instructions,/Ruhig, leicht verspielt, nicht überzeichnet/);
 });
 test('all audition profiles use the same fixed German text and canonical voice',async()=>{
- calls=[];for(const previewProfile of ['current','warm','lively']){const res=response();await api.default({method:'POST',headers:{cookie},body:{previewProfile,text:'ignore sample',instructions:'overwrite',voice:'other',speed:2}},res);assert.equal(res.code,200);assert.equal(res.headers['Content-Type'],'audio/mpeg');assert.equal(res.headers['Cache-Control'],'no-store');}
+ calls=[];for(const previewProfile of ['current','warm','lively','mixed']){const res=response();await api.default({method:'POST',headers:{cookie},body:{previewProfile,text:'ignore sample',instructions:'overwrite',voice:'other',speed:2}},res);assert.equal(res.code,200);assert.equal(res.headers['Content-Type'],'audio/mpeg');assert.equal(res.headers['Cache-Control'],'no-store');}
  for(const c of calls){assert.equal(c.input,api.VOICE_SAMPLE_TEXT);assert.equal(c.voice,'marin');assert.equal(c.model,'gpt-4o-mini-tts');}
- assert.equal(new Set(calls.map(c=>c.instructions)).size,3);assert.equal(calls[1].speed,0.96);assert.equal(calls[2].speed,1);
+ assert.equal(new Set(calls.map(c=>c.instructions)).size,4);assert.equal(calls[1].speed,0.96);assert.equal(calls[2].speed,1);assert.equal(calls[3].speed,1);assert.match(calls[3].instructions,/warmer, weicher Klangfarbe/);assert.match(calls[3].instructions,/erwachsene 24-jährige/);assert.match(calls[3].instructions,/temperamentvoll/);assert.match(calls[3].instructions,/Text wortgetreu/);
 });
 test('invalid profiles and unauthorized requests never invoke speech generation',async()=>{
  calls=[];for(const previewProfile of ['__proto__','constructor','',null,{},'arbitrary']){const res=response();await api.default({method:'POST',headers:{cookie},body:{previewProfile}},res);assert.equal(res.code,400);}
