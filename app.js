@@ -1228,6 +1228,15 @@ async function loadLongTermMemories() {
         : (Array.isArray(data.memories) ? data.memories.map(text => ({text, category: 'Persönliches'})) : []);
 
     const memories = memoryItems.map(item => item.text);
+    const tools=document.createElement('div');tools.style.cssText='display:flex;gap:8px;flex-wrap:wrap;margin:12px 0';
+    const projects=document.createElement('button');projects.type='button';projects.textContent='Gemeinsame Vorhaben';projects.onclick=()=>window.SofiaProjects?.open();
+    const search=document.createElement('input');search.type='search';search.placeholder='Erinnerungen durchsuchen';search.setAttribute('aria-label','Erinnerungen durchsuchen');search.style.cssText='flex:1;min-width:150px';
+    const categoryFilter=document.createElement('select');categoryFilter.setAttribute('aria-label','Erinnerungen nach Kategorie filtern');
+    for(const name of ['Alle Kategorien',...new Set(memoryItems.map(x=>x.category||'Sonstiges'))]){const o=document.createElement('option');o.value=name;o.textContent=name;categoryFilter.append(o);}
+    const filtered=document.createElement('span');filtered.setAttribute('role','status');
+    function filterMemories(){let count=0;for(const row of memoryList.querySelectorAll('[data-memory-text]')){row.hidden=!row.dataset.memoryText.includes(search.value.toLowerCase().trim())||(categoryFilter.value!=='Alle Kategorien'&&row.dataset.memoryCategory!==categoryFilter.value);if(!row.hidden)count++;}filtered.textContent=count+' passende Erinnerungen';}
+    search.oninput=categoryFilter.onchange=filterMemories;tools.append(projects,search,categoryFilter,filtered);memoryList.append(tools);
+
 
     memoryCount.textContent =
       memories.length === 1
@@ -1484,65 +1493,20 @@ function renderMemoryItem(
     cursor: 'pointer'
   });
 
-  editButton.addEventListener('click', async () => {
-    const next = window.prompt('Erinnerung bearbeiten:', memory);
-    if (next == null || !next.trim()) return;
-
-    const categories = [
-      'Personen',
-      'Vorlieben',
-      'Projekte & Arbeit',
-      'Ziele & Pläne',
-      'Gewohnheiten',
-      'Beziehung',
-      'Persönliches',
-      'Sonstiges'
-    ];
-
-    const categoryInput = window.prompt(
-      'Kategorie bearbeiten:\n' + categories.join('\n'),
-      category
-    );
-
-    if (categoryInput == null) return;
-
-    const nextCategory = categoryInput.trim();
-    if (!categories.includes(nextCategory)) {
-      setMemoryStatus('Unbekannte Kategorie. Bitte eine vorhandene Kategorie verwenden.');
-      return;
-    }
-
-    if (next.trim() === memory && nextCategory === category) return;
-
-    editButton.disabled = true;
-    editButton.textContent = '…';
-
-    try {
-      const response = await fetch('/api/memory', {
-        method: 'PUT',
-        credentials: 'same-origin',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-          old_memory: memory,
-          new_memory: next.trim(),
-          category: nextCategory
-        })
-      });
-
-      if (response.status === 401) {
-        window.location.reload();
-        return;
-      }
-
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Erinnerung konnte nicht geändert werden.');
-      await loadLongTermMemories();
-    } catch (error) {
-      console.error('Memory bearbeiten fehlgeschlagen:', error);
-      setMemoryStatus('Die Erinnerung konnte nicht geändert werden.');
-      editButton.disabled = false;
-      editButton.textContent = 'Bearbeiten';
-    }
+  let editor=null;
+  editButton.addEventListener('click', () => {
+    if(editor)return;
+    editor=document.createElement('div');editor.style.cssText='margin-top:12px;display:grid;gap:8px';
+    const content=document.createElement('textarea');content.value=memory;content.maxLength=500;content.setAttribute('aria-label','Erinnerungstext');content.style.cssText='width:100%;min-height:80px;box-sizing:border-box';
+    const picker=document.createElement('select');picker.setAttribute('aria-label','Erinnerungskategorie');
+    for(const name of ['Personen','Vorlieben','Projekte & Arbeit','Ziele & Pläne','Gewohnheiten','Beziehung','Persönliches','Sonstiges']){const option=document.createElement('option');option.value=name;option.textContent=name;picker.append(option);}picker.value=category;
+    const save=document.createElement('button'),cancel=document.createElement('button'),feedback=document.createElement('p');save.type=cancel.type='button';save.textContent='Änderung speichern';cancel.textContent='Abbrechen';feedback.setAttribute('role','status');
+    cancel.onclick=()=>{editor.remove();editor=null;};
+    save.onclick=async()=>{const value=content.value.trim();if(!value){feedback.textContent='Bitte einen Erinnerungstext eingeben.';return;}save.disabled=true;
+      try{const r=await fetch('/api/memory',{method:'PUT',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({old_memory:memory,new_memory:value,category:picker.value})});const d=await r.json();if(!r.ok)throw Error(d.error||'Die Erinnerung konnte nicht geändert werden.');await loadLongTermMemories();setMemoryStatus('Erinnerung geändert.');}
+      catch(error){feedback.textContent=error.message;save.disabled=false;}
+    };
+    editor.append(content,picker,save,cancel,feedback);textWrap.append(editor);content.focus();
   });
 
   const deleteButton =
@@ -1584,6 +1548,8 @@ function renderMemoryItem(
   textWrap.appendChild(categoryLabel);
   textWrap.appendChild(text);
 
+  item.dataset.memoryText=memory.toLowerCase();
+  item.dataset.memoryCategory=category;
   item.appendChild(number);
   item.appendChild(textWrap);
   item.appendChild(editButton);

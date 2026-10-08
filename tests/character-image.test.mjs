@@ -165,7 +165,7 @@ test('image delivery is private JPEG with download attachment and validated IDs'
 });
 test('UI integration loads shared renderer before app and does not alter avatar assets',async()=>{
  const root=new URL('../',import.meta.url);const index=await readFile(new URL('index.html',root),'utf8');
- assert.ok(index.indexOf('sofia-images.js?v=44012v1')<index.indexOf('app.js?v=44012v1'));
+ assert.ok(index.indexOf('sofia-images.js?v=4437v1')<index.indexOf('app.js?v=4437v1'));
  const chat=await readFile(new URL('api/chat.js',root),'utf8');
  assert.ok(chat.indexOf('!safeEqual(')<chat.indexOf('await servePortrait'));
  const ui=await readFile(new URL('sofia-images.js',root),'utf8');assert.match(ui,/dialog.showModal/);assert.match(ui,/link.download=/);assert.doesNotMatch(ui,/spinner|generating-status/);
@@ -255,7 +255,7 @@ test('Live memory stores the image anchor on the acknowledgment without saving f
  const res={setHeader(){},status(n){status=n;return this;},json(d){return d;}};
  await handler({method:'POST',headers:{cookie:'sofia_session='+session},body:{userText:'Selfie bitte',assistantText:'Gib mir einen kleinen Moment.',imageRequestId:id}},res);
  assert.equal(status,200);assert.equal(JSON.parse(db.get('sofia:main:history'))[1].imageRequestId,id);
- assert.deepEqual(JSON.parse(db.get('sofia:main:longterm')),[]);
+ assert.deepEqual(JSON.parse(db.get('sofia:main:longterm')||'[]'),[]);
 });
 
 test('normal conversation after a picture keeps the anchor in Redis but sends only message fields to the model',async()=>{
@@ -373,4 +373,13 @@ test('lighting or cropping variant keeps the original capture time and body post
  const original=JSON.parse(db.get(prefix+'image:'+first.id));plan.action='variant';
  const next=await api.preparePortrait('Dasselbe Bild, nur mit anderem Ausschnitt',first.id,new Date(+now+3600000));
  const job=JSON.parse(db.get(prefix+'request:'+next.id));assert.equal(job.sourceId,first.id);assert.equal(job.capturedAt,original.capturedAt);assert.equal(job.bodyPose,original.bodyPose);assert.deepEqual(job.dimensions,['framing']);
+});
+
+test('natural snapshot edits allow only requested pose expression framing or distance dimensions',()=>{
+ assert.deepEqual(api.variantDimensions('Weniger gestellt bitte'),['expression','framing','pose']);
+ assert.deepEqual(api.variantDimensions('Mehr Umgebung bitte'),['distance','framing']);
+ assert.deepEqual(api.variantDimensions('Nur anderes Licht'),['lighting']);
+ const poses=[];let previous=null;for(let i=0;i<6;i++){const pose=api.photoPose(previous,false,'entspannt',poses.map(photoPose=>({photoPose})));poses.push(pose);previous={photoPose:pose};}
+ assert.equal(new Set(poses.map(p=>p.index)).size,6);assert.ok(poses.every(p=>p.head&&p.gaze&&p.camera&&p.expression));
+ assert.ok(poses.every(p=>/never standing/.test(api.photoBodyPose({location:'im Bett'},p))));
 });

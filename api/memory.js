@@ -1,6 +1,6 @@
 import { dataPrefix, testModeRequested, publicTestMode, guardTestRequest } from "../lib/environment.js";
 import crypto from "node:crypto";
-import { getSofiaLife, editCharacterState } from '../lib/character-image.js';
+import { projectOverview, editProject, persistMemorySnapshot, getSofiaLife, editCharacterState } from '../lib/character-image.js';
 
 const MEMORY_KEY = dataPrefix() + 'longterm';
 
@@ -130,6 +130,7 @@ export default async function handler(req, res) {
       error: "Nicht autorisiert."
     });
   }
+  if(req.method!=='GET'&&req.headers?.origin){try{if(new URL(req.headers.origin).host!==req.headers.host)throw Error();}catch{return res.status(403).json({error:'Origin not allowed'});}}
   if(!await guardTestRequest(req,res,"memory"))return;
 
 
@@ -144,6 +145,10 @@ export default async function handler(req, res) {
 
 
   try {
+    if(req.body?.scope==='project' && req.method==='POST') {
+      try {await editProject(req.body);return res.status(200).json({ok:true,projects:await projectOverview()});}
+      catch(error){const code=error.message;if(!code.startsWith('project_'))throw error;return res.status(code==='project_conflict'?409:400).json({error:code==='project_conflict'?'Das Vorhaben hat sich geändert. Bitte neu laden.':code==='project_limit'?'Die Übersicht ist voll. Bitte vorhandene Vorhaben oder Einträge weiterverwenden.':code==='project_task_missing'?'Diese Aufgabe ist nicht mehr vorhanden.':'Diese Änderung am Vorhaben ist nicht möglich.'});}
+    }
     if (req.body?.scope === 'character' && ['PUT','DELETE'].includes(req.method)) {
       try {
         const character=await editCharacterState({...req.body,value:req.method==='DELETE'?'':req.body.value});
@@ -174,7 +179,8 @@ export default async function handler(req, res) {
         memories: items.map(item => item.text),
         items,
         count: items.length,
-        character: await getSofiaLife()
+        character: await getSofiaLife(),
+        projects: await projectOverview()
       });
 
     }
@@ -224,7 +230,7 @@ export default async function handler(req, res) {
         category: nextCategory,
         updatedAt: new Date().toISOString()
       };
-      await redisSetJSON(MEMORY_KEY, memories);
+      if(!await persistMemorySnapshot(stored,memories))return res.status(409).json({error:'Die Erinnerungen haben sich geändert. Bitte neu laden.'});
       return res.status(200).json({ ok: true, memories, count: memories.length });
     }
 
@@ -285,10 +291,7 @@ export default async function handler(req, res) {
       );
 
 
-      await redisSetJSON(
-        MEMORY_KEY,
-        memories
-      );
+      if(!await persistMemorySnapshot(stored,memories))return res.status(409).json({error:'Die Erinnerungen haben sich geändert. Bitte neu laden.'});
 
 
       return res.status(200).json({

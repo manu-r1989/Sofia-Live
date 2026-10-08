@@ -194,3 +194,11 @@ test('retained own-contact lookup returns only that message and rejects unknown 
  reset();const id='11111111-1111-4111-8111-111111111111';db.set(prefix+'contact-inbox',JSON.stringify({sequence:1,read:0,items:[{id,sequence:1,text:'Ein alter Gruß.',createdAt:base.toISOString(),privateDebug:'hidden'}]}));
  const contact=await api.socialContact(id);assert.equal(contact.text,'Ein alter Gruß.');assert.equal(contact.privateDebug,undefined);assert.equal(await api.socialContact('invalid'),null);assert.equal(await api.socialContact('22222222-2222-4222-8222-222222222222'),null);
 });
+
+test('proactive project contact is eligible only for active projects without unanswered contact',()=>{
+ const life={key:'day',settings:{photos:false},sharedProjects:{items:[{status:'active'}]}};
+ const box={sequence:0,read:0,items:[{contactKind:'observation'},{contactKind:'opinion'}]};
+ assert.equal(api.contactKind(life,box,[],{photos:false},()=>0),'project');
+ assert.notEqual(api.contactKind({...life,sharedProjects:{items:[{status:'paused'}]}},box,[],{photos:false},()=>0),'project');
+ assert.notEqual(api.contactKind(life,{...box,sequence:1},[],{photos:false},()=>0),'project');
+});

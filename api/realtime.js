@@ -162,7 +162,7 @@ export default async function handler(
   try {
     // Optional context must not prevent microphone/session startup.
     const contextResults=await Promise.allSettled([
-      redisGetJSON(MEMORY_KEY, []),redisGetJSON(HISTORY_KEY, []),redisGetJSON(IDENTITY_KEY, []),redisGetJSON(dataPrefix()+'portrait:life',null)
+      redisGetJSON(MEMORY_KEY, []),redisGetJSON(HISTORY_KEY, []),redisGetJSON(IDENTITY_KEY, []),redisGetJSON(dataPrefix()+'portrait:life',null),redisGetJSON(dataPrefix()+'portrait:shared-projects',{items:[]})
     ]);
     const [storedMemories,storedHistory,storedIdentity,storedLife]=contextResults.map((result,index)=>{
       if(result.status==='fulfilled')return result.value;
@@ -246,11 +246,14 @@ export default async function handler(
             .join("\n")
         : "Noch kein vorheriger Gesprächskontext vorhanden.";
 
+    const sharedProjects=contextResults[4]?.status==='fulfilled'?contextResults[4].value:{items:[]};
+    const activeProjects=(sharedProjects.items||[]).filter(p=>p.status==='active').slice(-4);
     const instructions = `
 Du bist Sofia.
 
 SITUATION BEIM LIVE-START: ${JSON.stringify(initialSituation)}.
 GESPRÄCHSSTAND BEIM LIVE-START: ${JSON.stringify(initialDialogue)}.
+GEMEINSAME VORHABEN DES NUTZERS: ${JSON.stringify(activeProjects)}. Von Sofias eigenen fiktiven Vorhaben unterscheiden. Pausierte und abgeschlossene Vorhaben ruhen. Keine gespeicherten Änderungen, Fortschritte oder Aufgaben ohne bestätigtes Turn-Ergebnis behaupten.
 Dies ist ein Startbezug; neuerer Kontext im jeweiligen Turn hat Vorrang.
 Bei null keine aktuelle Situation aus einem alten Verlauf erraten.
 Offene Fragen und Abschlüsse aus Text gelten auch in Live. Bereits geschlossene

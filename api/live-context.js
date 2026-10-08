@@ -1,5 +1,5 @@
 import { dataPrefix, testModeRequested, publicTestMode, guardTestRequest } from "../lib/environment.js";
-import { appearanceChoice, taskReceipt, hamburgReferenceTime, portraitPreparationReply, preparePortrait, getSofiaLife, lifeContext, prepareProactivePortrait, PROACTIVE_PHOTO_ANNOUNCEMENT } from '../lib/character-image.js';
+import { executeProjectCommand, executeMemoryCommand, projectState, projectContext, projectBinding, linkProjectResult, appearanceChoice, taskReceipt, hamburgReferenceTime, portraitPreparationReply, preparePortrait, getSofiaLife, lifeContext, prepareProactivePortrait, PROACTIVE_PHOTO_ANNOUNCEMENT } from '../lib/character-image.js';
 import crypto from "node:crypto";
 import { executeUnifiedAction, getActionState, getResearchState } from "./action-engine.js";
 
@@ -104,6 +104,9 @@ export default async function handler(req, res) {
   const message = String(req.body?.message || "").trim().slice(0, 2000);
   if (!message) return res.status(200).json({ context: "", calendarAction: null });
 
+  const directCommand=await executeMemoryCommand(message) || await executeProjectCommand(message);
+  if(directCommand)return res.status(200).json({context:'TATSÄCHLICHES ERGEBNIS: Antworte ausschließlich und wörtlich auf Deutsch: '+directCommand.reply,life:await getSofiaLife(),taskAction:{ok:true,action:'none'},calendarAction:null});
+
   try {
     const appearance=await appearanceChoice(message,new Date(),req.body?.mood);
     if(appearance?.reply)return res.status(200).json({context:'AKTUELLES AUSSEHEN: Antworte ausschließlich und wörtlich auf Deutsch: '+appearance.reply,life:appearance.life,taskAction:{ok:true,action:'none'},calendarAction:null});
@@ -129,10 +132,11 @@ export default async function handler(req, res) {
   }).format(now);
 
   const sofiaLife = await getSofiaLife(now, req.body?.mood);
+  const sharedProjects=await projectState(),projectTask=projectBinding(message,sharedProjects);
   let taskAction = { ok: true, action: "none" };
   try {
     try {
-      taskAction = (await executeUnifiedAction(message, hamburgNow, { mode: "live" })).taskAction;
+      taskAction = projectTask?.missing ? {ok:false,action:"none",status:"project_missing",error:"Dieses aktive Vorhaben wurde nicht gefunden. Keine Aufgabe erstellt."} : await linkProjectResult(projectTask,(await executeUnifiedAction(projectTask?.taskMessage || message, hamburgNow, { mode: "live" })).taskAction);
     } catch (taskError) {
       taskAction = { ok: false, action: "none", status: "execution_failed" };
       console.warn("Live task action:", taskError?.message || taskError);
@@ -223,6 +227,7 @@ export default async function handler(req, res) {
     if (taskAction?.ok && taskAction.action === "none" && !calendarAction) imageRequest = await prepareProactivePortrait(message, sofiaLife);
     const context = [
       lifeContext(sofiaLife,message),
+      projectContext(sharedProjects),
       imageRequest ? `BILDANFRAGE ANGENOMMEN: Ein spontanes Foto passend zum obigen Alltag wird erstellt. Bleibe bei dieser Situation und kündige zum Schluss an: „${PROACTIVE_PHOTO_ANNOUNCEMENT}“. Noch keinen Bilderfolg behaupten.` : "",
       taskActionContext,
       continuityContext,

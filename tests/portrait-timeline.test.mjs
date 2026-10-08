@@ -9,20 +9,21 @@ function harness(fetchImpl,extras={}) {
  class Node {
   constructor(tag){this.tag=tag;this.children=[];this.dataset={};this.style={};this.hidden=false;this.className='';this.ownText='';}
   get textContent(){return this.ownText+this.children.map(x=>x.textContent).join('');}set textContent(v){this.ownText=v;this.children=[];}
+  get isConnected(){return this.tag==='body'||!!this.parentNode?.isConnected;}
   get classList(){return {contains:c=>this.className.split(' ').includes(c)};}
   get firstChild(){return this.children[0]||null;}
   get nextSibling(){const a=this.parentNode?.children;return a?.[a.indexOf(this)+1]||null;}
   replaceChildren(...nodes){for(const child of this.children)child.parentNode=null;this.children=[];this.ownText='';this.append(...nodes);}
   append(...nodes){for(const n of nodes)this.insertBefore(n,null);}
   insertBefore(n,b){if(n===b)return n;if(n.parentNode)n.parentNode.children.splice(n.parentNode.children.indexOf(n),1);n.parentNode=this;const i=b?this.children.indexOf(b):this.children.length;if(i<0)throw Error('Missing insertion point');this.children.splice(i,0,n);return n;}
-  setAttribute(k,v){this[k]=v;}addEventListener(name,fn){this.events||={};this.events[name]=fn;}focus(){}showModal(){}close(){this.events?.close?.();}click(){this.clicked=true;}
+  setAttribute(k,v){this[k]=v;}addEventListener(name,fn){this.events||={};const before=this.events[name];this.events[name]=before?(event)=>{before(event);fn(event);}:fn;}focus(){}showModal(){}close(){this.events?.close?.();}click(){this.clicked=true;}
   remove(){this.parentNode.children.splice(this.parentNode.children.indexOf(this),1);}
   all(){return this.children.flatMap(n=>[n,...n.all()]);}
   querySelectorAll(selector){return this.all().filter(n=>selector.startsWith('[data-portrait-request-id=')?n.dataset.portraitRequestId===selector.split('"')[1]:selector.split('.').filter(Boolean).every(c=>n.classList.contains(c)));}
   querySelector(s){return this.querySelectorAll(s)[0]||null;}
  }
  const body=new Node('body'),messages=new Node('div'),mode=new Node('small');messages.id='messages';mode.id='mode';mode.textContent='bereit';body.append(messages,mode);
- const document={body,createElement:tag=>new Node(tag),getElementById:target=>[body,...body.all()].find(n=>n.id===target)||null};
+ const document={body,createTextNode:text=>{const n=new Node('text');n.textContent=text;return n;},createElement:tag=>new Node(tag),getElementById:target=>[body,...body.all()].find(n=>n.id===target)||null};
  const window={};vm.runInNewContext(source,{document,window,fetch:fetchImpl,Map,Promise,...extras});
  const message=(text,who='sofia',anchorId)=>{const n=new Node('div');n.className='msg '+who;n.textContent=text;if(anchorId)n.dataset.portraitRequestId=anchorId;messages.append(n);if(anchorId)window.SofiaImages.anchor(anchorId,n);return n;};
  return {body,messages,document,api:window.SofiaImages,message};
@@ -190,4 +191,20 @@ test('gallery combines date, kind and favorites without losing direct reference 
 });
 test('favorite persists through server request and is immediately filterable',async()=>{
  const calls=[];const h=harness(async(u,o)=>{calls.push(JSON.parse(o.body));return {ok:true};});h.api.restore([{...image(id),createdAt:new Date().toISOString(),kind:'selfie'}]);h.api.openGallery();const gallery=h.document.getElementById('sofia-gallery'),button=gallery.all().find(n=>n.tag==='button'&&n.textContent==='☆ Favorit');await button.onclick();assert.equal(calls[0].operation,'favorite');assert.equal(calls[0].imageId,id);assert.equal(calls[0].favorite,true);gallery.all().find(n=>n.textContent==='Nur Favoriten').onclick();assert.equal(gallery.all().filter(n=>n.dataset.galleryPhotoId).length,1);
+});
+
+test('gallery groups retained pictures by Hamburg capture day and situation',()=>{
+ const h=harness(async()=>preparedPhoto());const at=new Date().toISOString();h.api.restore([{...image(id),createdAt:at,capturedAt:at,location:'auf dem Sofa'}]);h.api.openGallery();const gallery=h.document.getElementById('sofia-gallery');assert.ok(gallery.all().some(n=>n.tag==='h3'&&n.textContent.includes('auf dem Sofa')));assert.ok(gallery.all().some(n=>n.textContent==='Mehrere auswählen'));assert.equal(gallery.all().find(n=>n.textContent==='Auswahl herunterladen / teilen').disabled,true);
+});
+test('bulk archive is a readable standard ZIP containing original bytes and safe JPEG names',async()=>{
+ const {execFileSync}=await import('node:child_process');const h=harness(async()=>preparedPhoto(),{Blob,TextEncoder});const bytes=Uint8Array.from([255,216,255,1,2,3]);const blob=h.api.photoArchive([{name:'sofia-test.jpg',bytes},{name:'sofia-second.jpg',bytes}]);const zip=Buffer.from(await blob.arrayBuffer());const output=execFileSync('python3',['-c','import sys,zipfile,io,json; z=zipfile.ZipFile(io.BytesIO(sys.stdin.buffer.read())); print(json.dumps({"names":z.namelist(),"first":list(z.read("sofia-test.jpg")),"valid":z.testzip() is None}))'],{input:zip,encoding:'utf8'});const result=JSON.parse(output);assert.deepEqual(result.names,['sofia-test.jpg','sofia-second.jpg']);assert.deepEqual(result.first,[...bytes]);assert.equal(result.valid,true);
+});
+
+test('bulk selection prepares files before native sharing and filtering clears stale selection',async()=>{
+ const shares=[],requests=[];const jpeg=new Blob([Uint8Array.from([255,216,255,1])],{type:'image/jpeg'});
+ const h=harness(async url=>{requests.push(url);return {ok:true,blob:async()=>jpeg};},{Blob,File,TextEncoder,navigator:{canShare:()=>true,share:async data=>shares.push(data.files)}});
+ const at=new Date().toISOString();h.api.restore([{...image(id),createdAt:at,kind:'selfie'},{...image(id2),createdAt:at,kind:'selfie'}]);h.api.openGallery();let gallery=h.document.getElementById('sofia-gallery');gallery.all().find(n=>n.tag==='button'&&n.textContent==='Mehrere auswählen').onclick();
+ const checks=gallery.all().filter(n=>n.tag==='input'&&n.type==='checkbox');checks[0].checked=true;checks[0].onchange();await new Promise(r=>setImmediate(r));checks[1].checked=true;checks[1].onchange();await new Promise(r=>setImmediate(r));
+ const download=gallery.all().find(n=>n.tag==='button'&&n.textContent==='Auswahl herunterladen / teilen');assert.equal(download.disabled,false);await download.onclick();assert.equal(shares[0].length,2);assert.ok(shares[0].every(f=>f.name.endsWith('.jpg')));assert.ok(requests.every(url=>url.startsWith('/api/chat?image=')));
+ const filter=gallery.all().find(n=>n['aria-label']==='Galerie nach Bildart filtern');filter.value='environment';filter.onchange();assert.equal(download.disabled,true);
 });
