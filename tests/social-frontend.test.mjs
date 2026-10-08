@@ -4,13 +4,13 @@ import vm from 'node:vm';
 import {readFile} from 'node:fs/promises';
 const source=await readFile(new URL('../sofia-social.js',import.meta.url),'utf8');
 function harness(){
- const nodes=[],events={},calls=[];let messagesVisible=true;
+ const nodes=[],events={},calls=[],photos=[];let messagesVisible=true;
  class Node{constructor(tag){this.tag=tag;this.children=[];this.style={};this.events={};this.attrs={};nodes.push(this);}append(...n){this.children.push(...n);}setAttribute(k,v){this.attrs[k]=v;}addEventListener(k,v){this.events[k]=v;}replaceChildren(){this.children=[];}showModal(){this.open=true;}close(){this.open=false;this.events.close?.();}remove(){this.removed=true;}focus(){}querySelector(){return null;}}
  const messages=new Node('messages');Object.assign(messages,{scrollHeight:500,scrollTop:0,clientHeight:500,getClientRects:()=>messagesVisible?[{}]:[],querySelectorAll:()=>[{dataset:{contactId:'11111111-1111-4111-8111-111111111111'}}]});
  const action=new Node('socialAction'),body=new Node('body');
  const state={preferences:{level:'natural',photos:true,quietStart:'23:00',quietEnd:'08:00',pausedUntil:null},unread:1,sequence:1,read:0,contacts:[{id:'11111111-1111-4111-8111-111111111111',sequence:1}],devices:[],backgroundConfigured:true};
  const document={visibilityState:'visible',body,getElementById:id=>id==='messages'?messages:id==='socialAction'?action:null,querySelector:()=>nodes.find(n=>n.tag==='dialog'&&n.open)||null,createElement:t=>new Node(t),createTextNode:t=>({textContent:t}),addEventListener(){}};
- const window={addEventListener:(t,f)=>events[t]=f,dispatchEvent:e=>events[e.type]?.(e)};
+ const window={SofiaImages:{openGallery:id=>photos.push(id)},addEventListener:(t,f)=>events[t]=f,dispatchEvent:e=>events[e.type]?.(e)};
  vm.runInNewContext(source,{document,window,navigator:{userAgent:'Mac',setAppBadge:async()=>{},clearAppBadge:async()=>{}},Date,Notification:{permission:'denied'},setInterval(){},setTimeout,clearTimeout,Event:class{constructor(type){this.type=type;}},CustomEvent:class{constructor(type,{detail}){this.type=type;this.detail=detail;}},fetch:async(_url,o)=>{
   const data=o.body?JSON.parse(o.body):null;calls.push(data);
   if(data?.operation==='preferences')state.preferences={...state.preferences,...data.preferences};
@@ -18,8 +18,20 @@ function harness(){
   if(data?.operation==='read'){state.read=Math.max(state.read,data.sequence);state.unread=state.sequence-state.read;}
   return {ok:true,json:async()=>structuredClone(state)};
  }});
- return {nodes,events,calls,state,messages,document,open:()=>action.events.click(),visible:v=>messagesVisible=v,find:text=>nodes.find(n=>n.textContent===text),label:text=>nodes.find(n=>n.attrs['aria-label']===text)};
+ return {nodes,events,calls,photos,state,messages,document,open:()=>action.events.click(),visible:v=>messagesVisible=v,find:text=>nodes.find(n=>n.textContent===text),label:text=>nodes.find(n=>n.attrs['aria-label']===text)};
 }
+test('unread preview opens its exact message without acknowledging the settings view',async()=>{
+ const h=harness();h.state.contacts[0].text='Ein Gruß aus dem Café.';h.state.contacts[0].createdAt='2026-10-08T12:15:00Z';h.state.contactStatus={text:'Sofia lässt dir Zeit zum Antworten.'};let opened;
+ h.events['sofia-contact-open']=e=>opened=e.detail.contactId;
+ await h.open();assert.ok(h.find('Ein Gruß aus dem Café.'));assert.ok(h.find('Sofia lässt dir Zeit zum Antworten.'));assert.ok(h.nodes.some(n=>n.tag==='time'&&/08\.10\.2026.*14:15/.test(n.textContent)));
+ assert.equal(h.calls.filter(c=>c?.operation==='read').length,0);h.find('Im Chat öffnen').onclick();assert.equal(opened,h.state.contacts[0].id);assert.equal(h.state.unread,1);
+});
+test('photo shortcut targets the associated gallery photo and leaves read state intact',async()=>{
+ const h=harness();h.state.contacts[0].imageId='22222222-2222-4222-8222-222222222222';await h.open();h.find('Zugehöriges Foto öffnen').onclick();assert.deepEqual(h.photos,[h.state.contacts[0].imageId]);assert.equal(h.state.unread,1);
+});
+test('settings changes show unsaved feedback and empty inbox has a clear state',async()=>{
+ const h=harness();h.state.contacts=[];h.state.unread=0;await h.open();assert.ok(h.find('Du hast alle neuen Nachrichten gelesen.'));h.label('Ruhezeit beginnt').events.change();assert.ok(h.find('Änderungen noch nicht gespeichert.'));await h.find('Speichern').onclick();assert.ok(h.find('Gespeichert.'));
+});
 test('quiet settings and temporary pause controls load, save and give explicit feedback',async()=>{
  const h=harness();await h.open();assert.equal(h.label('Ruhezeit beginnt').value,'23:00');assert.equal(h.label('Ruhezeit endet').value,'08:00');
  h.label('Ruhezeit beginnt').value='22:30';h.label('Ruhezeit endet').value='07:15';await h.find('Speichern').onclick();
