@@ -16,7 +16,7 @@ function harness(fetchImpl,extras={}) {
   replaceChildren(...nodes){for(const child of this.children)child.parentNode=null;this.children=[];this.ownText='';this.append(...nodes);}
   append(...nodes){for(const n of nodes)this.insertBefore(n,null);}
   insertBefore(n,b){if(n===b)return n;if(n.parentNode)n.parentNode.children.splice(n.parentNode.children.indexOf(n),1);n.parentNode=this;const i=b?this.children.indexOf(b):this.children.length;if(i<0)throw Error('Missing insertion point');this.children.splice(i,0,n);return n;}
-  setAttribute(k,v){this[k]=v;}addEventListener(name,fn){this.events||={};const before=this.events[name];this.events[name]=before?(event)=>{before(event);fn(event);}:fn;}focus(){}showModal(){}close(){this.events?.close?.();}click(){this.clicked=true;}
+  setAttribute(k,v){this[k]=v;}addEventListener(name,fn){this.events||={};const before=this.events[name];this.events[name]=before?(event)=>{before(event);fn(event);}:fn;}focus(){this.focused=true;}scrollIntoView(options){this.scrolled=options;}showModal(){}close(){this.events?.close?.();}click(){this.clicked=true;}
   remove(){this.parentNode.children.splice(this.parentNode.children.indexOf(this),1);}
   all(){return this.children.flatMap(n=>[n,...n.all()]);}
   querySelectorAll(selector){return this.all().filter(n=>selector.startsWith('[data-portrait-request-id=')?n.dataset.portraitRequestId===selector.split('"')[1]:selector.split('.').filter(Boolean).every(c=>n.classList.contains(c)));}
@@ -240,4 +240,24 @@ test('custom visual change requires input and preserves source selection',()=>{
 });
 test('a retained source offers comparison, while an expired source does not',()=>{
  const h=harness(async()=>preparedPhoto());h.api.restore([{...image(id),createdAt:new Date().toISOString()},{...image(id2),sourceId:id,createdAt:new Date().toISOString()}]);h.api.openGallery(id2);const view=h.document.getElementById('sofia-photo-'+id2),compare=view.all().find(n=>n.tag==='button'&&n.textContent==='Mit Original vergleichen');assert.equal(compare.hidden,false);compare.onclick();assert.ok(h.body.all().some(n=>n.className==='photo-comparison'));const pair=h.body.all().find(n=>n.className==='photo-comparison-pair');assert.deepEqual(pair.all().filter(n=>n.tag==='img').map(n=>n.src),['/api/chat?image='+id,'/api/chat?image='+id2]);
+});
+
+test('photo actions pass a fixed source ID and gallery can return to its original message',()=>{
+ const h=harness(async()=>preparedPhoto()),sent=[];const user=h.message('Schick ein Selfie','user');const reply=h.message('Hier ist es.','sofia',id);
+ h.api.restore([{...image(id),createdAt:new Date().toISOString(),requestMessage:user.textContent}]);h.api.openGallery(id);
+ const view=h.document.getElementById('sofia-photo-'+id);const back=view.all().find(n=>n.textContent==='Zur Nachricht im Chat');assert.equal(back.disabled,false);back.onclick();
+ assert.equal(h.document.getElementById('sofia-gallery'),null);assert.equal(reply.scrolled.block,'center');assert.equal(reply.focused,true);
+ h.api.openGallery(id);h.window.SofiaPhotoAction=(text,source)=>{sent.push(source);return true;};h.document.getElementById('sofia-photo-'+id).all().find(n=>n.textContent==='Anderes Licht').onclick();assert.deepEqual(sent,[id]);
+});
+test('missing original chat message disables the return link without inventing an anchor',()=>{
+ const h=harness(async()=>preparedPhoto());h.api.restore([{...image(id),createdAt:new Date().toISOString()}]);h.api.openGallery(id);
+ assert.equal(h.document.getElementById('sofia-photo-'+id).all().find(n=>n.textContent==='Zur Nachricht im Chat').disabled,true);
+});
+test('gallery chronology can reverse while keeping date grouping and no situation groups',()=>{
+ const h=harness(async()=>preparedPhoto());const at=new Date();h.api.restore([{...image(id),createdAt:new Date(+at-60000).toISOString()},{...image(id2),createdAt:at.toISOString()}]);h.api.openGallery();
+ const g=h.document.getElementById('sofia-gallery'),sort=g.all().find(n=>n['aria-label']==='Galerie sortieren');sort.value='oldest';sort.onchange();
+ assert.deepEqual(g.all().filter(n=>n.dataset.galleryPhotoId).map(n=>n.dataset.galleryPhotoId),[id,id2]);
+});
+test('failure notices display supplied safe server feedback as text rather than HTML',()=>{
+ const h=harness();h.api.restore([{...image(id),status:'failed',message:'Mit meinen Fotos hakt es gerade.'}]);assert.match(h.document.getElementById('portrait-'+id).textContent,/hakt es gerade/);
 });

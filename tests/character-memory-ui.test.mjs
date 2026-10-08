@@ -125,3 +125,15 @@ test('revision retry merges just the changed setting into newer server choices',
  assert.equal(await h.context.saveCharacterEdit('settings',value,undefined,7,true,{...value,initiative:'balanced'}),true);
  assert.equal(last.revision,9);assert.equal(last.value.initiative,'active');assert.equal(last.value.replyLength,'short');assert.equal(last.value.photos,false);assert.deepEqual(last.value.photoKinds,['portrait']);
 });
+
+test('remote settings update untouched controls without writing or losing local changes',async()=>{
+ const h=harness(false),selects=all(h.root).filter(n=>n.tag==='select');selects[0].value='active';await selects[0].onchange();const writes=h.requests.length;
+ h.context.window.SofiaCharacterSettings.sync({revision:8,settings:{initiative:'quiet',replyLength:'short',photos:false,photoKinds:['portrait']}});
+ assert.equal(selects[0].value,'active');assert.equal(selects[1].value,'short');assert.equal(h.requests.length,writes);
+ const draft=JSON.parse(h.storage.get('sofia_character_settings_pending_v1'));assert.equal(draft.base.initiative,'quiet');assert.equal(draft.value.initiative,'active');
+});
+test('pristine controls adopt newer server state but ignore delayed old settings',()=>{
+ const h=harness();h.context.window.SofiaCharacterSettings.sync({revision:9,settings:{initiative:'quiet',replyLength:'short',photos:false,photoKinds:['full_portrait']}});
+ const selects=all(h.root).filter(n=>n.tag==='select');assert.equal(selects[0].value,'quiet');assert.equal(selects[1].value,'short');
+ h.context.window.SofiaCharacterSettings.sync({revision:8,settings:{initiative:'active'}});assert.equal(selects[0].value,'quiet');assert.equal(h.requests.length,0);
+});

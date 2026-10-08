@@ -59,10 +59,24 @@
   function settings(){const dialog=panel('Einstellungen'),note=document.createElement('p');note.textContent='Darstellung und Entwürfe gelten auf diesem Gerät.';dialog.append(note);const status=statusNode(dialog);
     function select(label,name,options){const wrapper=document.createElement('label');wrapper.textContent=label;const field=document.createElement('select');field.setAttribute('aria-label',label);for(const [value,text]of options){const o=document.createElement('option');o.value=value;o.textContent=text;field.append(o);}field.value=prefs[name];field.onchange=()=>{prefs=normalize({...prefs,[name]:field.value});applyPreferences();status.textContent=put(KEYS.prefs,prefs)?'Darstellung gespeichert.':'Darstellung konnte nicht gespeichert werden.';};wrapper.append(field);dialog.append(wrapper);}
     select('Schriftgröße','font',[['small','Klein'],['normal','Normal'],['large','Groß']]);select('Chatdichte','density',[['comfortable','Angenehm'],['compact','Kompakt']]);select('Oberflächenbewegung','motion',[['auto','Systemeinstellung'],['reduced','Reduziert'],['off','Aus']]);
+    if(updateAvailable)dialog.append(button('Neue Version laden',applyUpdate));
     const preview=document.createElement('p');preview.className='chat-preview';preview.textContent='Sofia: Na, wie läuft dein Tag?';dialog.append(preview);
     const hint=document.createElement('p');hint.textContent='Diese Bewegungsauswahl betrifft die Oberfläche. Sofias Haltungswechsel bleiben eigenständig.';dialog.append(hint);
     const mute=button('',()=>{document.getElementById('mute')?.click();paintMute();});function paintMute(){mute.textContent=localStorage.getItem('sofia_audio_muted')==='true'?'Tonausgabe einschalten':'Tonausgabe stummschalten';}paintMute();dialog.append(mute);
     dialog.append(button('Mitteilungen und Eigeninitiative',()=>{dialog.close();window.SofiaSocial?.preferences?.();}),button('Sofia einstellen · Gespräch, Fotos und Erinnerungen',()=>{dialog.close();if(window.SofiaCharacterSettings?.open)window.SofiaCharacterSettings.open();else document.getElementById('memoryAction')?.click();}));
+  }
+  let updateAvailable=false;
+  let controlled=!!navigator.serviceWorker?.controller;
+  navigator.serviceWorker?.addEventListener?.('controllerchange',()=>{
+    if(controlled){updateAvailable=true;notice('Eine neue Version ist verfügbar. Du kannst sie in den Einstellungen laden; dein Entwurf bleibt erhalten.');}
+    controlled=true;
+  });
+  async function applyUpdate(){
+    const phase=document.getElementById('mode')?.dataset.phase;
+    if(window.SofiaImages?.isGenerating||document.getElementById('voiceToggle')?.checked||['thinking','photo','listening','speaking'].includes(phase)){notice('Bitte beende zuerst die laufende Aktion oder Live-Unterhaltung.');return;}
+    if(!saveDraft()){notice('Dein Entwurf konnte nicht gesichert werden. Bitte kopiere ihn vor dem Aktualisieren.');return;}
+    if(window.SofiaCharacterSettings?.flush&&!await window.SofiaCharacterSettings.flush()){notice('Bitte zuerst die ungespeicherten Einstellungen sichern.');return;}
+    window.location.reload();
   }
   function connection(){const offline=navigator.onLine===false,node=document.getElementById('connectionStatus');if(node){node.hidden=!offline;node.textContent=offline?'Offline · Dein Entwurf bleibt erhalten. Nachrichten werden nicht automatisch gesendet.':'';}document.getElementById('mode')?.setAttribute('data-connection',offline?'offline':'online');}
   window.addEventListener('offline',connection);window.addEventListener('online',()=>{connection();const mode=document.getElementById('mode');if(mode?.textContent.trim()==='Verbindungsfehler')mode.textContent='bereit';notice('Wieder verbunden. Ausstehende Nachrichten werden nicht automatisch erneut gesendet.');});connection();
