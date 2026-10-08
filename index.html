@@ -544,7 +544,7 @@
             window.SofiaTestMode=true;
             const banner=document.createElement('div');banner.id='sofia-test-banner';banner.setAttribute('role','status');
             banner.style.cssText='position:fixed;top:0;left:0;right:0;z-index:99999;padding:8px 12px;background:#694510;color:white;font-size:12px;display:flex;gap:12px;align-items:center;justify-content:center';
-            const label=document.createElement('span');label.textContent='TESTVERSION 4.34.4 · Nur Testdaten · '+(session.paidEnabled?'Begrenzte KI-Nutzung':'KI-Aufrufe deaktiviert');
+            const label=document.createElement('span');label.textContent='TESTVERSION 4.35.4 · Nur Testdaten · '+(session.paidEnabled?'Begrenzte KI-Nutzung':'KI-Aufrufe deaktiviert');
             const reset=document.createElement('button');reset.type='button';reset.textContent='Testdaten zurücksetzen';reset.onclick=async()=>{
               if(!window.confirm('Alle Chats, Fotos, Aufgaben und Erinnerungen dieser Testversion zurücksetzen? Nutzungsgrenzen bleiben erhalten.'))return;
               reset.disabled=true;
