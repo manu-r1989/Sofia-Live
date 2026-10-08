@@ -509,3 +509,57 @@ test('only relevant open, unasked threads can be brought back into conversation'
  assert.equal(api.conversationMove({...life,threads:[{...thread,lastAskedAt:now.toISOString()}]},'Meine Prüfung',now).thread,null);
  assert.equal(api.conversationMove({...life,dialogue:{at:now.toISOString(),closedTopics:[{topic:'prüfung'}]}},'Meine Prüfung',now).thread,null);
 });
+
+
+test('development retains stable titles and records only evidenced changes with reasons',()=>{
+ const now=new Date('2026-10-08T12:00Z'),base={...api.defaultSofiaLife(now),interests:[{topic:'roman',description:'Der alte Roman',progress:'Kapitel 2',status:'active'}],plans:[{topic:'lesen',text:'Den Roman weiterlesen',status:'active',progress:'Kapitel 2'}]};
+ const reply='Ich habe im Roman weitergelesen und bin bei Kapitel 3.';
+ const changed=api.mergeCharacterDetails(base,{interests:[{topic:'roman',description:'Ein neuer Roman',progress:'Kapitel 3',reason:'Weitergelesen',evidence:reply}],plans:[{topic:'lesen',text:'Neues Buch',status:'active',progress:'Kapitel 3',reason:'Weitergelesen',evidence:reply}]},'Und dein Roman?',reply,now);
+ assert.equal(changed.interests[0].description,'Der alte Roman');assert.equal(changed.plans[0].text,'Den Roman weiterlesen');assert.equal(changed.plans[0].progress,'Kapitel 3');
+ assert.equal(changed.interests[0].history[0].reason,'Weitergelesen');
+ const paused=api.mergeCharacterDetails(changed,{interests:[{topic:'roman',description:'Roman',status:'paused',reason:'Gerade zu wenig Zeit',evidence:'Ich pausiere meinen Roman gerade.'}]},'Wie läuft es?','Ich pausiere meinen Roman gerade.',now);
+ assert.equal(paused.interests[0].status,'paused');assert.equal(paused.interests[0].progress,'Kapitel 3');
+ const full={...base,interests:[1,2,3].map(n=>({topic:'i'+n,description:'Buch '+n,status:'active'}))};
+ assert.equal(api.mergeCharacterDetails(full,{interests:[{topic:'neues',description:'Ein weiteres Buch',evidence:'Ich lese ein weiteres Buch.'}]},'Hallo','Ich lese ein weiteres Buch.',now).interests.length,3);
+});
+test('personal event dates use Hamburg day and reject ungrounded, ambiguous and invalid dates',()=>{
+ const now=new Date('2026-10-08T22:30Z');
+ assert.equal(api.conversationEventDate('morgen','Meine Prüfung ist morgen.',now),'2026-10-10');
+ assert.equal(api.conversationEventDate('morgen','Meine Prüfung ist übermorgen.',now),null);
+ assert.equal(api.conversationEventDate('übermorgen','Meine Prüfung ist übermorgen.',now),'2026-10-11');
+ assert.equal(api.conversationEventDate('31.02.2026','Ich habe am 31.02.2026 eine Prüfung.',now),null);
+ assert.equal(api.conversationEventDate('morgen','Vielleicht habe ich morgen eine Prüfung.',now),null);
+ assert.equal(api.conversationEventDate('10.10.2026','Meine Prüfung ist am 10.10.2026.',now),'2026-10-10');
+});
+test('dated references are sparing and never revive resolved, closed or recently asked events',()=>{
+ const now=new Date('2026-10-08T12:00Z'),thread={topic:'prüfung',text:'Deine Prüfung',status:'open',eventDate:'2026-10-08',expiresAt:'2026-10-12T12:00:00Z'},life={...api.defaultSofiaLife(now),threads:[thread]};
+ assert.equal(api.personalEventReferences(life,'Hey, wie geht es dir?',now).length,1);
+ for(const row of [{...thread,status:'resolved'},{...thread,lastAskedAt:now.toISOString()},{...thread,lastReferencedAt:now.toISOString()},{...thread,eventDate:'2026-10-05'}])assert.equal(api.personalEventReferences({...life,threads:[row]},'Hey, wie geht es dir?',now).length,0);
+ assert.equal(api.personalEventReferences(life,'Nur kurz: Wie geht es dir?',now).length,0);
+ assert.equal(api.personalEventReferences({...life,dialogue:{at:now.toISOString(),closedTopics:['prüfung']}},'Hey, wie geht es dir?',now).length,0);
+});
+test('forget uses CAS, removes payload and development, survives day change and blocks re-extraction',async()=>{
+ reset();const now=new Date('2026-10-08T12:00Z'),base=await api.getSofiaLife(now);
+ db.set(prefix+'life',JSON.stringify({...base,threads:[{topic:'prüfung',text:'Private Prüfung am Freitag',evidence:'Morgen ist meine Prüfung',status:'open',expiresAt:'2026-10-12T12:00:00Z'}],development:[{topic:'prüfung',text:'Private Details'}],preferences:[{topic:'kaffee',value:'Kaffee'}]}));
+ await assert.rejects(api.editCharacterState({field:'forget',value:'thread',topic:'prüfung',revision:base.revision-1},now),/character_conflict/);
+ const saved=await api.editCharacterState({field:'forget',value:'thread',topic:'prüfung',revision:base.revision},now);
+ assert.equal(saved.threads.length,0);assert.equal(saved.development.length,0);assert.equal(saved.preferences.length,1);assert.equal(JSON.stringify(saved.forgottenContexts).includes('Private'),false);
+ const tomorrow=await api.getSofiaLife(new Date('2026-10-09T12:00Z'));assert.equal(api.contextForgotten(tomorrow,'thread','prüfung'),true);
+ const merged=api.mergeCharacterDetails(tomorrow,{threads:[{topic:'prüfung',text:'Alte Prüfung',status:'open',evidence:'Morgen ist meine Prüfung'}]},'Morgen ist meine Prüfung','Viel Erfolg',now);assert.equal(merged.threads.length,0);
+});
+test('photo motive preference persists and details stay grounded in the present activity',async()=>{
+ reset();const now=new Date('2026-10-08T12:00Z'),base=await api.getSofiaLife(now);
+ const saved=await api.editCharacterState({field:'settings',value:{initiative:'balanced',replyLength:'auto',photos:true,photoMix:'moments'},revision:base.revision},now);
+ assert.equal((await api.getSofiaLife(new Date('2026-10-09T12:00Z'))).settings.photoMix,'moments');
+ const cafe={...saved,location:'im Café',activity:'Kaffee trinken'};
+ assert.equal(api.chooseEverydayPhotoKind(cafe,'environment','',()=>0),'detail');assert.equal(api.chooseEverydayPhotoKind(cafe,null,'Schick mir ein Selfie',()=>0),'selfie');
+ assert.equal(api.explicitDetailRequest('Zeig mir deinen Kaffee'),true);assert.equal(api.explicitDetailRequest('Zeig mir nicht deinen Kaffee'),false);assert.equal(api.explicitDetailRequest('Erinnere mich später: Zeig mir deinen Kaffee'),false);
+ assert.equal(api.everydayPhotoSubject({...cafe,location:'zu Hause',activity:'auf dem Sofa ausruhen'}),null);
+ assert.match(api.photoSceneContext({kind:'detail',life:cafe,requestedAt:now.toISOString()}),/behind the camera/);
+});
+test('explicit detail commands prepare a current photo and scheduled details retain scene context',async()=>{
+ reset();const now=new Date('2026-10-08T12:00Z');
+ const job=await api.preparePortrait('Zeig mir deinen Kaffee',null,now);const stored=JSON.parse(db.get(prefix+'request:'+job.id));assert.equal(stored.kind,'detail');assert.equal(stored.variant,false);assert.equal(stored.life.location,(await api.getSofiaLife(now)).location);
+ const life={...await api.getSofiaLife(now),location:'im Café',activity:'Kaffee trinken'};
+ const scheduled=await api.prepareScheduledPortrait(life,now,'detail');const request=JSON.parse(db.get(prefix+'request:'+scheduled.id));assert.equal(request.kind,'detail');assert.match(request.scene,/coffee/);assert.equal(request.life.location,'im Café');
+});

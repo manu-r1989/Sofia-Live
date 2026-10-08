@@ -1356,41 +1356,41 @@ function renderCharacterMemories(character) {
   if(!character || !memoryList)return;
   updateSofiaLocation(character);
   const heading=document.createElement('h3');heading.textContent='Über Sofia';memoryList.append(heading);
-  const note=document.createElement('p');note.textContent='Fiktiver Charakteralltag und eigene Vorlieben — getrennt von deinen Erinnerungen.';note.style.cssText='font-size:12px;opacity:.65';memoryList.append(note);
-  const row=(label,value,field,topic,removable=false)=>{
-    const item=document.createElement('div');item.style.cssText='padding:12px 0;border-top:1px solid rgba(255,255,255,.1)';
+  const note=document.createElement('p');note.textContent='Charakteralltag und Gesprächsbezüge. „Vergessen“ entfernt den gespeicherten Bezug; Nachrichten im Chat bleiben erhalten.';note.style.cssText='font-size:12px;opacity:.65';memoryList.append(note);
+  const section=label=>{const group=document.createElement('details');group.style.cssText='padding:12px 0;border-top:1px solid rgba(255,255,255,.1)';const summary=document.createElement('summary');summary.textContent=label;summary.style.cssText='cursor:pointer;font-weight:600';group.append(summary);memoryList.append(group);return group;};
+  const groups={settings:section('Gespräch und Fotos'),day:section('Aktueller Alltag'),interests:section('Interessen'),plans:section('Sofias eigene Vorhaben'),references:section('Persönliche Gesprächsbezüge'),preferences:section('Vorlieben'),habits:section('Gesprächsgewohnheiten'),development:section('Jüngste Entwicklungen')};groups.settings.open=true;
+  const date=at=>new Date(at).toLocaleDateString('de-DE',{timeZone:'Europe/Berlin',day:'2-digit',month:'2-digit',year:'numeric'});
+  const status=(text)=>setMemoryStatus(text);
+  const apply=async(field,value,topic,button)=>{button.disabled=true;status('Wird gespeichert …');try{if(await saveCharacterEdit(field,value,topic,character.revision)){await loadLongTermMemories();status(field==='forget'?'Bezug vergessen.':'Gespeichert.');}}catch{status('Änderung konnte nicht gespeichert werden.');}finally{button.disabled=false;}};
+  const row=(group,label,value,field,topic,kind)=>{
+    const item=document.createElement('div');item.style.cssText='padding:12px 0;border-top:1px solid rgba(255,255,255,.08)';
     const text=document.createElement('div');text.textContent=label+': '+value;item.append(text);
-    const button=document.createElement('button');button.type='button';button.textContent='Bearbeiten';
-    button.onclick=async()=>{const next=window.prompt(label+' bearbeiten:',value);if(next===null || !next.trim())return;button.disabled=true;try{if(await saveCharacterEdit(field,next,topic,character.revision))await loadLongTermMemories();}catch{setMemoryStatus('Änderung konnte nicht gespeichert werden.');}finally{button.disabled=false;}};item.append(button);
-    if(removable){const remove=document.createElement('button');remove.type='button';remove.textContent='Entfernen';remove.onclick=async()=>{remove.disabled=true;try{if(await saveCharacterEdit(field,'',topic,character.revision))await loadLongTermMemories();}catch{setMemoryStatus('Änderung konnte nicht gespeichert werden.');}finally{remove.disabled=false;}};item.append(remove);}
-    memoryList.append(item);return item;
+    if(field){const edit=document.createElement('button');edit.type='button';edit.textContent='Bearbeiten';edit.setAttribute('aria-label',label+' bearbeiten');edit.onclick=async()=>{const next=window.prompt(label+' bearbeiten:',value);if(next!==null&&next.trim())await apply(field,next.trim(),topic,edit);};item.append(edit);}
+    if(kind){const forget=document.createElement('button');forget.type='button';forget.textContent='Vergessen';forget.setAttribute('aria-label',label+' vergessen');forget.onclick=()=>apply('forget',kind,topic,forget);item.append(forget);}
+    group.append(item);return item;
   };
-  for(const [field,label]of [['location','Ort'],['activity','Tätigkeit'],['outfit','Outfit'],['hairstyle','Frisur']])row(label,character[field]||'',field);
-  const mood=document.createElement('p');mood.textContent='Stimmung: '+character.mood+' ('+(character.moodMode==='manual'?'manuell':'automatisch')+')';memoryList.append(mood);
-  for(const pref of character.preferences||[])if(pref.value){const item=row('Vorliebe: '+pref.topic,pref.value,'preference',pref.topic,true);for(const event of pref.history||[]){const detail=document.createElement('small');detail.style.cssText='display:block;opacity:.65';detail.textContent=new Date(event.at).toLocaleDateString('de-DE')+': '+event.value+' — '+event.reason;item.append(detail);}}
-  const settings=character.settings||{};
-  const controls=document.createElement('div');controls.style.cssText='display:grid;gap:10px;padding:12px 0';
+  const history=(item,events)=>{for(const event of (events||[]).slice(-4)){const detail=document.createElement('small');detail.style.cssText='display:block;opacity:.65;margin-top:4px';detail.textContent=date(event.at)+': '+(event.progress||event.value||event.status||'')+(event.reason?' · '+event.reason:'');item.append(detail);}};
+  for(const [field,label]of [['location','Ort'],['activity','Tätigkeit'],['outfit','Outfit'],['hairstyle','Frisur']])row(groups.day,label,character[field]||'',field);
+  row(groups.day,'Stimmung',character.mood+' ('+(character.moodMode==='manual'?'manuell':'automatisch')+')');
+  row(groups.day,'Wochenrahmen',character.weekFrame?character.weekFrame.day+' · '+character.weekFrame.frame:'noch kein Eintrag');
+  const settings=character.settings||{},controls=document.createElement('div');controls.style.cssText='display:grid;gap:12px;padding:12px 0';
   const select=(label,choices,value)=>{const wrapper=document.createElement('label');wrapper.textContent=label+' ';const input=document.createElement('select');for(const [key,text]of choices){const option=document.createElement('option');option.value=key;option.textContent=text;input.append(option);}input.value=value;wrapper.append(input);controls.append(wrapper);return input;};
   const initiative=select('Gesprächsinitiative',[['quiet','Zurückhaltend'],['balanced','Ausgewogen'],['active','Aktiv']],settings.initiative||'balanced');
   const length=select('Antwortlänge',[['auto','Nach Bedarf'],['short','Kurz'],['detailed','Ausführlich']],settings.replyLength||'auto');
+  const mix=select('Eigene Fotomotive',[['mixed','Selfies und Alltagsmomente'],['selfies','Selfies'],['moments','Umgebung und Alltagsdetails']],settings.photoMix||'mixed');
   const photoLabel=document.createElement('label'),photos=document.createElement('input');photos.type='checkbox';photos.checked=settings.photos!==false;photoLabel.textContent='Gelegentliche eigene Fotos (max. 2 pro Stunde) ';photoLabel.append(photos);controls.append(photoLabel);
-  const save=document.createElement('button');save.type='button';save.textContent='Gesprächseinstellungen speichern';save.onclick=async()=>{save.disabled=true;try{if(await saveCharacterEdit('settings',{initiative:initiative.value,replyLength:length.value,photos:photos.checked},undefined,character.revision))await loadLongTermMemories();}catch{setMemoryStatus('Einstellungen konnten nicht gespeichert werden.');}finally{save.disabled=false;}};controls.append(save);memoryList.append(controls);
-  const habits=document.createElement('p');habits.textContent='Gelernte Gesprächsgewohnheiten: '+((character.habits||[]).filter(x=>x.count>=2).map(x=>x.topic+': '+x.value).join('; ')||'noch keine');memoryList.append(habits);
-  const reset=document.createElement('button');reset.type='button';reset.textContent='Gesprächsgewohnheiten zurücksetzen';reset.onclick=async()=>{try{if(await saveCharacterEdit('habits','reset',undefined,character.revision))await loadLongTermMemories();}catch{setMemoryStatus('Zurücksetzen nicht möglich.');}};memoryList.append(reset);
-  for(const interest of character.interests||[])if(!interest.dismissed)row('Interesse: '+interest.topic,interest.progress||interest.description,'interest',interest.topic,true);
-  const week=document.createElement('p');week.textContent='Wochenrahmen: '+(character.weekFrame?character.weekFrame.day+' — '+character.weekFrame.frame:'noch kein Eintrag');memoryList.append(week);
-  const planHeading=document.createElement('h3');planHeading.textContent='Sofias eigene Vorhaben';memoryList.append(planHeading);
-  const planLabels={planned:'Geplant',active:'In Arbeit',completed:'Abgeschlossen',paused:'Pausiert'};
-  for(const plan of character.plans||[])if(!plan.dismissed){const item=row((planLabels[plan.status]||'Vorhaben')+': '+plan.topic,plan.text,'plan',plan.topic,true);for(const event of plan.history||[]){const detail=document.createElement('small');detail.style.cssText='display:block;opacity:.65';detail.textContent=new Date(event.at).toLocaleDateString('de-DE')+': '+(planLabels[event.status]||event.status)+' — '+event.reason;item.append(detail);}}
-  const developmentHeading=document.createElement('h3');developmentHeading.textContent='Jüngste Entwicklungen';memoryList.append(developmentHeading);
-  const developments=(character.development||[]).slice(-6).reverse();
-  if(!developments.length){const empty=document.createElement('p');empty.textContent='Entwicklungen entstehen aus den Gesprächen.';memoryList.append(empty);}
-  for(const event of developments){const entry=document.createElement('p');entry.textContent=new Date(event.at).toLocaleDateString('de-DE')+' · '+event.topic+': '+event.text+(event.reason?' — '+event.reason:'');memoryList.append(entry);}
-  const phrases=document.createElement('p');phrases.textContent='Vertraute Gesprächsbezüge: '+((character.sharedPhrases||[]).filter(x=>x.count>=2).map(x=>x.text).join('; ')||'noch keine');memoryList.append(phrases);
-  const resetPhrases=document.createElement('button');resetPhrases.type='button';resetPhrases.textContent='Vertraute Gesprächsbezüge zurücksetzen';resetPhrases.onclick=async()=>{try{if(await saveCharacterEdit('sharedPhrases','reset',undefined,character.revision))await loadLongTermMemories();}catch{setMemoryStatus('Zurücksetzen nicht möglich.');}};memoryList.append(resetPhrases);
-  const threadHeading=document.createElement('h3');threadHeading.textContent='Persönliche Gesprächsfäden';memoryList.append(threadHeading);
-  for(const thread of character.threads||[])if(thread.status!=='dismissed')row(thread.status==='resolved'?'Erledigt':'Offen',thread.text,'thread',thread.topic,true);
-  const add=document.createElement('button');add.type='button';add.textContent='Sofias Vorliebe ergänzen';add.onclick=async()=>{const topic=window.prompt('Thema der Vorliebe:');if(!topic?.trim())return;const value=window.prompt('Sofias Vorliebe:');if(!value?.trim())return;try{if(await saveCharacterEdit('preference',value,topic,character.revision))await loadLongTermMemories();}catch{setMemoryStatus('Änderung konnte nicht gespeichert werden.');}};memoryList.append(add);
+  const help=document.createElement('small');help.textContent='Die Motivauswahl gilt für selbst angebotene Fotos. Ausdrücklich angefragte Bilder bleiben möglich. Nachrichtenhäufigkeit und Ruhezeiten findest du unter Mitteilungen.';help.style.opacity='.65';controls.append(help);
+  const save=document.createElement('button');save.type='button';save.textContent='Gesprächseinstellungen speichern';save.onclick=()=>apply('settings',{initiative:initiative.value,replyLength:length.value,photos:photos.checked,photoMix:mix.value},undefined,save);controls.append(save);groups.settings.append(controls);
+  for(const pref of character.preferences||[])if(pref.value)history(row(groups.preferences,'Vorliebe: '+pref.topic,pref.value,'preference',pref.topic,'preference'),pref.history);
+  for(const interest of character.interests||[])if(!interest.dismissed){const item=row(groups.interests,'Interesse: '+interest.topic,interest.description+(interest.progress?' · '+interest.progress:''),'interest',interest.topic,'interest');history(item,interest.history);}
+  const labels={planned:'Geplant',active:'In Arbeit',completed:'Abgeschlossen',paused:'Pausiert'};
+  for(const plan of character.plans||[])if(!plan.dismissed){const item=row(groups.plans,(labels[plan.status]||'Vorhaben')+': '+plan.topic,plan.text+(plan.progress?' · '+plan.progress:''),'plan',plan.topic,'plan');history(item,plan.history);}
+  for(const thread of character.threads||[])if(thread.status!=='dismissed')row(groups.references,thread.status==='resolved'?'Erledigt':'Offen',thread.text+(thread.eventDate?' · '+date(thread.eventDate+'T12:00:00Z'):''),'thread',thread.topic,'thread');
+  for(const phrase of character.sharedPhrases||[])if(phrase.count>=2)row(groups.references,'Vertraute Formulierung',phrase.text,null,phrase.text,'sharedPhrase');
+  for(const habit of character.habits||[])if(habit.count>=2)row(groups.habits,habit.topic,habit.value,null,habit.topic,'habit');
+  for(const event of (character.development||[]).slice(-6).reverse())row(groups.development,date(event.at)+' · '+event.topic,event.text+(event.reason?' · '+event.reason:''));
+  for(const [key,group]of Object.entries(groups))if(!['settings','day'].includes(key)&&group.children.length===1){const empty=document.createElement('p');empty.textContent='Noch keine gespeicherten Einträge.';empty.style.opacity='.65';group.append(empty);}
+  const add=document.createElement('button');add.type='button';add.textContent='Sofias Vorliebe ergänzen';add.onclick=async()=>{const topic=window.prompt('Thema der Vorliebe:');if(!topic?.trim())return;const value=window.prompt('Sofias Vorliebe:');if(value?.trim())await apply('preference',value.trim(),topic.trim(),add);};groups.preferences.append(add);
 }
 
 function renderEmptyMemory() {

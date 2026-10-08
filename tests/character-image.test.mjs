@@ -205,7 +205,7 @@ test('image delivery is private JPEG with download attachment and validated IDs'
 });
 test('UI integration loads shared renderer before app and does not alter avatar assets',async()=>{
  const root=new URL('../',import.meta.url);const index=await readFile(new URL('index.html',root),'utf8');
- assert.ok(index.indexOf('sofia-images.js?v=4517v1')<index.indexOf('app.js?v=4517v1'));
+ assert.ok(index.indexOf('sofia-images.js?v=4557v1')<index.indexOf('app.js?v=4557v1'));
  const chat=await readFile(new URL('api/chat.js',root),'utf8');
  assert.ok(chat.indexOf('!safeEqual(')<chat.indexOf('await servePortrait'));
  const ui=await readFile(new URL('sofia-images.js',root),'utf8');assert.match(ui,/dialog.showModal/);assert.match(ui,/link.download=/);assert.doesNotMatch(ui,/spinner|generating-status/);
@@ -470,4 +470,12 @@ test('gestures and body variations respect bed and seated contexts without inven
 });
 test('new pose instruction adds gestures while canonical face and hair identity remain binding',async()=>{
  reset();const job=await api.preparePortrait('Ein Selfie bitte');await api.generatePortrait(job.id);const prompt=imageCalls[0].prompt;assert.match(prompt,/GESTURE:/);assert.match(prompt,/straight head and level shoulders/);assert.match(prompt,/preserve its facial geometry, natural hair COLOR/);assert.match(prompt,/never cover the face/);const photo=JSON.parse(db.get(prefix+'image:'+job.id));assert.ok(photo.gesture);
+});
+
+
+test('everyday detail generation keeps canonical reference and current scene without imposing portrait pose',async()=>{
+ reset();plan={action:'none'};const now=new Date('2026-10-08T12:00Z');const job=await api.preparePortrait('Zeig mir deinen Kaffee',null,now);
+ await api.generatePortrait(job.id);assert.equal(imageCalls.length,1);assert.equal(imageCalls[0].images.length,1);
+ assert.match(imageCalls[0].prompt,/close-up everyday detail snapshot/);assert.match(imageCalls[0].prompt,/no Sofia or identifiable people/);assert.doesNotMatch(imageCalls[0].prompt,/NEW PHOTO POSE:/);
+ const image=await api.portraitGallery(now).then(rows=>rows.find(x=>x.id===job.id));assert.equal(image.kind,'detail');const gallery=await api.portraitGallery(now);assert.ok(gallery.some(x=>x.id===job.id));
 });
