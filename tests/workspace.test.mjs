@@ -21,7 +21,7 @@ function harness(saved={}){
  const db=new Map(Object.entries(saved).map(([k,v])=>[k,JSON.stringify(v)])),localStorage={getItem:k=>db.get(k),setItem:(k,v)=>db.set(k,v)};
  const body=new Node('body'),html=new Node('html');for(const id of ['messages','input','mode','connectionStatus','chatLatest','workspaceAction']){const n=new Node(id==='input'?'textarea':'div');n.id=id;body.append(n);}
  const events={},document={body,documentElement:html,visibilityState:'visible',getElementById:id=>body.all().find(n=>n.id===id)||null,querySelector:s=>s.includes('dialog[open]')?body.all().find(n=>n.tagName==='DIALOG'&&n.open):null,createElement:t=>new Node(t),addEventListener:(t,f)=>events[t]=f};
- const window={addEventListener:(t,f)=>events[t]=f,SofiaUI:{resizeComposer(){},enhanceDialog(){}},matchMedia:()=>({matches:false})},navigator={onLine:true,clipboard:{writeText:async()=>{}}};
+ const window={location:{reload(){window.reloaded=true;}},addEventListener:(t,f)=>events[t]=f,SofiaUI:{resizeComposer(){},enhanceDialog(){}},matchMedia:()=>({matches:false})},navigator={serviceWorker:{controller:{},addEventListener:(t,f)=>events[t]=f},onLine:true,clipboard:{writeText:async()=>{}}};
  vm.runInNewContext(source,{window,document,navigator,localStorage,Map,Set,Intl,Date,setTimeout:()=>1,clearTimeout(){},requestAnimationFrame:f=>f()});
  const message=turn=>{const n=new Node('div');n.className='msg '+(turn.role==='user'?'user':'sofia');n.dataset.messageText=turn.content;n.dataset.createdAt=turn.createdAt;n.textContent=turn.content;document.getElementById('messages').append(n);return n;};
  return{api:window.SofiaWorkspace,window,document,events,db,navigator,input:document.getElementById('input'),root:document.getElementById('messages'),message};
@@ -45,4 +45,12 @@ test('unknown transport and task results never offer a one-click resend',()=>{
 });
 test('explicit rejection of a plain text request allows retry only when sender accepts',()=>{
  const h=harness(),node=h.message({role:'assistant',content:'kurz warten',createdAt:'2026-10-08T10:00:00Z'});let sent=0;h.window.SofiaChatSend=()=>{sent++;return false;};h.api.failed(node,'Wie geht es dir?',{knownRejected:true});const retry=node.all().at(-1);assert.equal(retry.textContent,'Nachricht erneut senden');retry.onclick();assert.notEqual(retry.disabled,true);h.window.SofiaChatSend=()=>{sent++;return true;};retry.onclick();assert.equal(retry.disabled,true);assert.equal(sent,2);
+});
+
+test('PWA update waits for idle state, saves draft and never resends a message',async()=>{
+ const h=harness();h.events.controllerchange();h.input.value='Noch nicht gesendet';h.api.settings();
+ const action=h.document.body.all().find(n=>n.textContent==='Neue Version laden');assert.ok(action);
+ h.document.getElementById('mode').dataset.phase='photo';await action.onclick();assert.equal(h.window.reloaded,undefined);
+ h.document.getElementById('mode').dataset.phase='ready';h.window.SofiaCharacterSettings={flush:async()=>false};await action.onclick();assert.equal(h.window.reloaded,undefined);
+ h.window.SofiaCharacterSettings.flush=async()=>true;await action.onclick();assert.equal(h.window.reloaded,true);assert.ok([...h.db.values()].some(v=>v.includes('Noch nicht gesendet')));
 });

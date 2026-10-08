@@ -16,6 +16,7 @@ function updateSofiaLocation(life) {
   if (latestSofiaLife && Number.isInteger(latestSofiaLife.revision) &&
       (!Number.isInteger(life.revision) || life.revision < latestSofiaLife.revision)) return;
   latestSofiaLife = life;
+  window.SofiaCharacterSettings?.sync?.(life);
   const scene=life.situation?.schema===1&&life.situation.revision===life.revision&&typeof life.situation.location==='string'?life.situation:life;
   const face=typeof app!=='undefined'?app?.querySelector?.('.sofia-avatar-v435'):null;if(face)face.dataset.tone=life.responseTone||'natural';
   document.getElementById('moodAuto')?.classList?.toggle('active',life.moodMode!=='manual');
@@ -165,7 +166,7 @@ function restoreChatViewport(snapshot) {
   chatPinnedToLatest = false;updateLatestButton();
   chatScrollFrame = null;
 }
-window.SofiaChatViewport = { capture:captureChatViewport, restore:restoreChatViewport, latest:()=>scrollChatToLatest('smooth',true) };
+window.SofiaChatViewport = { capture:captureChatViewport, restore:restoreChatViewport, latest:()=>scrollChatToLatest('smooth',true), reveal:()=>applyChatState('full') };
 
 function addMessage(text, who = 'sofia', imageRequestId = null, contactId = null, createdAt = new Date().toISOString()) {
   if (!messages) return;
@@ -612,7 +613,9 @@ function chatFailureFeedback(status,code,actionPossible,resultReceived) {
   return {uncertainAction,statusLabel:status===429?(busy?'Bitte kurz warten':'Nutzungspause'):'Verbindungsfehler',message:busy?'Einen kleinen Moment, es läuft noch eine Anfrage. Bitte warte kurz.':status===429?'Ich brauche gerade eine kurze Pause. Bitte versuche es später noch einmal.':uncertainAction?'Die Verbindung ist gerade unterbrochen. Bitte prüfe zuerst den Aufgabenstand, bevor du die Aktion wiederholst.':'Meine Verbindung ist gerade unterbrochen. Sobald sie wieder da ist, können wir weiterreden.'};
 }
 
-async function askSofia(userMessage, imageDataUrl = null) {
+async function askSofia(userMessage, imageDataUrl = null, options = {}) {
+  // Freeze the selected photograph before awaiting Live history or network work.
+  const referenceImageId=options.referenceImageId ?? window.SofiaImages?.referenceId;
   if (isResponding) return;
   if(typeof navigator!=='undefined' && navigator.onLine===false){addMessage('Ich bin gerade offline. Deine Nachricht wird nicht automatisch gesendet.');return;}
   window.SofiaActionFeedback?.clear();
@@ -679,7 +682,7 @@ async function askSofia(userMessage, imageDataUrl = null) {
           message: userMessage,
           history: historyForAPI,
           image: imageDataUrl,
-          referenceImageId: window.SofiaImages?.referenceId,
+          referenceImageId,
           mood: window.SofiaLifeStatus?.mood
         })
       });
@@ -856,10 +859,11 @@ if (sendButton) {
     if(isResponding||window.SofiaImages?.isGenerating||navigator.onLine===false||!String(message||'').trim())return false;
     chatPinnedToLatest=true;addMessage(message,'user');void askSofia(message);return true;
   };
-  window.SofiaPhotoAction=message=>{
+  window.SofiaPhotoAction=(message,referenceImageId)=>{
+    if(referenceImageId!==undefined&&!/^[a-f0-9-]{36}$/.test(referenceImageId))return false;
     if(isResponding||window.SofiaImages?.isGenerating||!String(message||'').trim())return false;
     if(typeof navigator!=='undefined'&&navigator.onLine===false)return false;
-    chatPinnedToLatest=true;addMessage(message,'user');void askSofia(message);return true;
+    chatPinnedToLatest=true;addMessage(message,'user');void askSofia(message,null,{referenceImageId});return true;
   };
   sendButton.addEventListener('click', event => {
     event.preventDefault();
@@ -1350,7 +1354,7 @@ async function loadLongTermMemories() {
 let flushCharacterSettings=null;
 let characterSettingsError=null;
 let characterSettingsFocus=false;
-window.SofiaCharacterSettings={open(){characterSettingsFocus=true;openMemoryView();}};
+window.SofiaCharacterSettings={open(){characterSettingsFocus=true;openMemoryView();},flush:()=>flushCharacterSettings?flushCharacterSettings():Promise.resolve(true)};
 const CHARACTER_SETTINGS_DRAFT='sofia_character_settings_pending_v1';
 function readCharacterSettingsDraft(){
   try{const draft=JSON.parse(localStorage.getItem(CHARACTER_SETTINGS_DRAFT)||'null');
@@ -1416,7 +1420,8 @@ function renderCharacterMemories(character) {
   const photoLabel=document.createElement('label'),photos=document.createElement('input');photos.type='checkbox';photos.checked=settings.photos!==false;photoLabel.textContent='Gelegentliche eigene Fotos (max. 2 pro Stunde) ';photoLabel.append(photos);controls.append(photoLabel);
   const help=document.createElement('small');help.textContent='Die Motivauswahl gilt für selbst angebotene Fotos. Ausdrücklich angefragte Bilder bleiben möglich. Nachrichtenhäufigkeit und Ruhezeiten findest du unter Mitteilungen.';help.style.opacity='.65';controls.append(help);
   const values=()=>({initiative:initiative.value,replyLength:length.value,photos:photos.checked,photoKinds:photoKinds.filter(x=>x.checked).map(x=>x.value)});
-  const serverValues=values();
+  let serverValues=values();
+  let settingsRevision=character.revision;
   let committed=JSON.stringify(serverValues),saving=null;
   const draft=readCharacterSettingsDraft();
   if(draft){
@@ -1431,6 +1436,23 @@ function renderCharacterMemories(character) {
   const settingsStatus=text=>{feedback.textContent=text;status(text);};
   feedback.textContent=draft?'Ungespeicherte Auswahl wiederhergestellt. Bitte speichern.':'Änderungen werden automatisch gespeichert.';
 
+  function applySettings(value){
+    if(['quiet','balanced','active'].includes(value.initiative))initiative.value=value.initiative;
+    if(['auto','short','detailed'].includes(value.replyLength))length.value=value.replyLength;
+    if(typeof value.photos==='boolean')photos.checked=value.photos;
+    if(Array.isArray(value.photoKinds))for(const input of photoKinds)input.checked=value.photoKinds.includes(input.value);
+    summarizePhotos();
+  }
+  function synchronizeSettings(life){
+    if(saving||!life?.settings||!Number.isInteger(life.revision)||life.revision<=settingsRevision)return;
+    const local=values(),base=JSON.parse(committed),fresh={...serverValues,...life.settings};
+    const merged={...fresh,...Object.fromEntries(Object.entries(local).filter(([key,value])=>JSON.stringify(value)!==JSON.stringify(base[key])))};
+    serverValues={initiative:fresh.initiative,replyLength:fresh.replyLength,photos:fresh.photos,photoKinds:fresh.photoKinds};
+    committed=JSON.stringify(serverValues);settingsRevision=life.revision;applySettings(merged);
+    if(JSON.stringify(values())===committed){clearCharacterSettingsDraft(JSON.stringify(values()));feedback.textContent='Gespeicherte Einstellungen aktualisiert.';}
+    else {storeCharacterSettingsDraft(values(),serverValues);feedback.textContent=characterSettingsError?'Noch nicht gespeichert. '+characterSettingsError+' Deine Auswahl bleibt auf diesem Gerät erhalten.':'Serverstand aktualisiert. Deine ungespeicherte Auswahl bleibt erhalten.';}
+  }
+  window.SofiaCharacterSettings.sync=synchronizeSettings;
   const save=document.createElement('button');save.type='button';save.textContent='Gesprächseinstellungen speichern';
   async function flushSettings(force=false){
     if(saving)return saving.then(ok=>ok?flushSettings(force):false);
@@ -1442,7 +1464,7 @@ function renderCharacterMemories(character) {
     saving=(async()=>{
       try{if(!await saveCharacterEdit('settings',value,undefined,latestSofiaLife?.revision??character.revision,true,JSON.parse(committed))){settingsStatus('Noch nicht gespeichert. '+(characterSettingsError||'Bitte erneut versuchen.')+(retained?' Auswahl bleibt auf diesem Gerät erhalten.':' Bitte diese Ansicht offen lassen.'));return false;}committed=snapshot;clearCharacterSettingsDraft(snapshot);settingsStatus('Gespeichert.');return true;}
       catch{settingsStatus(retained?'Verbindung fehlgeschlagen. Auswahl bleibt auf diesem Gerät erhalten.':'Verbindung fehlgeschlagen. Bitte diese Ansicht offen lassen.');return false;}
-      finally{save.disabled=false;saving=null;}
+      finally{save.disabled=false;saving=null;synchronizeSettings(latestSofiaLife);}
     })();
     const ok=await saving;
     return ok&&JSON.stringify(values())!==committed?flushSettings():ok;
@@ -1455,7 +1477,7 @@ function renderCharacterMemories(character) {
   for(const pref of character.preferences||[])if(pref.value)history(row(groups.preferences,'Vorliebe: '+pref.topic,pref.value,'preference',pref.topic,'preference'),pref.history);
   for(const interest of character.interests||[])if(!interest.dismissed){const item=row(groups.interests,'Interesse: '+interest.topic,interest.description+(interest.progress?' · '+interest.progress:''),'interest',interest.topic,'interest');history(item,interest.history);}
   const labels={planned:'Geplant',active:'In Arbeit',completed:'Abgeschlossen',paused:'Pausiert'};
-  for(const plan of character.plans||[])if(!plan.dismissed){const item=row(groups.plans,(labels[plan.status]||'Vorhaben')+': '+plan.topic,plan.text+(plan.progress?' · '+plan.progress:''),'plan',plan.topic,'plan');history(item,plan.history);}
+  for(const plan of character.plans||[])if(!plan.dismissed){const item=row(groups.plans,(labels[plan.status]||'Vorhaben')+': '+plan.topic,plan.text+(plan.progress?' · '+plan.progress:''),'plan',plan.topic,'plan');if(plan.nextStep&&plan.status!=='completed'){const step=document.createElement('small');step.textContent='Nächster Schritt: '+plan.nextStep;item.append(step);}history(item,plan.history);}
   for(const thread of character.threads||[])if(thread.status!=='dismissed')row(groups.references,thread.status==='resolved'?'Erledigt':'Offen',thread.text+(thread.eventDate?' · '+date(thread.eventDate+'T12:00:00Z'):''),'thread',thread.topic,'thread');
   for(const phrase of character.sharedPhrases||[])if(phrase.count>=2)row(groups.references,'Vertraute Formulierung',phrase.text,null,phrase.text,'sharedPhrase');
   for(const habit of character.habits||[])if(habit.count>=2)row(groups.habits,habit.topic,habit.value,null,habit.topic,'habit');

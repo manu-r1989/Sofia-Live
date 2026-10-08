@@ -188,7 +188,7 @@ test('failed or uncertain generation is not replayed and does not publish or cha
  reset();const r=await api.preparePortrait('Selfie');failImage=true;
  await assert.rejects(api.generatePortrait(r.id));
  await assert.rejects(api.generatePortrait(r.id),/bereits gestartet/);
- assert.equal(imageCalls.length,1);const notices=await api.portraitGallery();assert.equal(notices.length,1);assert.equal(notices[0].status,'failed');assert.equal(notices[0].message,api.PORTRAIT_FAILURE_REPLY);assert.equal(db.get(prefix+'state'),undefined);
+ assert.equal(imageCalls.length,1);const notices=await api.portraitGallery();assert.equal(notices.length,1);assert.equal(notices[0].status,'failed');assert.equal(notices[0].failureCode,'portrait_provider_failed');assert.equal(notices[0].message,api.portraitFailureMessage('portrait_provider_failed'));assert.equal(db.get(prefix+'state'),undefined);
 });
 test('descriptive questions are no-op, missing source and mixed actions require clarification',async()=>{
  reset();plan.action='none';assert.equal(await api.preparePortrait('Wie gefällt dir das Outfit?'),null);
@@ -205,7 +205,7 @@ test('image delivery is private JPEG with download attachment and validated IDs'
 });
 test('UI integration loads shared renderer before app and does not alter avatar assets',async()=>{
  const root=new URL('../',import.meta.url);const index=await readFile(new URL('index.html',root),'utf8');
- assert.ok(index.indexOf('sofia-images.js?v=4587v2')<index.indexOf('app.js?v=4587v2'));
+ assert.ok(index.indexOf('sofia-images.js?v=4617v1')<index.indexOf('app.js?v=4617v1'));
  const chat=await readFile(new URL('api/chat.js',root),'utf8');
  assert.ok(chat.indexOf('!safeEqual(')<chat.indexOf('await servePortrait'));
  const ui=await readFile(new URL('sofia-images.js',root),'utf8');assert.match(ui,/dialog.showModal/);assert.match(ui,/link.download=/);assert.doesNotMatch(ui,/spinner|generating-status/);
@@ -364,7 +364,7 @@ test('explicit outfit variant changes clothing while keeping source and other sc
 });
 test('expired explicitly selected photo never silently falls back to the latest photograph',async()=>{
  reset();const old='11111111-1111-4111-8111-111111111111';plan.action='variant';
- await assert.rejects(()=>api.preparePortrait('Dasselbe in anderem Licht',old),/zuerst ein Bild/);assert.equal(imageCalls.length,0);
+ await assert.rejects(()=>api.preparePortrait('Dasselbe in anderem Licht',old),/Ausgangsbild.*nicht mehr verfügbar/);assert.equal(imageCalls.length,0);
 });
 
 test('photo acknowledgment becomes the current dialogue reference without storing failure context',async()=>{
@@ -492,4 +492,18 @@ test('explicit new photo kinds work independently of initiative preferences and 
 test('new photo fallback does not turn explanations, negations or reminders into images',()=>{
  for(const text of ['Warum möchtest du ein Porträtfoto?','Bitte kein Ganzkörperfoto','Erinnere mich morgen, ein Ganzkörperfoto zu machen','Sag „Schick mir ein Porträtfoto“'])assert.equal(api.explicitNewPhotoRequest(text),false,text);
  assert.equal(api.explicitNewPhotoRequest('Schick mir ein Porträtfoto'),true);
+});
+
+test('photo failures expose only bounded diagnostic codes and suitable user feedback',()=>{
+ assert.deepEqual(api.safeDiagnostic({code:'portrait_timeout',status:504,message:'private provider text'}),{code:'portrait_timeout',status:504});
+ assert.deepEqual(api.safeDiagnostic({code:'private_provider_code',status:200,message:'secret'}),{code:'request_failed'});
+ assert.match(api.portraitFailureMessage('portrait_context_mismatch'),/Situation/);assert.match(api.portraitFailureMessage('portrait_timeout'),/lange/);
+ assert.equal(api.portraitFailureMessage('portrait_moderated'),api.PORTRAIT_FAILURE_REPLY);
+});
+test('variants keep a stable series root with original scene and outfit',async()=>{
+ reset();const first=await api.preparePortrait('Schick ein Selfie',null,new Date('2026-10-08T12:00:00Z'));const original=await api.generatePortrait(first.id);
+ plan={action:'variant',scene:'Other light',outfit:'wrong outfit',changeOutfit:true};
+ const job=await api.preparePortrait('Dieses Foto bitte nur bei anderer Beleuchtung zeigen. Alles andere beibehalten.',original.id,new Date('2026-10-08T12:02:00Z'));
+ const request=JSON.parse(db.get(prefix+'request:'+job.id)),saved=JSON.parse(db.get(prefix+'image:'+original.id));
+ assert.equal(request.seriesId,original.id);assert.equal(request.sourceId,original.id);assert.equal(request.outfit,saved.outfit);assert.equal(request.life.location,saved.life.location);assert.equal(request.capturedAt,saved.capturedAt||saved.requestedAt);
 });

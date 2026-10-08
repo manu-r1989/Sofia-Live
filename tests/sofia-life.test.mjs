@@ -598,3 +598,27 @@ test('new portraits avoid recent expressions while a variant keeps its original 
  const next=api.photoPose(reference,false,'entspannt',recent);assert.equal(next.index,1);assert.equal(next.expression,'quiet attentive expression');
  assert.deepEqual(api.photoPose(reference,true,'ernst',recent),first);
 });
+
+test('observed day scenes are bounded, stable between reads and reset at Hamburg midnight',()=>{
+ const now=new Date('2026-10-08T21:59:00Z'),life={location:'zu Hause',activity:'lesen'};
+ let episodes=api.dayEpisodes(null,life,now);assert.equal(episodes.length,1);assert.equal(episodes[0].day,'2026-10-08');
+ assert.deepEqual(api.dayEpisodes({dayEpisodes:episodes},life,new Date(+now+20000)),episodes);
+ assert.equal(api.dayEpisodes({dayEpisodes:episodes},life,new Date('2026-10-08T22:01:00Z'))[0].day,'2026-10-09');
+ for(let i=0;i<20;i++)episodes=api.dayEpisodes({dayEpisodes:episodes},{...life,activity:'Beobachtung '+i},new Date(+now+i));assert.equal(episodes.length,8);
+});
+test('day boundary and pauses never imply activities in gaps or reactivate yesterday',()=>{
+ const now=new Date('2026-10-08T22:15:00Z'),life={dialogue:{at:'2026-10-08T20:00:00Z'}};
+ assert.match(api.dailyContinuityContext(life,now),/NEUER HAMBURGER TAG/);assert.match(api.dailyContinuityContext(life,now),/GESPRÄCHSPAUSE/);
+});
+test('own plan next steps need literal evidence and do not become completed by time',()=>{
+ const now=new Date('2026-10-08T12:00:00Z'),life={plans:[]};
+ const reply='Ich möchte als Nächstes die Gliederung schreiben.';
+ const d={plans:[{topic:'studienprojekt',text:'Studienprojekt',status:'planned',evidence:reply,nextStep:'die Gliederung schreiben',nextStepEvidence:reply}]};
+ const next=api.mergeCharacterDetails(life,d,'Was hast du vor?',reply,now);assert.equal(next.plans[0].nextStep,'die Gliederung schreiben');assert.equal(next.plans[0].status,'planned');
+ const invalid=api.mergeCharacterDetails(life,{plans:[{...d.plans[0],nextStep:'einen Termin buchen',nextStepEvidence:'Ich habe einen Termin gebucht.'}]},'Was hast du vor?',reply,now);assert.equal(invalid.plans[0].nextStep,'');
+});
+test('photographic camera and gaze vary independently and retained variants remain unchanged',()=>{
+ const first=api.photoPose(null,false,'entspannt');const next=api.photoPose({photoPose:first},false,'entspannt',[{photoPose:first}]);
+ assert.notEqual(next.head,first.head);assert.notEqual(next.camera,first.camera);assert.notEqual(next.gaze,first.gaze);
+ assert.deepEqual(api.photoPose({photoPose:first},true,'ernst',[{photoPose:next}]),first);
+});
