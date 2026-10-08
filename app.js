@@ -109,9 +109,13 @@ function saveMemory() {
 let chatScrollFrame = null;
 let chatPinnedToLatest = true;
 let restoringChat = false;
+let chatAutoScroll = false;
 function updateLatestButton(){if(typeof document==='undefined')return;const button=document.getElementById('chatLatest');if(button)button.hidden=chatPinnedToLatest;}
 
+function stopAutoChatScroll(){chatAutoScroll=false;if(chatScrollFrame!==null){cancelAnimationFrame(chatScrollFrame);chatScrollFrame=null;}}
+for(const event of ['wheel','touchstart','pointerdown'])messages?.addEventListener(event,stopAutoChatScroll,{passive:true});
 messages?.addEventListener('scroll', () => {
+  if(chatAutoScroll){if(messages.scrollHeight-messages.clientHeight-messages.scrollTop<=64){chatAutoScroll=false;chatPinnedToLatest=true;}updateLatestButton();return;}
   chatPinnedToLatest = messages.scrollHeight - messages.clientHeight - messages.scrollTop <= 64;
   if(!chatPinnedToLatest&&chatScrollFrame!==null){cancelAnimationFrame(chatScrollFrame);chatScrollFrame=null;}
   updateLatestButton();
@@ -124,7 +128,7 @@ messages?.addEventListener('load', event => {
 function scrollChatToLatest(behavior = 'auto', force = false) {
   if (!messages || restoringChat) return;
   if(!chatPinnedToLatest&&!force){updateLatestButton();return;}
-  if(force)chatPinnedToLatest=true;updateLatestButton();
+  if(force)chatPinnedToLatest=true;chatAutoScroll=true;updateLatestButton();
   if(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches)behavior='auto';
   if (chatScrollFrame !== null) cancelAnimationFrame(chatScrollFrame);
   const run = () => messages.scrollTo({ top: messages.scrollHeight, behavior });
@@ -150,7 +154,8 @@ function captureChatViewport() {
 
 function restoreChatViewport(snapshot) {
   if (!messages || !snapshot) return;
-  if (snapshot.pinned) { scrollChatToLatest('auto'); return; }
+  if (snapshot.pinned) { scrollChatToLatest('auto',true); return; }
+  chatAutoScroll=false;
   if (chatScrollFrame !== null) cancelAnimationFrame(chatScrollFrame);
   const anchor = snapshot.anchor;
   const node = anchor && (anchor.id ? document.getElementById(anchor.id) :

@@ -4,7 +4,7 @@
     const trigger=document.activeElement,viewport=window.SofiaChatViewport?.capture();
     element.classList.add('sofia-dialog');element.setAttribute('aria-label',label);
     const native=element.tagName==='DIALOG';if(!native){element.setAttribute('role','dialog');element.setAttribute('aria-modal','true');}
-    const restore=()=>{window.SofiaChatViewport?.restore(viewport);if(trigger?.isConnected)trigger.focus?.({preventScroll:true});};
+    const restore=()=>{if(element.dataset?.returnToLatest!=='true')window.SofiaChatViewport?.restore(viewport);if(trigger?.isConnected)trigger.focus?.({preventScroll:true});};
     if(native)element.addEventListener('close',restore,{once:true});
     else element.onkeydown=event=>{
       if(event.key==='Escape'){event.preventDefault();close?.();}if(event.key!=='Tab')return;

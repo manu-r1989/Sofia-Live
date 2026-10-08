@@ -4,6 +4,11 @@ import vm from 'node:vm';
 import {readFile} from 'node:fs/promises';
 const app=await readFile(new URL('../app.js',import.meta.url),'utf8');
 const block=app.slice(app.indexOf('let chatScrollFrame ='),app.indexOf('function addMessage('));
+test('programmatic history positioning survives intermediate scroll events until a user scroll gesture',()=>{
+ const frames=new Map(),events={},calls=[];let id=0;const messages={scrollHeight:2000,clientHeight:600,scrollTop:0,addEventListener:(t,f)=>events[t]=f,scrollTo:o=>calls.push(o)};
+ const ctx=vm.createContext({window:{},messages,requestAnimationFrame:fn=>{frames.set(++id,fn);return id;},cancelAnimationFrame:n=>frames.delete(n)});vm.runInContext(block,ctx);ctx.window.SofiaChatViewport.latest();events.scroll();assert.equal(frames.size,1);
+ while(frames.size){const pending=[...frames];frames.clear();for(const [,f]of pending)f();}assert.equal(calls.length,2);events.wheel();events.scroll();vm.runInContext("scrollChatToLatest('auto')",ctx);assert.equal(frames.size,0);
+});
 test('reading older turns suppresses automatic scrolling and an explicit latest action resumes following',()=>{
  const frames=new Map(),events={},calls=[],button={hidden:true};let id=0;const messages={scrollHeight:2000,clientHeight:600,scrollTop:1400,addEventListener:(t,fn)=>events[t]=fn,scrollTo:o=>calls.push(o)};
  const ctx=vm.createContext({window:{},document:{getElementById:()=>button},messages,requestAnimationFrame:fn=>{frames.set(++id,fn);return id;},cancelAnimationFrame:n=>frames.delete(n)});vm.runInContext(block,ctx);
@@ -20,7 +25,7 @@ test('history positioning cancels queued smooth scrolls and follows late thumbna
  const flush=()=>{while(frames.size){const pending=[...frames];frames.clear();for(const [,fn]of pending)fn();}};
  flush();assert.equal(calls.length,2);assert.ok(calls.every(c=>c.behavior==='auto'&&c.top===2000));
  messages.scrollHeight=2200;events.load({target:{tagName:'IMG'}});flush();assert.equal(calls.at(-1).top,2200);
- messages.scrollTop=100;events.scroll();const count=calls.length;events.load({target:{tagName:'IMG'}});flush();assert.equal(calls.length,count);
+ events.wheel();messages.scrollTop=100;events.scroll();const count=calls.length;events.load({target:{tagName:'IMG'}});flush();assert.equal(calls.length,count);
 });
 test('parallel history reads are coalesced and delayed history cannot replace a pending user turn',async()=>{
  const sync=app.slice(app.indexOf('async function syncConversationFromServer'),app.indexOf('function startConversationSync'));

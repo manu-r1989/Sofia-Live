@@ -126,7 +126,7 @@
       const detailBox=document.createElement('div');detailBox.className='photo-detail-controls';detailBox.hidden=true;
       const detailInput=document.createElement('input');detailInput.maxLength=160;detailInput.placeholder='Welches Detail möchtest du sehen?';detailInput.setAttribute('aria-label','Gewünschtes Fotodetail');
       const detailSend=document.createElement('button');detailSend.type='button';detailSend.textContent='Detail zeigen';detailBox.append(detailInput,detailSend);
-      function requestPhoto(message){rememberReference(image.id);if(!window.SofiaPhotoAction?.(message)){status.textContent='Bitte warte, bis die laufende Aktion beendet ist, und prüfe die Verbindung.';return;}dialog.close();document.getElementById('sofia-gallery')?.close();window.SofiaChatViewport?.latest?.();}
+      function requestPhoto(message){rememberReference(image.id);if(!window.SofiaPhotoAction?.(message)){status.textContent='Bitte warte, bis die laufende Aktion beendet ist, und prüfe die Verbindung.';return;}dialog.dataset.returnToLatest='true';const gallery=document.getElementById('sofia-gallery');if(gallery)gallery.dataset.returnToLatest='true';dialog.close();gallery?.close();window.SofiaChatViewport?.latest?.();}
       perspective.onclick=()=>requestPhoto('Wie würde dieses Foto aus einer anderen Perspektive aussehen?');
       detail.onclick=()=>{detailBox.hidden=!detailBox.hidden;detail.setAttribute('aria-expanded',String(!detailBox.hidden));if(!detailBox.hidden)detailInput.focus();};detail.setAttribute('aria-expanded','false');
       detailSend.onclick=()=>{const text=detailInput.value?.trim();if(!text){detailInput.focus();return;}requestPhoto('Zeig mir bitte eine Nahaufnahme dieses Fotos, um '+text.replace(/[„“\"»«]/g,'')+' genauer zu sehen.');};
