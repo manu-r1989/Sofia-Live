@@ -160,7 +160,7 @@ test('overlapping generation and completed retry issue only one paid provider re
 test('mood affects expressions and photo variants retain earlier life, hair and clothing across dates',async()=>{
  reset();const now=new Date('2026-10-06T12:00Z');
  const first=await api.preparePortrait('Selfie',null,now,'ernst');await api.generatePortrait(first.id);
- assert.match(imageCalls[0].prompt,/Facial expression: calm serious expression, no forced smile/);
+ assert.match(imageCalls[0].prompt,/Facial expression: calm serious expression/);
  const original=JSON.parse(db.get(prefix+'image:'+first.id));
  plan.action='variant';plan.scene='same photograph in warmer light';
  const second=await api.preparePortrait('Dasselbe Outfit in anderem Licht',first.id,new Date('2026-10-07T12:00Z'),'amüsiert');
@@ -380,7 +380,7 @@ test('new portrait poses vary head, gaze and expression without changing identit
 });
 test('new selfie prompt changes pose while master remains first and profile is persisted',async()=>{
  reset();const r=await api.preparePortrait('Ein Selfie bitte');await api.generatePortrait(r.id);assert.match(imageCalls[0].prompt,/IDENTITY reference, not a pose or expression template/);assert.match(imageCalls[0].prompt,/NEW PHOTO POSE/);
- const saved=JSON.parse(db.get(prefix+'image:'+r.id));assert.match(saved.photoPose.head,/25 degrees toward her left/);assert.match(imageCalls[0].prompt,/BODY POSTURE:/);assert.match(imageCalls[0].prompt,/Head, shoulders and torso must move independently/);assert.equal(imageCalls[0].images.length,1);
+ const saved=JSON.parse(db.get(prefix+'image:'+r.id));assert.match(saved.photoPose.head,/zero sideways tilt/);assert.match(imageCalls[0].prompt,/BODY POSTURE:/);assert.match(imageCalls[0].prompt,/Head, shoulders and torso must move independently/);assert.equal(imageCalls[0].images.length,1);
 });
 test('lighting-only variant preserves photo pose and has no new pose instruction',async()=>{
  reset();const old='11111111-1111-4111-8111-111111111111',pose=api.photoPose(null,false,'entspannt');db.set(prefix+'image:'+old,JSON.stringify({id:old,createdAt:new Date().toISOString(),outfit:'Blue sweater',base64:'/9j/AA==',scene:'Café',photoPose:pose}));plan={action:'variant',scene:'Andere Beleuchtung'};const r=await api.preparePortrait('Dasselbe Foto in anderem Licht',old);await api.generatePortrait(r.id);
@@ -457,4 +457,17 @@ test('UI light, framing and custom variants retain source, clothing and capture 
 });
 test('preserving outfit and background in a custom request does not add them to editable dimensions',()=>{
  assert.deepEqual(api.variantDimensions('Etwas seitlicher, Outfit und Umgebung beibehalten.'),['camera-angle']);assert.deepEqual(api.variantDimensions('Anderes Licht, Outfit beibehalten.'),['lighting']);assert.deepEqual(api.variantDimensions('Andere Kleidung und anderer Hintergrund'),['background','outfit']);
+});
+
+test('new portraits offer straight heads and both tilt directions without repeating recent poses',()=>{
+ const poses=[];let previous=null;for(let i=0;i<10;i++){const pose=api.photoPose(previous,false,'entspannt',poses.slice(-3).map(photoPose=>({photoPose})));poses.push(pose);previous={photoPose:pose};}
+ assert.equal(new Set(poses.map(p=>p.index)).size,10);assert.ok(poses.some(p=>/zero sideways tilt/.test(p.head)));assert.ok(poses.some(p=>/tilted toward her left/.test(p.head)));assert.ok(poses.some(p=>/tilted toward her right/.test(p.head)));assert.ok(new Set(poses.map(p=>p.expression)).size>=5);
+ for(const mood of ['ernst','genervt','skeptisch'])for(const pose of poses)assert.doesNotMatch(api.photoPose({photoPose:{index:pose.index}},false,mood).expression,/smile|laugh|grin/);
+});
+test('gestures and body variations respect bed and seated contexts without inventing props',()=>{
+ const bed=[],seated=[];for(let index=0;index<5;index++){bed.push(api.photoBodyPose({location:'im Bett'},{index}));seated.push(api.photoBodyPose({location:'im Café'},{index}));assert.match(api.photoGesture({location:'im Bett'},{index}),/blanket|pillow|hair|arm/);assert.match(api.photoGesture({location:'im Café'},{index}),/do not invent a prop.*never cover the face/);}
+ assert.equal(new Set(bed).size,5);assert.ok(bed.every(x=>/never standing/.test(x)));assert.equal(new Set(seated).size,5);assert.ok(seated.every(x=>/seated/.test(x)));
+});
+test('new pose instruction adds gestures while canonical face and hair identity remain binding',async()=>{
+ reset();const job=await api.preparePortrait('Ein Selfie bitte');await api.generatePortrait(job.id);const prompt=imageCalls[0].prompt;assert.match(prompt,/GESTURE:/);assert.match(prompt,/straight head and level shoulders/);assert.match(prompt,/preserve its facial geometry, natural hair COLOR/);assert.match(prompt,/never cover the face/);const photo=JSON.parse(db.get(prefix+'image:'+job.id));assert.ok(photo.gesture);
 });
