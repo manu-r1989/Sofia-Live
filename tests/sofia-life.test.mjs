@@ -573,3 +573,28 @@ test('five photo kinds persist across days and unsolicited selection respects th
  assert.equal(api.chooseEverydayPhotoKind({...saved,settings:{...settings,photoKinds:[]}},null),null);
  for(const kinds of [[],['bad'],['selfie','selfie']])await assert.rejects(api.editCharacterState({field:'settings',value:{...settings,photoKinds:kinds},revision:(await api.getSofiaLife(now)).revision},now),/character_invalid/);
 });
+
+test('current topic ranks ahead of unrelated fresh or dated threads without mutating storage',()=>{
+ const now=new Date('2026-10-08T12:00:00Z'),threads=[{topic:'buch',text:'Buch lesen',updatedAt:'2026-10-01T12:00:00Z'},{topic:'sport',text:'Sport',eventDate:'2026-10-08',updatedAt:now.toISOString()}];
+ assert.equal(api.rankConversationThreads(threads,'Wie läuft das Buch?',now)[0].topic,'buch');assert.equal(threads[0].topic,'buch');
+ assert.equal(api.rankConversationThreads(threads,'',now)[0].topic,'sport');
+});
+test('grounded classifier answer closes a pending question even in a follow-up; unsupported evidence cannot',()=>{
+ const now=new Date('2026-10-08T12:00:00Z'),life={dialogue:{at:'2026-10-08T11:59:00Z',pendingQuestion:'Und bei dir?',questions:[{text:'Und bei dir?',status:'open'}]}};
+ const closed=api.updateDialogue(life,'und bei dir','Alles gut.',now,{question:{status:'answered',evidence:'und bei dir'}});
+ assert.equal(closed.dialogue.pendingQuestion,null);assert.equal(closed.dialogue.questions[0].status,'answered');
+ const open=api.updateDialogue(life,'warum','Weil es passt.',now,{question:{status:'answered',evidence:'anderer Text'}});
+ assert.equal(open.dialogue.pendingQuestion,'Und bei dir?');
+});
+test('photo mix balances permitted categories, aliases share one category, explicit choice remains authoritative',()=>{
+ const life={location:'zu Hause',activity:'Kaffee trinken',settings:{photoKinds:['selfie','portrait','environment']}};
+ assert.equal(api.chooseEverydayPhotoKind(life,'selfie','',()=>0,['selfie','selfie','environment','detail']),'portrait');
+ assert.equal(api.chooseEverydayPhotoKind(life,'portrait','Schick ein Selfie',()=>0,['selfie','selfie']),'selfie');
+ const only={...life,settings:{photoKinds:['portrait']}};assert.equal(api.chooseEverydayPhotoKind(only,'portrait','',()=>0,['portrait']),'portrait');
+});
+test('new portraits avoid recent expressions while a variant keeps its original pose',()=>{
+ const first=api.photoPose(null,false,'entspannt'),reference={photoPose:first};
+ const recent=[{photoPose:{index:0,expression:'small natural smile'}},{photoPose:{index:2,expression:'soft closed-mouth smile'}}];
+ const next=api.photoPose(reference,false,'entspannt',recent);assert.equal(next.index,1);assert.equal(next.expression,'quiet attentive expression');
+ assert.deepEqual(api.photoPose(reference,true,'ernst',recent),first);
+});
