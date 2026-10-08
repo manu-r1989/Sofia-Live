@@ -152,7 +152,7 @@ function openPhoto(h){h.api.restore([image(id)]);h.document.getElementById('port
 class PhotoFile {constructor(parts,name,opts){this.name=name;this.type=opts.type;}}
 test('iPhone shares prepared image from click without navigating or closing on cancellation',async()=>{
  let shares=0;const h=harness(async()=>preparedPhoto(),{File:PhotoFile,navigator:{userAgent:'iPhone',canShare:()=>true,share:async data=>{shares++;assert.equal(data.files[0].type,'image/jpeg');throw Object.assign(new Error(),{name:'AbortError'});}}});
- const dialog=openPhoto(h),save=dialog.all().find(x=>/^(?:Herunterladen|Bild speichern \/ teilen)$/.test(x.textContent));assert.equal(save.disabled,true);await tick();assert.equal(save.disabled,false);assert.equal(save.textContent,'Bild speichern / teilen');await save.onclick();assert.equal(shares,1);assert.ok(h.body.children.includes(dialog));assert.equal(dialog.all().find(x=>x.role==='status'&&x.tag==='p').textContent,'');dialog.all().find(x=>x.tag==='button'&&x.textContent==='Schließen').onclick();assert.equal(h.body.children.includes(dialog),false);
+ const dialog=openPhoto(h),save=dialog.all().find(x=>/^(?:Herunterladen|Bild speichern \/ teilen)$/.test(x.textContent));assert.equal(save.disabled,true);await tick();assert.equal(save.disabled,false);assert.equal(save.textContent,'Bild speichern / teilen');await save.onclick();assert.equal(shares,1);assert.ok(h.body.children.includes(dialog));assert.equal(dialog.all().find(x=>x.role==='status'&&x.tag==='p').textContent,'Teilen abgebrochen.');dialog.all().find(x=>x.tag==='button'&&x.textContent==='Schließen').onclick();assert.equal(h.body.children.includes(dialog),false);
 });
 test('desktop downloads blob with filename and retains close button, releasing URL on close',async()=>{
  let urls=0,revoked=0;const h=harness(async()=>preparedPhoto(),{navigator:{userAgent:'Macintosh',maxTouchPoints:0},URL:{createObjectURL:()=>{urls++;return 'blob:photo';},revokeObjectURL:()=>revoked++}});
@@ -204,7 +204,7 @@ test('favorite persists through server request and is immediately filterable',as
 });
 
 test('gallery groups retained pictures by Hamburg delivery day, without situation groups',()=>{
- const h=harness(async()=>preparedPhoto());const at=new Date().toISOString();h.api.restore([{...image(id),createdAt:at,capturedAt:at,location:'auf dem Sofa'}]);h.api.openGallery();const gallery=h.document.getElementById('sofia-gallery');assert.ok(gallery.all().some(n=>n.tag==='h3'&&/^\d{4}-\d{2}-\d{2}$/.test(n.textContent)));assert.ok(gallery.all().some(n=>n.textContent==='Mehrere auswählen'));assert.equal(gallery.all().find(n=>n.textContent==='Auswahl herunterladen / teilen').disabled,true);
+ const h=harness(async()=>preparedPhoto());const at=new Date().toISOString();h.api.restore([{...image(id),createdAt:at,capturedAt:at,location:'auf dem Sofa'}]);h.api.openGallery();const gallery=h.document.getElementById('sofia-gallery');assert.ok(gallery.all().some(n=>n.tag==='h3'&&/^\d{2}\.\d{2}\.\d{4}$/.test(n.textContent)));assert.ok(gallery.all().some(n=>n.textContent==='Mehrere auswählen'));assert.equal(gallery.all().find(n=>n.textContent==='Auswahl herunterladen / teilen').disabled,true);
 });
 test('bulk archive is a readable standard ZIP containing original bytes and safe JPEG names',async()=>{
  const {execFileSync}=await import('node:child_process');const h=harness(async()=>preparedPhoto(),{Blob,TextEncoder});const bytes=Uint8Array.from([255,216,255,1,2,3]);const blob=h.api.photoArchive([{name:'sofia-test.jpg',bytes},{name:'sofia-second.jpg',bytes}]);const zip=Buffer.from(await blob.arrayBuffer());const output=execFileSync('python3',['-c','import sys,zipfile,io,json; z=zipfile.ZipFile(io.BytesIO(sys.stdin.buffer.read())); print(json.dumps({"names":z.namelist(),"first":list(z.read("sofia-test.jpg")),"valid":z.testzip() is None}))'],{input:zip,encoding:'utf8'});const result=JSON.parse(output);assert.deepEqual(result.names,['sofia-test.jpg','sofia-second.jpg']);assert.deepEqual(result.first,[...bytes]);assert.equal(result.valid,true);
@@ -228,4 +228,16 @@ test('gallery fetches fresh server photos even when the chat did not load them',
 });
 test('gallery uses delivery date for a newly sent variant of an older photograph',()=>{
  const now=new Date().toISOString();const h=harness();h.api.restore([{...image(id),createdAt:now,sentAt:now,capturedAt:'2026-01-01T23:00:00Z',location:'Bett'}]);h.api.openGallery();const gallery=h.document.getElementById('sofia-gallery');assert.equal(gallery.all().filter(n=>n.tag==='h3').length,1);assert.doesNotMatch(gallery.all().find(n=>n.tag==='h3').textContent,/2026-01-02|Bett/);assert.ok(gallery.all().some(n=>n.tag==='time'&&/\d{2}:\d{2}/.test(n.textContent)));
+});
+
+test('light and wider framing controls remain bound to the selected photo',()=>{
+ const h=harness(async()=>preparedPhoto()),sent=[];h.window.SofiaPhotoAction=text=>{sent.push({text,reference:h.api.referenceId});return true;};h.api.restore([{...image(id),createdAt:new Date().toISOString()}]);
+ for(const label of ['Anderes Licht','Weiterer Ausschnitt']){h.api.openGallery(id);const view=h.document.getElementById('sofia-photo-'+id);view.all().find(n=>n.tag==='button'&&n.textContent===label).onclick();assert.equal(h.document.getElementById('sofia-gallery'),null);}
+ assert.equal(sent[0].reference,id);assert.match(sent[0].text,/nur.*Beleuchtung/);assert.equal(sent[1].reference,id);assert.match(sent[1].text,/Ausschnitt.*mehr Umgebung/);
+});
+test('custom visual change requires input and preserves source selection',()=>{
+ const h=harness(async()=>preparedPhoto()),sent=[];h.window.SofiaPhotoAction=text=>{sent.push({text,reference:h.api.referenceId});return true;};h.api.restore([{...image(id),createdAt:new Date().toISOString()}]);h.api.openGallery(id);const view=h.document.getElementById('sofia-photo-'+id),input=view.all().find(n=>n['aria-label']==='Änderungswunsch zum Foto'),send=view.all().find(n=>n.tag==='button'&&n.textContent==='Foto anpassen');input.value='';send.onclick();assert.equal(sent.length,0);input.value='etwas seitlicher';send.onclick();assert.equal(sent[0].reference,id);assert.match(sent[0].text,/seitlicher.*nicht genannten Merkmale beibehalten/);
+});
+test('a retained source offers comparison, while an expired source does not',()=>{
+ const h=harness(async()=>preparedPhoto());h.api.restore([{...image(id),createdAt:new Date().toISOString()},{...image(id2),sourceId:id,createdAt:new Date().toISOString()}]);h.api.openGallery(id2);const view=h.document.getElementById('sofia-photo-'+id2),compare=view.all().find(n=>n.tag==='button'&&n.textContent==='Mit Original vergleichen');assert.equal(compare.hidden,false);compare.onclick();assert.ok(h.body.all().some(n=>n.className==='photo-comparison'));const pair=h.body.all().find(n=>n.className==='photo-comparison-pair');assert.deepEqual(pair.all().filter(n=>n.tag==='img').map(n=>n.src),['/api/chat?image='+id,'/api/chat?image='+id2]);
 });

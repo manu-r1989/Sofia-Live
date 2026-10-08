@@ -205,7 +205,7 @@ test('image delivery is private JPEG with download attachment and validated IDs'
 });
 test('UI integration loads shared renderer before app and does not alter avatar assets',async()=>{
  const root=new URL('../',import.meta.url);const index=await readFile(new URL('index.html',root),'utf8');
- assert.ok(index.indexOf('sofia-images.js?v=4457v2')<index.indexOf('app.js?v=4457v2'));
+ assert.ok(index.indexOf('sofia-images.js?v=4487v1')<index.indexOf('app.js?v=4487v1'));
  const chat=await readFile(new URL('api/chat.js',root),'utf8');
  assert.ok(chat.indexOf('!safeEqual(')<chat.indexOf('await servePortrait'));
  const ui=await readFile(new URL('sofia-images.js',root),'utf8');assert.match(ui,/dialog.showModal/);assert.match(ui,/link.download=/);assert.doesNotMatch(ui,/spinner|generating-status/);
@@ -448,4 +448,13 @@ test('uncertain visual location does not cause needless retries or assert precis
 
 test('an idempotent completed image response refreshes server time without restarting retention',async()=>{
  reset();const id='11111111-1111-4111-8111-111111111111',createdAt=new Date(Date.now()-16*3600000).toISOString(),started=Date.now();db.set(prefix+'request:'+id,JSON.stringify({id,status:'done',image:{id,createdAt,availabilityAt:createdAt}}));const result=await api.generatePortrait(id);assert.equal(result.createdAt,createdAt);assert.equal(result.archived,true);assert.ok(Date.parse(result.availabilityAt)>=started);assert.equal(imageCalls.length,0);
+});
+
+test('UI light, framing and custom variants retain source, clothing and capture context regardless of planner',async()=>{
+ for(const action of ['none','new'])for(const text of ['Dieses Foto bitte nur bei etwas anderer Beleuchtung zeigen. Alles andere beibehalten.','Zeig dieses Foto bitte mit einem weiteren Ausschnitt und mehr Umgebung. Alles andere beibehalten.','Dieses Foto bitte entsprechend anpassen: etwas seitlicher. Alle nicht genannten Merkmale beibehalten.']){
+  reset();const now=new Date(),old=previousPhotograph(now);plan.action=action;const prepared=await api.preparePortrait(text,old,now),job=JSON.parse(db.get(prefix+'request:'+prepared.id));assert.equal(job.variant,true,text);assert.equal(job.sourceId,old);assert.equal(job.outfit,'Green sweater with red scarf');assert.equal(job.bodyPose,'sitting');await api.generatePortrait(prepared.id);const stored=JSON.parse(db.get(prefix+'image:'+prepared.id));assert.equal(stored.sourceId,old);assert.match(imageCalls[0].prompt,/VARIANT EDIT BOUNDARY/);
+ }
+});
+test('preserving outfit and background in a custom request does not add them to editable dimensions',()=>{
+ assert.deepEqual(api.variantDimensions('Etwas seitlicher, Outfit und Umgebung beibehalten.'),['camera-angle']);assert.deepEqual(api.variantDimensions('Anderes Licht, Outfit beibehalten.'),['lighting']);assert.deepEqual(api.variantDimensions('Andere Kleidung und anderer Hintergrund'),['background','outfit']);
 });
