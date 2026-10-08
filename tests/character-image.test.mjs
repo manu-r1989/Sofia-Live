@@ -165,7 +165,7 @@ test('image delivery is private JPEG with download attachment and validated IDs'
 });
 test('UI integration loads shared renderer before app and does not alter avatar assets',async()=>{
  const root=new URL('../',import.meta.url);const index=await readFile(new URL('index.html',root),'utf8');
- assert.ok(index.indexOf('sofia-images.js?v=4377v1')<index.indexOf('app.js?v=4377v1'));
+ assert.ok(index.indexOf('sofia-images.js?v=44012v1')<index.indexOf('app.js?v=44012v1'));
  const chat=await readFile(new URL('api/chat.js',root),'utf8');
  assert.ok(chat.indexOf('!safeEqual(')<chat.indexOf('await servePortrait'));
  const ui=await readFile(new URL('sofia-images.js',root),'utf8');assert.match(ui,/dialog.showModal/);assert.match(ui,/link.download=/);assert.doesNotMatch(ui,/spinner|generating-status/);
@@ -357,4 +357,20 @@ test('bed selfie generation sends a reclining body pose and keeps the canonical 
  reset();const now=new Date();const life=api.defaultSofiaLife(now);life.location='zu Hause im Bett';life.activity='im Bett liegen';db.set(prefix+'life',JSON.stringify(life));
  const r=await api.preparePortrait('Ein Selfie bitte',null,now);await api.generatePortrait(r.id);
  assert.match(imageCalls[0].prompt,/BODY POSTURE: lying.*bed/);assert.match(imageCalls[0].prompt,/never standing/);assert.match(imageCalls[0].prompt,/master only to identify the same woman/);assert.equal(imageCalls[0].images.length,1);
+});
+
+
+test('a finished delayed photo records its frozen request scene and cannot overwrite a newer correction',async()=>{
+ reset();const now=new Date('2026-10-08T10:00Z');const job=await api.preparePortrait('Selfie',null,now);
+ const request=JSON.parse(db.get(prefix+'request:'+job.id));const life=await api.getSofiaLife(now);
+ const corrected=await api.editCharacterState({revision:life.revision,field:'location',value:'auf dem Sofa zu Hause'},now);
+ const image=await api.generatePortrait(job.id),saved=JSON.parse(db.get(prefix+'image:'+job.id)),current=JSON.parse(db.get(prefix+'life'));
+ assert.equal(image.capturedAt,request.requestedAt);assert.equal(saved.situation.location,request.life.location);
+ assert.equal(current.location,corrected.location);assert.equal(current.situation.location,corrected.location);assert.equal(current.lastPhoto.situation.location,request.life.location);
+});
+test('lighting or cropping variant keeps the original capture time and body posture',async()=>{
+ reset();const now=new Date('2026-10-08T10:00Z'),first=await api.preparePortrait('Selfie',null,now);await api.generatePortrait(first.id);
+ const original=JSON.parse(db.get(prefix+'image:'+first.id));plan.action='variant';
+ const next=await api.preparePortrait('Dasselbe Bild, nur mit anderem Ausschnitt',first.id,new Date(+now+3600000));
+ const job=JSON.parse(db.get(prefix+'request:'+next.id));assert.equal(job.sourceId,first.id);assert.equal(job.capturedAt,original.capturedAt);assert.equal(job.bodyPose,original.bodyPose);assert.deepEqual(job.dimensions,['framing']);
 });

@@ -74,7 +74,7 @@ test('life persists across requests and changes slots or dates with time-appropr
 test('described cafe activity and outfit persist and become the next photograph context',async()=>{
  reset();const now=new Date('2026-10-06T12:15Z');await api.getSofiaLife(now);
  narrative={location:'in einem Café in Hamburg',activity:'Kaffee trinken',outfit:'ein grüner Pullover mit Jeans',hairstyle:'ein lockerer Pferdeschwanz'};
- const learned=await api.learnSofiaLife('Was machst du gerade?','Ich trinke gerade einen Kaffee im Café.',now);
+ const learned=await api.learnSofiaLife('Was machst du gerade?','Ich trinke gerade einen Kaffee im Café. Ich trage einen grünen Pullover mit Jeans, meine Haare sind in einem lockeren Pferdeschwanz.',now);
  assert.equal(learned.location,narrative.location);
  const request=await api.preparePortrait('Ein Selfie bitte',null,now);
  const stored=JSON.parse(db.get(prefix+'request:'+request.id));
@@ -416,4 +416,40 @@ test('conversation context carries recent own phrases and only relevant preferen
  const context=api.conversationStyleContext(life,'Wie trinkst du Kaffee?');
  assert.match(context,/Ich mag das ruhige Café/);assert.match(context,/kräftiger Kaffee/);assert.doesNotMatch(context,/Berge/);
  assert.match(context,/keine gemeinsam erlebten Ereignisse erfinden/);
+});
+
+
+test('learned situation expires, while permanent character preferences survive',async()=>{
+ reset();const now=new Date('2026-10-06T12:15Z');narrative={location:'im Café',activity:'Kaffee trinken'};
+ const learned=await api.learnSofiaLife('Wo bist du?','Ich trinke gerade Kaffee im Café.',now);
+ assert.equal(learned.situation.location,'im Café');assert.equal(learned.situation.sources.location.source,'conversation');
+ const expired=await api.getSofiaLife(new Date(+now+91*60000));assert.notEqual(expired.location,'im Café');assert.equal(expired.situation.location,expired.location);
+});
+test('classifier cannot introduce an outfit or hairstyle absent from the actual reply',async()=>{
+ reset();const now=new Date('2026-10-06T12:15Z'),initial=await api.getSofiaLife(now);
+ narrative={location:'im Café',activity:'Kaffee trinken',outfit:'rotes Kleid',hairstyle:'strenger Dutt'};
+ const learned=await api.learnSofiaLife('Wo bist du?','Ich trinke gerade Kaffee im Café.',now);
+ assert.equal(learned.outfit,initial.outfit);assert.equal(learned.hairstyle,initial.hairstyle);
+});
+test('explicit conversation correction is shared with the next photo and status',async()=>{
+ reset();const now=new Date('2026-10-06T12:15Z');await api.getSofiaLife(now);
+ details={corrections:[{field:'location',value:'auf dem Sofa zu Hause',evidence:'Du bist gerade auf dem Sofa zu Hause'},{field:'activity',value:'auf dem Sofa sitzen',evidence:'auf dem Sofa sitzen'}]};
+ const learned=await api.learnSofiaLife('Korrektur: Du bist gerade auf dem Sofa zu Hause. Du solltest auf dem Sofa sitzen.','Stimmt, ich sitze auf dem Sofa zu Hause.',now);
+ assert.equal(learned.location,'auf dem Sofa zu Hause');assert.equal(learned.situation.sources.location.source,'correction');assert.match(learned.situation.posture,/sitzend/);
+ const job=await api.preparePortrait('Selfie',null,now),request=JSON.parse(db.get(prefix+'request:'+job.id));assert.equal(request.life.location,learned.location);assert.equal(request.life.situation.revision,learned.revision);
+});
+test('manual mood persists while a sensitive turn uses a calm response tone',async()=>{
+ reset();const now=new Date('2026-10-06T12:15Z');await api.getSofiaLife(now,'amüsiert');
+ const learned=await api.learnSofiaLife('Ich bin frustriert.','Das ist gerade ärgerlich.',now,'ernst');
+ assert.equal(learned.mood,'amüsiert');assert.equal(learned.responseTone,'calm');assert.match(api.expressionContext(learned,now).energy,/ruhig/);
+});
+
+test('photo-only revision change permits own-contact continuity but a newer user turn wins',async()=>{
+ reset();const now=new Date('2026-10-06T12:15Z'),previous=await api.getSofiaLife(now);
+ db.set(prefix+'life',JSON.stringify({...previous,revision:previous.revision+1,lastPhoto:{id:'photo-only'}}));
+ await api.recordOwnContact(previous,'Ein kleiner Gruß.','contact',now);
+ const after=JSON.parse(db.get(prefix+'life'));assert.equal(after.dialogue.contactId,'contact');assert.equal(after.lastPhoto.id,'photo-only');
+ db.set(prefix+'life',JSON.stringify({...after,revision:after.revision+1,dialogue:{...after.dialogue,lastUser:'Neuer Nutzerturn',at:new Date(+now+1000).toISOString()}}));
+ await api.recordOwnContact(after,'Eine verspätete Nachricht.','stale',now);
+ assert.equal(JSON.parse(db.get(prefix+'life')).dialogue.lastUser,'Neuer Nutzerturn');assert.notEqual(JSON.parse(db.get(prefix+'life')).dialogue.contactId,'stale');
 });

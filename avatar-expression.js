@@ -32,7 +32,7 @@
       if (next && next !== root) { resetThinking(); root = next; root.appendChild(img); root.appendChild(thoughtful); }
       const allowed = next && !document.hidden && !suspended &&
         !next.querySelector('.active[data-frame="wink"], .active[data-frame="small"], .active[data-frame="medium"], .active[data-frame="wide"]');
-      const friendlyMood=!['ernst','skeptisch','genervt'].includes(next?.dataset.mood);
+      const friendlyMood=next?.dataset.tone!=='calm'&&!['ernst','skeptisch','genervt'].includes(next?.dataset.mood);
       const friendlyHidden = !(allowed && ready && friendlyMood && next.dataset.state === "listening");
       if (img.hidden !== friendlyHidden) img.hidden = friendlyHidden;
       const canThink = allowed && thoughtfulReady && next.dataset.state === "thinking";
@@ -56,7 +56,7 @@
     const observer = new MutationObserver(sync);
     function lifecycle() {
       observer.disconnect();
-      if (!document.hidden && !suspended) observer.observe(host, { subtree: true, childList: true, attributes: true, attributeFilter: ["data-state", "data-mood", "class"] });
+      if (!document.hidden && !suspended) observer.observe(host, { subtree: true, childList: true, attributes: true, attributeFilter: ["data-state", "data-mood", "data-tone", "class"] });
       sync();
     }
     document.addEventListener("visibilitychange", lifecycle);
@@ -70,4 +70,5 @@
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init, { once: true });
   else init();
 })();
+
 

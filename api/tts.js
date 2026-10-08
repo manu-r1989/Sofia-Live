@@ -8,8 +8,8 @@ export const VOICE_PROFILES=Object.freeze({
  lively:{speed:1.0,instructions:'Sprich natürliches, klares Deutsch mit einer warmen jungen weiblichen Stimme und einem dezenten spanischen Akzent. Klinge lebendig, leicht verspielt und melodisch, mit abwechslungsreichen Betonungen statt gleichförmiger Satzmelodie. Frage ehrlich interessiert, sprich den letzten Satz warm und zuversichtlich. Natürliche kurze Pausen, keine Eile, kein künstliches Lachen und keine überzeichnete oder singende Sprechweise.'},
  mixed:{speed:1.0,instructions:'Du sprichst als Sofia, eine erwachsene 24-jährige Spanierin in Hamburg. Behalte Sofias bisherigen warmen, natürlichen Grundklang und den sehr dezenten spanischen Akzent. Ergänze mehr melodische Bewegung, jugendliche Spontaneität, flippige, leicht freche Energie und Temperament bei normalem lebendigem Tempo. Sprich klares, natürliches Deutsch. Die Sprechweise ist umgangssprachlich wie im persönlichen Gespräch, nicht vorgelesen, kindlich oder wie eine professionelle Ansage. Betone abwechslungsreich und melodisch mit kleinen natürlichen Wechseln von Tonhöhe und Energie. Klinge locker, direkt und gesprächig wie beim Plaudern mit jemandem, den du magst. Kurze Pausen entstehen natürlich, ohne jeden Satz auszubremsen. Klinge beim Begrüßen erfreut und etwas temperamentvoll, beim Nachfragen ehrlich neugierig, beim beruhigenden letzten Satz weich und zuversichtlich. Kleine verspielte Nuancen statt dauernder Überdrehtheit. Kein erzwungenes Lachen, kein Flüstern, keine künstliche Behauchung, keine Akzentkarikatur. Sprich den gelieferten Text wortgetreu, füge keinen Jugendjargon oder zusätzliche Wörter hinzu. Authentizität und klare Verständlichkeit haben Vorrang.'}
 });
-export function speechNuance(mood,now=new Date(),text='') {
- const serious=['ernst','skeptisch','genervt'].includes(mood)||/traurig|trauer|tut mir leid|angst|unfall|gestorben/i.test(text);
+export function speechNuance(mood,now=new Date(),text='',tone) {
+ const serious=tone==='calm'||['ernst','skeptisch','genervt'].includes(mood)||/traurig|trauer|tut mir leid|angst|unfall|gestorben/i.test(text);
  const hour=Number(new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/Berlin',hour:'2-digit',hourCycle:'h23'}).format(now));
  if(serious)return 'STIMMNUANCE: ruhig, aufmerksam und respektvoll; kein neckender oder lachender Ton. Profil D bleibt erkennbar.';
  if(hour>=23||hour<8)return 'STIMMNUANCE: entspannter nächtlicher Gesprächston, warm und etwas leiser; klare Aussprache, kein Flüstern oder Nuscheln. Profil D bleibt erkennbar.';
@@ -32,10 +32,11 @@ export default async function handler(req,res){
  const text=preview!==undefined?VOICE_SAMPLE_TEXT:typeof req.body?.text==="string"?req.body.text.trim():"";
  if(!text||text.length>4096)return res.status(400).json({error:"Invalid text."});
  if(!process.env.OPENAI_API_KEY)return res.status(500).json({error:"OPENAI_API_KEY missing."});
- const outputInstructions=preview!==undefined?speechInstructions:speechInstructions+' '+speechNuance(req.body?.mood,new Date(),text);
+ const outputInstructions=preview!==undefined?speechInstructions:speechInstructions+' '+speechNuance(req.body?.mood,new Date(),text,req.body?.tone);
  try{
   const r=await fetch("https://api.openai.com/v1/audio/speech",{method:"POST",headers:{Authorization:`Bearer ${process.env.OPENAI_API_KEY}`,"Content-Type":"application/json"},body:JSON.stringify({model:"gpt-4o-mini-tts",voice:"marin",input:text,instructions:outputInstructions,response_format:"mp3",speed:profile.speed})});
   if(!r.ok){console.error("OpenAI TTS:",r.status,(await r.text()).slice(0,500));return res.status(502).json({error:"TTS generation failed."});}
   res.setHeader("Content-Type","audio/mpeg");res.setHeader("Cache-Control","no-store");return res.status(200).send(Buffer.from(await r.arrayBuffer()));
  }catch(error){console.error("Sofia TTS:",error);return res.status(500).json({error:"TTS request failed."});}
 }
+

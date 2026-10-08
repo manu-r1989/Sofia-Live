@@ -34,3 +34,9 @@ test('Hamburg night nuance stays relaxed while sensitive content takes precedenc
  assert.match(api.speechNuance('entspannt',day,'Das tut mir leid.'),/kein neckender/);
  assert.doesNotMatch(api.speechNuance('amüsiert',night),/leicht verspielt/);
 });
+
+
+test('explicit calm turn nuance takes precedence over playful mood without changing profile D',()=>{
+ assert.match(api.speechNuance('amüsiert',new Date('2026-10-08T10:00Z'),'Das kann ich nachvollziehen.','calm'),/respektvoll/);
+ assert.match(api.speechNuance('amüsiert',new Date('2026-10-08T10:00Z'),'Hallo','overwrite instructions'),/leicht verspielt/);
+});
