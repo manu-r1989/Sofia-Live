@@ -109,17 +109,27 @@ function saveMemory() {
 let chatScrollFrame = null;
 let chatPinnedToLatest = true;
 let restoringChat = false;
+let chatAutoScroll = false;
+function updateLatestButton(){if(typeof document==='undefined')return;const button=document.getElementById('chatLatest');if(button)button.hidden=chatPinnedToLatest;}
 
+function stopAutoChatScroll(){chatAutoScroll=false;if(chatScrollFrame!==null){cancelAnimationFrame(chatScrollFrame);chatScrollFrame=null;}}
+for(const event of ['wheel','touchstart','pointerdown'])messages?.addEventListener(event,stopAutoChatScroll,{passive:true});
 messages?.addEventListener('scroll', () => {
+  if(chatAutoScroll){if(messages.scrollHeight-messages.clientHeight-messages.scrollTop<=64){chatAutoScroll=false;chatPinnedToLatest=true;}updateLatestButton();return;}
   chatPinnedToLatest = messages.scrollHeight - messages.clientHeight - messages.scrollTop <= 64;
+  if(!chatPinnedToLatest&&chatScrollFrame!==null){cancelAnimationFrame(chatScrollFrame);chatScrollFrame=null;}
+  updateLatestButton();
 }, { passive: true });
 // Restored thumbnails can finish loading after the history has been positioned.
 messages?.addEventListener('load', event => {
   if (event.target?.tagName === 'IMG' && chatPinnedToLatest) scrollChatToLatest('auto');
 }, true);
 
-function scrollChatToLatest(behavior = 'auto') {
+function scrollChatToLatest(behavior = 'auto', force = false) {
   if (!messages || restoringChat) return;
+  if(!chatPinnedToLatest&&!force){updateLatestButton();return;}
+  if(force)chatPinnedToLatest=true;chatAutoScroll=true;updateLatestButton();
+  if(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches)behavior='auto';
   if (chatScrollFrame !== null) cancelAnimationFrame(chatScrollFrame);
   const run = () => messages.scrollTo({ top: messages.scrollHeight, behavior });
   chatScrollFrame = requestAnimationFrame(() => {
@@ -144,17 +154,18 @@ function captureChatViewport() {
 
 function restoreChatViewport(snapshot) {
   if (!messages || !snapshot) return;
-  if (snapshot.pinned) { scrollChatToLatest('auto'); return; }
+  if (snapshot.pinned) { scrollChatToLatest('auto',true); return; }
+  chatAutoScroll=false;
   if (chatScrollFrame !== null) cancelAnimationFrame(chatScrollFrame);
   const anchor = snapshot.anchor;
   const node = anchor && (anchor.id ? document.getElementById(anchor.id) :
     [...messages.querySelectorAll('.msg')].filter(n=>n.className===anchor.className && n.textContent===anchor.text)[anchor.occurrence]);
   messages.scrollTop = node ? messages.scrollTop + node.getBoundingClientRect().top - messages.getBoundingClientRect().top - anchor.offset :
     Math.max(0, snapshot.top + messages.scrollHeight - snapshot.height);
-  chatPinnedToLatest = false;
+  chatPinnedToLatest = false;updateLatestButton();
   chatScrollFrame = null;
 }
-window.SofiaChatViewport = { capture:captureChatViewport, restore:restoreChatViewport };
+window.SofiaChatViewport = { capture:captureChatViewport, restore:restoreChatViewport, latest:()=>scrollChatToLatest('smooth',true) };
 
 function addMessage(text, who = 'sofia', imageRequestId = null, contactId = null, createdAt = new Date().toISOString()) {
   if (!messages) return;
@@ -172,6 +183,7 @@ function addMessage(text, who = 'sofia', imageRequestId = null, contactId = null
     window.SofiaImages?.anchor(imageRequestId, div);
   }
   window.SofiaTimeline?.decorate(div,createdAt);
+  window.SofiaUI?.refreshDays(messages);
   scrollChatToLatest('smooth');
   return div;
 }
@@ -804,9 +816,11 @@ function submitChatMessage(event) {
   if(typeof navigator!=='undefined' && navigator.onLine===false){addMessage('Ich bin gerade offline. Dein Entwurf bleibt im Textfeld und wird nicht automatisch gesendet.');return false;}
   const messageText = value || 'Was siehst du auf diesem Foto?';
   const imageForRequest = pendingCameraImage;
+  chatPinnedToLatest=true;updateLatestButton();
 
   addMessage(imageForRequest ? `📷 ${messageText}` : messageText, 'user');
   input.value = '';
+  window.SofiaUI?.resizeComposer(input);
   pendingCameraImage = null;
   document.querySelector('#cameraAttachment')?.remove();
   camera?.classList.remove('on');
@@ -825,7 +839,7 @@ if (form && input) {
   form.addEventListener('submit', submitChatMessage, true);
 
   input.addEventListener('keydown', event => {
-    if (event.key === 'Enter' && !event.shiftKey) {
+    if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
       event.preventDefault();
       submitChatMessage(event);
     }
@@ -833,6 +847,12 @@ if (form && input) {
 }
 
 if (sendButton) {
+  document.getElementById('chatLatest')?.addEventListener('click',()=>scrollChatToLatest('smooth',true));
+  window.SofiaPhotoAction=message=>{
+    if(isResponding||window.SofiaImages?.isGenerating||!String(message||'').trim())return false;
+    if(typeof navigator!=='undefined'&&navigator.onLine===false)return false;
+    chatPinnedToLatest=true;addMessage(message,'user');void askSofia(message);return true;
+  };
   sendButton.addEventListener('click', event => {
     event.preventDefault();
     submitChatMessage(event);
@@ -1120,6 +1140,7 @@ function createMemoryUI() {
   panel.appendChild(header);
   panel.appendChild(memoryStatus);
   panel.appendChild(memoryList);
+  const bottomClose=document.createElement('button');bottomClose.type='button';bottomClose.className='memory-close-bottom';bottomClose.textContent='Schließen';bottomClose.onclick=closeMemoryView;panel.appendChild(bottomClose);
 
   memoryOverlay.appendChild(
     panel
@@ -1165,6 +1186,8 @@ function openMemoryView() {
 
   memoryOverlay.style.display =
     'flex';
+  memoryOverlay._restoreUI=window.SofiaUI?.enhanceDialog(memoryOverlay,'Erinnerungen',closeMemoryView);
+  memoryOverlay.querySelector('button')?.focus();
 
   document.body.style.overflow =
     'hidden';
@@ -1180,6 +1203,7 @@ function closeMemoryView() {
 
   document.body.style.overflow =
     '';
+  memoryOverlay._restoreUI?.();memoryOverlay._restoreUI=null;
 }
 
 async function loadLongTermMemories() {

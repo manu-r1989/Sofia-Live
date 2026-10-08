@@ -26,16 +26,26 @@ function harness(fetchImpl,extras={}) {
  const document={body,createTextNode:text=>{const n=new Node('text');n.textContent=text;return n;},createElement:tag=>new Node(tag),getElementById:target=>[body,...body.all()].find(n=>n.id===target)||null};
  const window={};vm.runInNewContext(source,{document,window,fetch:(url,options={})=>url==='/api/chat'&&!options.method?(extras.galleryFetch?extras.galleryFetch():Promise.resolve({ok:true,json:async()=>({images:extras.galleryImages||[]})})):fetchImpl(url,options),Map,Promise,...extras});
  const message=(text,who='sofia',anchorId)=>{const n=new Node('div');n.className='msg '+who;n.textContent=text;if(anchorId)n.dataset.portraitRequestId=anchorId;messages.append(n);if(anchorId)window.SofiaImages.anchor(anchorId,n);return n;};
- return {body,messages,document,api:window.SofiaImages,message};
+ return {body,messages,document,window,api:window.SofiaImages,message};
 }
 const image=(id)=>({id,anchorId:id,caption:'Sofia',url:'/api/chat?image='+id});
 test('gallery closes from both its top and bottom buttons',()=>{
  const h=harness();h.api.openGallery();let gallery=h.document.getElementById('sofia-gallery');let buttons=gallery.children.filter(x=>x.tag==='button'&&x.textContent==='Schließen');assert.equal(buttons.length,2);assert.equal(gallery.children[1],buttons[0]);assert.equal(gallery.children.at(-1),buttons[1]);buttons[0].onclick();assert.equal(h.document.getElementById('sofia-gallery'),null);
  h.api.openGallery();gallery=h.document.getElementById('sofia-gallery');gallery.children.at(-1).onclick();assert.equal(h.document.getElementById('sofia-gallery'),null);
 });
+test('photo follow-up controls submit the selected source and preserve the dialog on a busy refusal',()=>{
+ const h=harness(async()=>preparedPhoto()),sent=[];h.api.restore([{...image(id),createdAt:new Date().toISOString()}]);h.api.openGallery(id);
+ let view=h.document.getElementById('sofia-photo-'+id);h.window.SofiaPhotoAction=()=>false;view.all().find(x=>x.textContent==='Andere Perspektive').onclick();assert.ok(h.document.getElementById(view.id));
+ h.window.SofiaPhotoAction=text=>{sent.push({text,reference:h.api.referenceId});return true;};view.all().find(x=>x.textContent==='Andere Perspektive').onclick();assert.equal(h.document.getElementById('sofia-gallery'),null);assert.equal(sent[0].reference,id);assert.match(sent[0].text,/anderen Perspektive/);
+ h.api.openGallery(id);view=h.document.getElementById('sofia-photo-'+id);view.all().find(x=>x.tag==='button'&&x.textContent==='Detail ansehen').onclick();const input=view.all().find(x=>x['aria-label']==='Gewünschtes Fotodetail');input.value='dein Oberteil';view.all().find(x=>x.tag==='button'&&x.textContent==='Detail zeigen').onclick();assert.equal(sent[1].reference,id);assert.match(sent[1].text,/Nahaufnahme.*dein Oberteil.*genauer/);
+});
+test('failed photos offer an explicit retry while quota failures cannot launch another attempt',()=>{
+ const h=harness(),sent=[];h.window.SofiaPhotoAction=text=>{sent.push(text);return true;};h.api.restore([{...image(id),status:'failed',requestMessage:'Schick mir ein Selfie.'}]);let retry=h.document.getElementById('portrait-'+id).all().find(x=>x.textContent==='Erneut versuchen');retry.onclick();assert.deepEqual(sent,['Schick mir ein Selfie.']);assert.equal(retry.disabled,true);
+ h.api.restore([{...image(id2),status:'failed',failureCode:'test_image_limit'}]);retry=h.document.getElementById('portrait-'+id2).all().find(x=>x.textContent==='Erneut versuchen');assert.equal(retry.disabled,true);
+});
 test('gallery swipe changes adjacent photos in current filtered order with safe boundaries',()=>{
  const h=harness(async()=>preparedPhoto());const at=new Date().toISOString();h.api.restore([{...image(id),createdAt:at,kind:'selfie'},{...image(id2),createdAt:at,kind:'selfie'}]);h.api.openGallery(id2);
- const full=h.document.getElementById('sofia-photo-'+id2).children[0];
+ const full=h.document.getElementById('sofia-photo-'+id2).all().find(x=>x.tag==='img');
  const swipe=(dx,dy=0)=>{full.events.touchstart({touches:[{identifier:1,clientX:100,clientY:100}]});full.events.touchend({touches:[],changedTouches:[{identifier:1,clientX:100+dx,clientY:100+dy}]});};
  swipe(-90);assert.equal(h.api.referenceId,id);assert.ok(h.document.getElementById('sofia-photo-'+id));swipe(90);assert.equal(h.api.referenceId,id2);swipe(90);assert.equal(h.api.referenceId,id2);swipe(-70,100);assert.equal(h.api.referenceId,id2);
  const filter=h.document.getElementById('sofia-gallery').all().find(x=>x['aria-label']==='Galerie nach Bildart filtern');filter.value='environment';filter.onchange();swipe(-90);assert.equal(h.api.referenceId,id2);
@@ -142,15 +152,15 @@ function openPhoto(h){h.api.restore([image(id)]);h.document.getElementById('port
 class PhotoFile {constructor(parts,name,opts){this.name=name;this.type=opts.type;}}
 test('iPhone shares prepared image from click without navigating or closing on cancellation',async()=>{
  let shares=0;const h=harness(async()=>preparedPhoto(),{File:PhotoFile,navigator:{userAgent:'iPhone',canShare:()=>true,share:async data=>{shares++;assert.equal(data.files[0].type,'image/jpeg');throw Object.assign(new Error(),{name:'AbortError'});}}});
- const dialog=openPhoto(h),save=dialog.children[2];assert.equal(save.disabled,true);await tick();assert.equal(save.disabled,false);assert.equal(save.textContent,'Bild speichern / teilen');await save.onclick();assert.equal(shares,1);assert.ok(h.body.children.includes(dialog));assert.equal(dialog.children[3].textContent,'');dialog.children[1].onclick();assert.equal(h.body.children.includes(dialog),false);
+ const dialog=openPhoto(h),save=dialog.all().find(x=>/^(?:Herunterladen|Bild speichern \/ teilen)$/.test(x.textContent));assert.equal(save.disabled,true);await tick();assert.equal(save.disabled,false);assert.equal(save.textContent,'Bild speichern / teilen');await save.onclick();assert.equal(shares,1);assert.ok(h.body.children.includes(dialog));assert.equal(dialog.all().find(x=>x.role==='status'&&x.tag==='p').textContent,'');dialog.all().find(x=>x.tag==='button'&&x.textContent==='Schließen').onclick();assert.equal(h.body.children.includes(dialog),false);
 });
 test('desktop downloads blob with filename and retains close button, releasing URL on close',async()=>{
  let urls=0,revoked=0;const h=harness(async()=>preparedPhoto(),{navigator:{userAgent:'Macintosh',maxTouchPoints:0},URL:{createObjectURL:()=>{urls++;return 'blob:photo';},revokeObjectURL:()=>revoked++}});
- const dialog=openPhoto(h);await tick();await dialog.children[2].onclick();assert.equal(urls,1);assert.ok(h.body.children.includes(dialog));dialog.children[1].onclick();assert.equal(revoked,1);
+ const dialog=openPhoto(h);await tick();await dialog.all().find(x=>/^(?:Herunterladen|Bild speichern \/ teilen)$/.test(x.textContent)).onclick();assert.equal(urls,1);assert.ok(h.body.children.includes(dialog));dialog.all().find(x=>x.tag==='button'&&x.textContent==='Schließen').onclick();assert.equal(revoked,1);
 });
 test('unsupported mobile sharing and preparation errors keep photo view recoverable',async()=>{
- const h=harness(async()=>preparedPhoto(),{navigator:{userAgent:'iPad'}});const dialog=openPhoto(h);await tick();await dialog.children[2].onclick();assert.match(dialog.children[3].textContent,/Halte das Bild gedrückt/);assert.equal(dialog.children[2].disabled,false);
- const failed=harness(async()=>({ok:false}),{navigator:{userAgent:'iPhone'}});const view=openPhoto(failed);await tick();assert.match(view.children[3].textContent,/noch einmal/);assert.equal(view.children[2].disabled,false);view.children[1].onclick();assert.equal(failed.body.children.includes(view),false);
+ const h=harness(async()=>preparedPhoto(),{navigator:{userAgent:'iPad'}});const dialog=openPhoto(h);await tick();await dialog.all().find(x=>/^(?:Herunterladen|Bild speichern \/ teilen)$/.test(x.textContent)).onclick();assert.match(dialog.all().find(x=>x.role==='status'&&x.tag==='p').textContent,/Halte das Bild gedrückt/);assert.equal(dialog.all().find(x=>/^(?:Herunterladen|Bild speichern \/ teilen)$/.test(x.textContent)).disabled,false);
+ const failed=harness(async()=>({ok:false}),{navigator:{userAgent:'iPhone'}});const view=openPhoto(failed);await tick();assert.match(view.all().find(x=>x.role==='status'&&x.tag==='p').textContent,/noch einmal/);assert.equal(view.all().find(x=>/^(?:Herunterladen|Bild speichern \/ teilen)$/.test(x.textContent)).disabled,false);view.all().find(x=>x.tag==='button'&&x.textContent==='Schließen').onclick();assert.equal(failed.body.children.includes(view),false);
 });
 
 test('mixed action photo removes moment suffix while retaining actual task receipt',()=>{

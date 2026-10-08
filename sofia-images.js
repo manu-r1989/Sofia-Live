@@ -57,10 +57,11 @@
     return slot;
   }
   function openPhoto(image, gallerySequence=null) {
+    gallerySequence ||= ()=>[...galleryItems.values()].filter(x=>!['pending','failed','expired'].includes(x.status)&&retained(x)).sort((a,b)=>sentTime(b)-sentTime(a));
     let url='/api/chat?image='+image.id;
 
       selectionVersion++;rememberReference(image.id);
-      const dialog = document.createElement('dialog');dialog.id='sofia-photo-'+image.id;
+      const dialog = document.createElement('dialog');dialog.id='sofia-photo-'+image.id;dialog.className='sofia-photo-view';window.SofiaUI?.enhanceDialog(dialog,'Foto von Sofia');
       dialog.style.cssText = 'max-width:92vw;max-height:92vh;border:0;border-radius:16px;padding:16px;background:#171722;color:white';
       const full = document.createElement('img'); full.src = url; full.alt = image.caption || 'Sofia';
       full.style.cssText = 'display:block;max-width:85vw;max-height:75vh;object-fit:contain';
@@ -101,15 +102,16 @@
         if(!window.confirm('Dieses Foto endgültig aus Galerie und Chat löschen?'))return;
         const deleting=image;remove.disabled=true;try{const response=await fetch('/api/session?social=1',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({operation:'delete_image',imageId:deleting.id})});if(!response.ok)throw Error();show({...deleting,status:'expired'});if(referenceId===deleting.id){referenceId=null;try{localStorage.removeItem('sofia-photo-reference');}catch{}}dialog.close();const gallery=document.getElementById('sofia-gallery');if(gallery){gallery.close();openGallery();}}catch{status.textContent='Das Bild konnte nicht gelöscht werden.';remove.disabled=false;}
       };
-      const navigation=document.createElement('div');navigation.style.cssText='display:flex;justify-content:space-between;gap:16px;margin:12px 0';
+      const navigation=document.createElement('div');const counter=document.createElement('span');counter.className='photo-count';counter.setAttribute('role','status');const photoDate=document.createElement('time');photoDate.className='photo-date';
+      navigation.style.cssText='display:flex;justify-content:space-between;gap:16px;margin:12px 0';
       const previous=document.createElement('button'),next=document.createElement('button');previous.type=next.type='button';previous.textContent='‹ Vorheriges';next.textContent='Nächstes ›';previous.setAttribute('aria-label','Vorheriges Foto');next.setAttribute('aria-label','Nächstes Foto');
       const sequence=()=>typeof gallerySequence==='function'?gallerySequence().filter(x=>!['pending','failed','expired'].includes(x.status)&&retained(x)):[];
-      function updateNavigation(){const items=sequence(),index=items.findIndex(x=>x.id===image.id);previous.disabled=index<=0;next.disabled=index<0 || index>=items.length-1;}
+      function updateNavigation(){const items=sequence(),index=items.findIndex(x=>x.id===image.id);previous.disabled=index<=0;next.disabled=index<0 || index>=items.length-1;counter.textContent=(index>=0?index+1:1)+' / '+Math.max(1,items.length);photoDate.textContent=Number.isFinite(sentTime(image))?new Date(sentTime(image)).toLocaleString('de-DE',{timeZone:'Europe/Berlin',dateStyle:'medium',timeStyle:'short'}):'Datum unbekannt';}
       function changePhoto(offset){const items=sequence(),index=items.findIndex(x=>x.id===image.id),target=index<0?null:items[index+offset];if(!target)return;
         image=target;url='/api/chat?image='+image.id;dialog.id='sofia-photo-'+image.id;full.src=url;full.alt=image.caption||'Sofia';selectionVersion++;rememberReference(image.id);
         if(objectUrl){URL.revokeObjectURL(objectUrl);objectUrl=null;}blob=null;file=null;updateNavigation();void prepareDownload();
       }
-      previous.onclick=()=>changePhoto(-1);next.onclick=()=>changePhoto(1);navigation.append(previous,next);
+      previous.onclick=()=>changePhoto(-1);next.onclick=()=>changePhoto(1);navigation.append(previous,counter,next);
       if(gallerySequence){
         full.style.touchAction='pan-y pinch-zoom';let touch=null;
         full.addEventListener('touchstart',event=>{touch=event.touches?.length===1?{x:event.touches[0].clientX,y:event.touches[0].clientY,id:event.touches[0].identifier}:null;},{passive:true});
@@ -117,7 +119,21 @@
         full.addEventListener('touchend',event=>{const start=touch;touch=null;const end=[...(event.changedTouches||[])].find(x=>x.identifier===start?.id);if(!start||!end||event.touches?.length)return;const dx=end.clientX-start.x,dy=end.clientY-start.y;if(Math.abs(dx)>=50 && Math.abs(dx)>Math.abs(dy)*1.4)changePhoto(dx<0?1:-1);},{passive:true});
         dialog.addEventListener('keydown',event=>{if(event.key==='ArrowLeft'||event.key==='ArrowRight'){event.preventDefault();changePhoto(event.key==='ArrowLeft'?-1:1);}});
       }
-      dialog.append(full);if(gallerySequence){dialog.append(navigation);updateNavigation();}dialog.append(close,download,status,remove); document.body.append(dialog);
+      const toolbar=document.createElement('div');toolbar.className='photo-toolbar';remove.className='photo-delete';toolbar.append(download,remove);
+      const header=document.createElement('div');header.className='photo-header';header.append(photoDate,close);
+      const follow=document.createElement('div');follow.className='photo-follow-ups';
+      const perspective=document.createElement('button'),detail=document.createElement('button');perspective.type=detail.type='button';perspective.textContent='Andere Perspektive';detail.textContent='Detail ansehen';
+      const detailBox=document.createElement('div');detailBox.className='photo-detail-controls';detailBox.hidden=true;
+      const detailInput=document.createElement('input');detailInput.maxLength=160;detailInput.placeholder='Welches Detail möchtest du sehen?';detailInput.setAttribute('aria-label','Gewünschtes Fotodetail');
+      const detailSend=document.createElement('button');detailSend.type='button';detailSend.textContent='Detail zeigen';detailBox.append(detailInput,detailSend);
+      function requestPhoto(message){rememberReference(image.id);if(!window.SofiaPhotoAction?.(message)){status.textContent='Bitte warte, bis die laufende Aktion beendet ist, und prüfe die Verbindung.';return;}dialog.dataset.returnToLatest='true';const gallery=document.getElementById('sofia-gallery');if(gallery)gallery.dataset.returnToLatest='true';dialog.close();gallery?.close();window.SofiaChatViewport?.latest?.();}
+      perspective.onclick=()=>requestPhoto('Wie würde dieses Foto aus einer anderen Perspektive aussehen?');
+      detail.onclick=()=>{detailBox.hidden=!detailBox.hidden;detail.setAttribute('aria-expanded',String(!detailBox.hidden));if(!detailBox.hidden)detailInput.focus();};detail.setAttribute('aria-expanded','false');
+      detailSend.onclick=()=>{const text=detailInput.value?.trim();if(!text){detailInput.focus();return;}requestPhoto('Zeig mir bitte eine Nahaufnahme dieses Fotos, um '+text.replace(/[„“\"»«]/g,'')+' genauer zu sehen.');};
+      detailInput.addEventListener('keydown',event=>{if(event.key==='Enter'&&!event.isComposing){event.preventDefault();detailSend.onclick();}});
+      follow.append(perspective,detail,detailBox);
+      full.addEventListener('error',()=>{status.textContent='Foto konnte nicht geladen werden. Bitte Verbindung prüfen.';});
+      dialog.append(header,full);if(gallerySequence){dialog.append(navigation);updateNavigation();}dialog.append(toolbar,follow,status); document.body.append(dialog);
       dialog.addEventListener('close',()=>{closed=true;if(objectUrl)URL.revokeObjectURL(objectUrl);dialog.remove();},{once:true});
       prepareDownload();
       dialog.showModal(); close.focus();
@@ -142,13 +158,13 @@
     const size=directory.reduce((sum,x)=>sum+x.length,0),end=record(22,0x06054b50),view=new DataView(end.buffer);view.setUint16(8,files.length,true);view.setUint16(10,files.length,true);view.setUint32(12,size,true);view.setUint32(16,offset,true);return new Blob([...parts,...directory,end],{type:'application/zip'});
   }
   function openGallery(selectedId=null) {
-    const dialog=document.createElement('dialog');dialog.id='sofia-gallery';dialog.style.cssText='width:680px;max-width:92vw;max-height:85vh;border:0;border-radius:16px;padding:20px;background:#171722;color:white';
+    const dialog=document.createElement('dialog');dialog.id='sofia-gallery';window.SofiaUI?.enhanceDialog(dialog,'Galerie');dialog.style.cssText='width:680px;max-width:92vw;max-height:85vh;border:0;border-radius:16px;padding:20px;background:#171722;color:white';
     const title=document.createElement('h2');title.textContent='Galerie';const note=document.createElement('p');note.textContent='Fotos bleiben 30 Tage ab Versand erhalten.';
     const close=document.createElement('button');close.type='button';close.textContent='Schließen';close.onclick=()=>dialog.close();
     const weatherCredit=document.createElement('a');weatherCredit.href='https://open-meteo.com/';weatherCredit.target='_blank';weatherCredit.rel='noopener noreferrer';weatherCredit.textContent='Wetterbezug: Open-Meteo';weatherCredit.style.cssText='display:block;font-size:11px;opacity:.65;color:inherit;margin:8px 0';
     const closeBottom=document.createElement('button');closeBottom.type='button';closeBottom.textContent='Schließen';closeBottom.onclick=()=>dialog.close();
-    const grid=document.createElement('div');grid.style.cssText='display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:12px;margin:16px 0';
-    const filters=document.createElement('div');filters.style.cssText='display:flex;gap:8px;flex-wrap:wrap';
+    const grid=document.createElement('div');grid.className='gallery-grid';grid.style.cssText='display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:12px;margin:16px 0';
+    const filters=document.createElement('div');filters.className='gallery-filters';filters.style.cssText='display:flex;gap:8px;flex-wrap:wrap';
     const date=document.createElement('input');date.type='date';date.setAttribute('aria-label','Galerie nach Datum filtern');date.style.cssText='flex:0 1 170px;min-width:0;color-scheme:dark';
     const type=document.createElement('select');type.setAttribute('aria-label','Galerie nach Bildart filtern');type.value='all';for(const [value,label]of [['all','Alle Bildarten'],['selfie','Selfies'],['mirror','Spiegelselfies'],['environment','Umgebung']]){const option=document.createElement('option');option.value=value;option.textContent=label;type.append(option);}
     const onlyFavorites=document.createElement('button');onlyFavorites.type='button';onlyFavorites.textContent='Nur Favoriten';onlyFavorites.setAttribute('aria-pressed','false');let favoritesOnly=false;
@@ -175,7 +191,8 @@
      feedback.textContent=items.length?items.length+' Fotos':'Keine Fotos für diese Auswahl.';
     }
     date.onchange=type.onchange=()=>{selected.clear();void prepareBatch();render();};onlyFavorites.onclick=()=>{selected.clear();void prepareBatch();favoritesOnly=!favoritesOnly;onlyFavorites.setAttribute('aria-pressed',String(favoritesOnly));render();};
-    dialog.append(title,close,note,filters,selection,downloadMany,selectionStatus,feedback,grid,weatherCredit,closeBottom);document.body.append(dialog);dialog.addEventListener('close',()=>dialog.remove(),{once:true});dialog.showModal();render();close.focus();
+    const filterSection=document.createElement('details');filterSection.className='gallery-filter-section';const filterSummary=document.createElement('summary');filterSummary.textContent='Filter und Auswahl';filterSection.append(filterSummary,filters,selection,downloadMany,selectionStatus);
+    dialog.append(title,close,note,filterSection,feedback,grid,weatherCredit,closeBottom);document.body.append(dialog);dialog.addEventListener('close',()=>dialog.remove(),{once:true});dialog.showModal();render();close.focus();
     let openedSelection=false;
     if(selectedId){const selected=galleryItems.get(selectedId);if(selected&&!['expired','failed','pending'].includes(selected.status)){openPhoto(selected,()=>visibleItems);openedSelection=true;}}
     void (async()=>{try{const r=await fetch('/api/chat',{credentials:'same-origin',cache:'no-store'});if(!r.ok)throw Error();const d=await r.json();if(!Array.isArray(d.images))throw Error();for(const image of d.images){if(valid(image.id)&&!['pending','failed'].includes(image.status)){observeTime(image);galleryItems.set(image.id,image);}}if(!dialog.isConnected)return;render();if(selectedId&&!openedSelection&&!document.getElementById('sofia-photo-'+selectedId)){const image=galleryItems.get(selectedId);if(image&&retained(image)&&!['failed','pending'].includes(image.status))openPhoto(image,()=>visibleItems);}}catch{if(dialog.isConnected)feedback.textContent='Galerie konnte nicht aktualisiert werden. Bereits geladene Fotos bleiben verfügbar.';}})();
@@ -200,6 +217,7 @@
     if (image.status === 'failed') {
       const notice=document.createElement('div'); notice.id='portrait-' + image.id;
       notice.className='msg sofia'; notice.dataset.portraitStatus='failed';notice.dataset.presentation=mode; notice.textContent=image.failureCode==='test_image_limit'?'Das Foto-Limit der Testversion ist für heute erreicht. Morgen kann ich wieder ein Foto schicken.':failureReply;
+      const retry=document.createElement('button');retry.type='button';retry.className='photo-retry';retry.textContent='Erneut versuchen';retry.disabled=image.failureCode==='test_image_limit';retry.onclick=()=>{if(window.SofiaPhotoAction?.(image.requestMessage||'nochmal'))retry.disabled=true;};notice.append(retry);
       window.SofiaTimeline?.decorate(notice,image.createdAt||new Date().toISOString());slot.append(notice); slot.hidden=false; window.SofiaChatViewport?.restore(viewport); return;
     }
     if(mode==='archived'||mode==='expired') {
@@ -221,7 +239,7 @@
     button.append(img);
     button.onclick = () => openPhoto(image);
     figure.append(button); slot.append(figure); slot.hidden=false;
-    window.SofiaTimeline?.decorate(figure,image.createdAt);
+    window.SofiaTimeline?.decorate(figure,image.sentAt||image.createdAt);window.SofiaUI?.refreshDays(messages);
     window.SofiaChatViewport?.restore(viewport);
   }
   function refreshExpiry(){for(const image of galleryItems.values()){const expired=!retained(image);show({...image,...(expired?{status:'expired'}:{})});if(expired){document.getElementById('sofia-photo-'+image.id)?.close();document.getElementById('sofia-gallery')?.querySelector('[data-gallery-photo-id="'+image.id+'"]')?.remove();}}}
