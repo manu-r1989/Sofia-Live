@@ -1348,6 +1348,7 @@ async function loadLongTermMemories() {
 }
 
 let flushCharacterSettings=null;
+let characterSettingsError=null;
 let characterSettingsFocus=false;
 window.SofiaCharacterSettings={open(){characterSettingsFocus=true;openMemoryView();}};
 const CHARACTER_SETTINGS_DRAFT='sofia_character_settings_pending_v1';
@@ -1367,6 +1368,7 @@ if(typeof window.addEventListener==='function')window.addEventListener('online',
 
 
 async function saveCharacterEdit(field,value,topic,revision=latestSofiaLife?.revision,retrySettings=false,settingsBase=null) {
+  if(field==='settings')characterSettingsError=null;
   const response=await fetch('/api/memory',{method:'PUT',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json'},body:JSON.stringify({scope:'character',field,value,topic,revision})});
   if(response.status===401){window.location.reload();return false;}
   const data=await response.json();
@@ -1374,7 +1376,7 @@ async function saveCharacterEdit(field,value,topic,revision=latestSofiaLife?.rev
     const fresh=await fetch('/api/memory',{credentials:'same-origin',cache:'no-store'});
     if(fresh.ok){const state=await fresh.json();if(Number.isInteger(state.character?.revision)){updateSofiaLocation(state.character);const merged=settingsBase?{...state.character.settings,...Object.fromEntries(Object.entries(value).filter(([key,item])=>JSON.stringify(item)!==JSON.stringify(settingsBase[key])))}:value;return saveCharacterEdit(field,merged,topic,state.character.revision,false);}}
   }
-  if(!response.ok){const error=data.error || 'Änderung konnte nicht gespeichert werden.';setMemoryStatus(error);const note=document.getElementById('moodStatus');if(note)note.textContent=error;return false;}
+  if(!response.ok){const error=data.error || 'Änderung konnte nicht gespeichert werden.';if(field==='settings')characterSettingsError=error;setMemoryStatus(error);const note=document.getElementById('moodStatus');if(note)note.textContent=error;return false;}
   updateSofiaLocation(data.character);const note=document.getElementById('moodStatus');if(note)note.textContent='';return true;
 }
 
@@ -1433,12 +1435,12 @@ function renderCharacterMemories(character) {
   async function flushSettings(force=false){
     if(saving)return saving.then(ok=>ok?flushSettings(force):false);
     const value=values(),snapshot=JSON.stringify(value);
-    if(!force&&snapshot===committed)return true;
+    if(!force&&snapshot===committed){clearCharacterSettingsDraft(snapshot);return true;}
     if(value.photos&&!value.photoKinds.length){settingsStatus('Bitte mindestens einen Fototyp wählen oder eigene Fotos deaktivieren.');return false;}
     const retained=storeCharacterSettingsDraft(value,JSON.parse(committed));
     save.disabled=true;settingsStatus('Wird gespeichert …');
     saving=(async()=>{
-      try{if(!await saveCharacterEdit('settings',value,undefined,latestSofiaLife?.revision??character.revision,true,JSON.parse(committed))){settingsStatus(retained?'Noch nicht gespeichert. Auswahl bleibt auf diesem Gerät erhalten.':'Noch nicht gespeichert. Bitte diese Ansicht offen lassen.');return false;}committed=snapshot;clearCharacterSettingsDraft(snapshot);settingsStatus('Gespeichert.');return true;}
+      try{if(!await saveCharacterEdit('settings',value,undefined,latestSofiaLife?.revision??character.revision,true,JSON.parse(committed))){settingsStatus('Noch nicht gespeichert. '+(characterSettingsError||'Bitte erneut versuchen.')+(retained?' Auswahl bleibt auf diesem Gerät erhalten.':' Bitte diese Ansicht offen lassen.'));return false;}committed=snapshot;clearCharacterSettingsDraft(snapshot);settingsStatus('Gespeichert.');return true;}
       catch{settingsStatus(retained?'Verbindung fehlgeschlagen. Auswahl bleibt auf diesem Gerät erhalten.':'Verbindung fehlgeschlagen. Bitte diese Ansicht offen lassen.');return false;}
       finally{save.disabled=false;saving=null;}
     })();
@@ -1448,7 +1450,7 @@ function renderCharacterMemories(character) {
   flushCharacterSettings=flushSettings;
   for(const input of [initiative,length,photos,...photoKinds])input.onchange=()=>{summarizePhotos();storeCharacterSettingsDraft(values(),JSON.parse(committed));return flushSettings();};
   save.onclick=()=>flushSettings(true);controls.append(save,feedback);
-  const automatic=document.createElement('small');automatic.textContent='Änderungen werden automatisch gespeichert.';automatic.style.opacity='.65';controls.append(automatic);groups.settings.append(controls);
+  groups.settings.append(controls);
 
   for(const pref of character.preferences||[])if(pref.value)history(row(groups.preferences,'Vorliebe: '+pref.topic,pref.value,'preference',pref.topic,'preference'),pref.history);
   for(const interest of character.interests||[])if(!interest.dismissed){const item=row(groups.interests,'Interesse: '+interest.topic,interest.description+(interest.progress?' · '+interest.progress:''),'interest',interest.topic,'interest');history(item,interest.history);}
