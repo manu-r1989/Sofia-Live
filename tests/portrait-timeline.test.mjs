@@ -24,7 +24,7 @@ function harness(fetchImpl,extras={}) {
  }
  const body=new Node('body'),messages=new Node('div'),mode=new Node('small');messages.id='messages';mode.id='mode';mode.textContent='bereit';body.append(messages,mode);
  const document={body,createTextNode:text=>{const n=new Node('text');n.textContent=text;return n;},createElement:tag=>new Node(tag),getElementById:target=>[body,...body.all()].find(n=>n.id===target)||null};
- const window={};vm.runInNewContext(source,{document,window,fetch:fetchImpl,Map,Promise,...extras});
+ const window={};vm.runInNewContext(source,{document,window,fetch:(url,options={})=>url==='/api/chat'&&!options.method?(extras.galleryFetch?extras.galleryFetch():Promise.resolve({ok:true,json:async()=>({images:extras.galleryImages||[]})})):fetchImpl(url,options),Map,Promise,...extras});
  const message=(text,who='sofia',anchorId)=>{const n=new Node('div');n.className='msg '+who;n.textContent=text;if(anchorId)n.dataset.portraitRequestId=anchorId;messages.append(n);if(anchorId)window.SofiaImages.anchor(anchorId,n);return n;};
  return {body,messages,document,api:window.SofiaImages,message};
 }
@@ -193,8 +193,8 @@ test('favorite persists through server request and is immediately filterable',as
  const calls=[];const h=harness(async(u,o)=>{calls.push(JSON.parse(o.body));return {ok:true};});h.api.restore([{...image(id),createdAt:new Date().toISOString(),kind:'selfie'}]);h.api.openGallery();const gallery=h.document.getElementById('sofia-gallery'),button=gallery.all().find(n=>n.tag==='button'&&n.textContent==='☆ Favorit');await button.onclick();assert.equal(calls[0].operation,'favorite');assert.equal(calls[0].imageId,id);assert.equal(calls[0].favorite,true);gallery.all().find(n=>n.textContent==='Nur Favoriten').onclick();assert.equal(gallery.all().filter(n=>n.dataset.galleryPhotoId).length,1);
 });
 
-test('gallery groups retained pictures by Hamburg capture day and situation',()=>{
- const h=harness(async()=>preparedPhoto());const at=new Date().toISOString();h.api.restore([{...image(id),createdAt:at,capturedAt:at,location:'auf dem Sofa'}]);h.api.openGallery();const gallery=h.document.getElementById('sofia-gallery');assert.ok(gallery.all().some(n=>n.tag==='h3'&&n.textContent.includes('auf dem Sofa')));assert.ok(gallery.all().some(n=>n.textContent==='Mehrere auswählen'));assert.equal(gallery.all().find(n=>n.textContent==='Auswahl herunterladen / teilen').disabled,true);
+test('gallery groups retained pictures by Hamburg delivery day, without situation groups',()=>{
+ const h=harness(async()=>preparedPhoto());const at=new Date().toISOString();h.api.restore([{...image(id),createdAt:at,capturedAt:at,location:'auf dem Sofa'}]);h.api.openGallery();const gallery=h.document.getElementById('sofia-gallery');assert.ok(gallery.all().some(n=>n.tag==='h3'&&/^\d{4}-\d{2}-\d{2}$/.test(n.textContent)));assert.ok(gallery.all().some(n=>n.textContent==='Mehrere auswählen'));assert.equal(gallery.all().find(n=>n.textContent==='Auswahl herunterladen / teilen').disabled,true);
 });
 test('bulk archive is a readable standard ZIP containing original bytes and safe JPEG names',async()=>{
  const {execFileSync}=await import('node:child_process');const h=harness(async()=>preparedPhoto(),{Blob,TextEncoder});const bytes=Uint8Array.from([255,216,255,1,2,3]);const blob=h.api.photoArchive([{name:'sofia-test.jpg',bytes},{name:'sofia-second.jpg',bytes}]);const zip=Buffer.from(await blob.arrayBuffer());const output=execFileSync('python3',['-c','import sys,zipfile,io,json; z=zipfile.ZipFile(io.BytesIO(sys.stdin.buffer.read())); print(json.dumps({"names":z.namelist(),"first":list(z.read("sofia-test.jpg")),"valid":z.testzip() is None}))'],{input:zip,encoding:'utf8'});const result=JSON.parse(output);assert.deepEqual(result.names,['sofia-test.jpg','sofia-second.jpg']);assert.deepEqual(result.first,[...bytes]);assert.equal(result.valid,true);
@@ -207,4 +207,15 @@ test('bulk selection prepares files before native sharing and filtering clears s
  const checks=gallery.all().filter(n=>n.tag==='input'&&n.type==='checkbox');checks[0].checked=true;checks[0].onchange();await new Promise(r=>setImmediate(r));checks[1].checked=true;checks[1].onchange();await new Promise(r=>setImmediate(r));
  const download=gallery.all().find(n=>n.tag==='button'&&n.textContent==='Auswahl herunterladen / teilen');assert.equal(download.disabled,false);await download.onclick();assert.equal(shares[0].length,2);assert.ok(shares[0].every(f=>f.name.endsWith('.jpg')));assert.ok(requests.every(url=>url.startsWith('/api/chat?image=')));
  const filter=gallery.all().find(n=>n['aria-label']==='Galerie nach Bildart filtern');filter.value='environment';filter.onchange();assert.equal(download.disabled,true);
+});
+
+test('server availability time protects fresh chat photos from a wrong device clock',()=>{
+ class SkewedDate extends Date {static now(){return Date.now()+40*86400000;}}
+ const h=harness(undefined,{Date:SkewedDate});const now=new Date().toISOString();h.api.restore([{...image(id),createdAt:now,sentAt:now,availabilityAt:now,archived:false,status:'done'}]);assert.equal(h.document.getElementById('portrait-'+id).tag,'figure');h.api.openGallery();assert.equal(h.document.getElementById('sofia-gallery').all().filter(n=>n.dataset.galleryPhotoId).length,1);
+});
+test('gallery fetches fresh server photos even when the chat did not load them',async()=>{
+ const now=new Date().toISOString();const h=harness(async()=>preparedPhoto(),{galleryImages:[{...image(id),createdAt:now,sentAt:now,availabilityAt:now,status:'done'}]});h.api.openGallery(id);await new Promise(r=>setImmediate(r));assert.equal(h.document.getElementById('sofia-gallery').all().filter(n=>n.dataset.galleryPhotoId).length,1);assert.ok(h.document.getElementById('sofia-photo-'+id));
+});
+test('gallery uses delivery date for a newly sent variant of an older photograph',()=>{
+ const now=new Date().toISOString();const h=harness();h.api.restore([{...image(id),createdAt:now,sentAt:now,capturedAt:'2026-01-01T23:00:00Z',location:'Bett'}]);h.api.openGallery();const gallery=h.document.getElementById('sofia-gallery');assert.equal(gallery.all().filter(n=>n.tag==='h3').length,1);assert.doesNotMatch(gallery.all().find(n=>n.tag==='h3').textContent,/2026-01-02|Bett/);assert.ok(gallery.all().some(n=>n.tag==='time'&&/\d{2}:\d{2}/.test(n.textContent)));
 });

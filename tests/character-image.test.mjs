@@ -8,13 +8,14 @@ import crypto from 'node:crypto';
 const source = await readFile(new URL('../lib/character-image.js',import.meta.url),'utf8');
 const api = await import('data:text/javascript;base64,' + Buffer.from(source).toString('base64'));
 const prefix='sofia:main:portrait:';
-let db, plan, calls, imageCalls, failImage, failRedis, plannerInputs, textInputs;
+let db, plan, calls, imageCalls, failImage, failRedis, plannerInputs, textInputs, reviewQueue, weatherData, weatherCalls;
 const savedFetch=globalThis.fetch;
 const envKeys=['KV_REST_API_URL','KV_REST_API_TOKEN','OPENAI_API_KEY','SOFIA_PASSWORD'];
 const env=Object.fromEntries(envKeys.map(k=>[k,process.env[k]]));
-function reset(){db=new Map();plan={action:'new',outfit:'Blue sweater',scene:'Selfie outdoors',caption:'Mein Selfie'};calls=[];imageCalls=[];plannerInputs=[];textInputs=[];failImage=false;failRedis=false;process.env.KV_REST_API_URL='https://redis.test';process.env.KV_REST_API_TOKEN='test';process.env.OPENAI_API_KEY='test';}
+function reset(){reviewQueue=[];weatherData=null;weatherCalls=0;db=new Map();plan={action:'new',outfit:'Blue sweater',scene:'Selfie outdoors',caption:'Mein Selfie'};calls=[];imageCalls=[];plannerInputs=[];textInputs=[];failImage=false;failRedis=false;process.env.KV_REST_API_URL='https://redis.test';process.env.KV_REST_API_TOKEN='test';process.env.OPENAI_API_KEY='test';}
 const response = (data,ok=true)=>({ok,json:async()=>data});
 globalThis.fetch=async(url,options)=>{
+ if(String(url).startsWith('https://api.open-meteo.com/')){weatherCalls++;return response(weatherData,!!weatherData);}
  const body=JSON.parse(options.body);calls.push(String(url));
  if(url==='https://redis.test/pipeline') { for(const [op,key,value] of body) { assert.equal(op,'SET'); db.set(key,value); } return response(body.map(()=>({result:'OK'}))); }
  if(String(url).endsWith('/responses')) { textInputs.push(body.input); return response({output_text:JSON.stringify({action:'none'}),output:[{content:[{type:'output_text',text:JSON.stringify({reply:'Hallo Manu!',mood:'entspannt',memory_action:{action:'none'}})}]}]}); }
@@ -30,6 +31,7 @@ globalThis.fetch=async(url,options)=>{
   if(op==='EVAL'){const lock=body[3],id=body[4]; if(lock === 'sofia:main:history') { const history=JSON.parse(db.get(lock)||'[]'); history.push({role:'user',content:body[4],createdAt:body[7]},{role:'assistant',content:body[5],...(body[6]?{imageRequestId:body[6]}:{}),createdAt:body[7]});db.set(lock,JSON.stringify(history.slice(-40))); } else if(db.get(lock)===id)db.delete(lock);return response({result:1});}
   throw Error('Unexpected Redis '+op);
  }
+ if(String(url).endsWith('/chat/completions') && Array.isArray(body.messages[1].content))return response({choices:[{message:{content:JSON.stringify(reviewQueue.shift()||{ok:true,confidence:0.95,mismatches:[]})}}]});
  if(String(url).endsWith('/chat/completions')) { plannerInputs.push(JSON.parse(body.messages[1].content)); return response({choices:[{message:{content:JSON.stringify(plan)}}]}); }
  if(String(url).endsWith('/images/edits')){imageCalls.push(body);return response({data:[{b64_json:'/9j/AA=='}]},!failImage);}
  throw Error('Unexpected URL');
@@ -165,7 +167,7 @@ test('image delivery is private JPEG with download attachment and validated IDs'
 });
 test('UI integration loads shared renderer before app and does not alter avatar assets',async()=>{
  const root=new URL('../',import.meta.url);const index=await readFile(new URL('index.html',root),'utf8');
- assert.ok(index.indexOf('sofia-images.js?v=4437v1')<index.indexOf('app.js?v=4437v1'));
+ assert.ok(index.indexOf('sofia-images.js?v=4438v1')<index.indexOf('app.js?v=4438v1'));
  const chat=await readFile(new URL('api/chat.js',root),'utf8');
  assert.ok(chat.indexOf('!safeEqual(')<chat.indexOf('await servePortrait'));
  const ui=await readFile(new URL('sofia-images.js',root),'utf8');assert.match(ui,/dialog.showModal/);assert.match(ui,/link.download=/);assert.doesNotMatch(ui,/spinner|generating-status/);
@@ -382,4 +384,26 @@ test('natural snapshot edits allow only requested pose expression framing or dis
  const poses=[];let previous=null;for(let i=0;i<6;i++){const pose=api.photoPose(previous,false,'entspannt',poses.map(photoPose=>({photoPose})));poses.push(pose);previous={photoPose:pose};}
  assert.equal(new Set(poses.map(p=>p.index)).size,6);assert.ok(poses.every(p=>p.head&&p.gaze&&p.camera&&p.expression));
  assert.ok(poses.every(p=>/never standing/.test(api.photoBodyPose({location:'im Bett'},p))));
+});
+
+test('a clear photo context mismatch retries once before storing only the checked result',async()=>{
+ reset();reviewQueue=[{ok:false,confidence:.97,mismatches:['location','daylight']},{ok:true,confidence:.94,mismatches:[]}];const job=await api.preparePortrait('Selfie');const image=await api.generatePortrait(job.id);assert.equal(imageCalls.length,2);assert.equal(image.review.status,'passed');assert.match(imageCalls[1].prompt,/CORRECTION.*location, daylight/);assert.equal(JSON.parse(db.get(prefix+'gallery')).length,1);assert.equal(image.sentAt,image.createdAt);assert.equal(image.availabilityAt,image.createdAt);
+});
+test('a second clear mismatch fails honestly without publishing or continuing to bill',async()=>{
+ reset();reviewQueue=[{ok:false,confidence:.95,mismatches:['weather']},{ok:false,confidence:.92,mismatches:['weather']}];const job=await api.preparePortrait('Selfie');await assert.rejects(api.generatePortrait(job.id),/portrait_context_mismatch/);assert.equal(imageCalls.length,2);assert.equal(db.has(prefix+'image:'+job.id),false);assert.equal(JSON.parse(db.get(prefix+'request:'+job.id)).status,'failed');assert.equal(JSON.parse(db.get(prefix+'notices'))[0].status,'failed');
+});
+test('invalid review output never silently publishes an unchecked photograph',async()=>{
+ reset();reviewQueue=[{ok:'yes',confidence:.9,mismatches:[]}];const job=await api.preparePortrait('Selfie');await assert.rejects(api.generatePortrait(job.id),/portrait_review_unavailable/);assert.equal(imageCalls.length,1);assert.equal(db.has(prefix+'image:'+job.id),false);
+});
+test('current selfies ignore a stale variant decision and invented planner home scene',async()=>{
+ reset();const now=new Date(),life=api.defaultSofiaLife(now);life.location='an der Universität in Hamburg';life.activity='lernen';db.set(prefix+'life',JSON.stringify(life));plan.action='variant';plan.scene='Home bedroom at night';const job=await api.preparePortrait('Schick mir ein aktuelles Selfie von dir.',null,now);const request=JSON.parse(db.get(prefix+'request:'+job.id));assert.equal(request.variant,false);assert.equal(request.sourceId,null);assert.doesNotMatch(request.scene,/Home bedroom/);assert.match(api.photoSceneContext(request),/Universität/);assert.match(api.photoSceneContext(request),/hamburgTime/);
+});
+test('situation mismatch feedback triggers a fresh selfie without explicit repeat request',async()=>{
+ reset();const now=new Date(),life=api.defaultSofiaLife(now);life.location='an der Universität in Hamburg';life.activity='lernen';life.lastPhoto={id:'11111111-1111-4111-8111-111111111111'};db.set(prefix+'life',JSON.stringify(life));plan.action='none';const job=await api.preparePortrait('Das Foto passt nicht zur Situation. Du bist doch an der Uni.',null,now);assert.equal(job.correction,true);const request=JSON.parse(db.get(prefix+'request:'+job.id));assert.equal(request.correctionOf,life.lastPhoto.id);assert.equal(request.variant,false);assert.equal(request.sourceId,null);assert.equal(request.life.location,life.location);for(const text of ['Bitte kein neues Foto machen, es war falsch.','Das Foto gefällt mir.','Erinnere mich daran, dass das Foto falsch war.'])assert.equal(api.photoCorrectionRequest(text),false,text);
+});
+test('Hamburg weather validates numeric fresh conditions, caches them and shares rain/daylight',async()=>{
+ reset();const now=new Date();weatherData={current:{time:Math.floor(+now/1000),is_day:1,weather_code:61,precipitation:.8,cloud_cover:98,temperature_2m:12}};const weather=await api.hamburgWeather(now);assert.equal(weather.condition,'rain');assert.equal(weather.isDay,true);assert.equal((await api.hamburgWeather(new Date(+now+60000))).condition,'rain');assert.equal(weatherCalls,1);assert.match(api.weatherContext(weather,now),/kein strahlender Sonnenschein/);assert.equal(api.normalizeHamburgWeather({current:{...weatherData.current,time:Math.floor(+now/1000)-1801}},now),null);assert.equal(api.normalizeHamburgWeather({current:{...weatherData.current,precipitation:'rain'}},now),null);assert.match(api.weatherContext(weather,new Date(+now+1800001)),/nicht verlässlich verfügbar/);
+});
+test('uncertain visual location does not cause needless retries or assert precise identification',()=>{
+ assert.equal(api.photoReviewResult({ok:false,confidence:.4,mismatches:['location']}).status,'uncertain');assert.throws(()=>api.photoReviewResult({ok:false,confidence:2,mismatches:['location']}),/review_unavailable/);
 });

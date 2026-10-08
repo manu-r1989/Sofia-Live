@@ -163,17 +163,17 @@ test('service worker provides the latest cached document when offline', async ()
 });
 
 test('service worker retains offline versioned assets and precaches the actual script URLs', async () => {
-  const harness = workerHarness({ offline: true }), request = { method: 'GET', url: 'https://sofia.test/app.js?v=4437v1', mode: 'cors' };
+  const harness = workerHarness({ offline: true }), request = { method: 'GET', url: 'https://sofia.test/app.js?v=4438v1', mode: 'cors' };
   harness.stored.set(request.url, new Response('cached script'));
   assert.equal(await (await harness.dispatch(request)).text(), 'cached script');
   assert.equal(harness.fetchCalls.length, 0);
   let installed;
   harness.listeners.install({ waitUntil(value) { installed = value; } }); await installed;
   const paths = harness.cacheCalls.find(call => call.op === 'addAll').paths;
-  assert.ok(paths.includes('./action-feedback.js?v=4437v1'));
-  assert.ok(paths.includes('./sofia-projects.js?v=4437v1')); assert.ok(paths.includes('./app.js?v=4437v1')); assert.ok(paths.includes('./live.js?v=4437v1'));
+  assert.ok(paths.includes('./action-feedback.js?v=4438v1'));
+  assert.ok(paths.includes('./sofia-projects.js?v=4438v1')); assert.ok(paths.includes('./app.js?v=4438v1')); assert.ok(paths.includes('./live.js?v=4438v1'));
   assert.ok(paths.includes('./avatar-gesture.js?v=4197m1'));
-  assert.ok(paths.includes('./avatar-expression.js?v=4437v1')); assert.ok(paths.includes('./avatar/sofia-friendly-mouth.png?v=4194e1')); assert.ok(paths.includes('./avatar/sofia-thoughtful-mouth.png?v=4194e2'));
+  assert.ok(paths.includes('./avatar-expression.js?v=4438v1')); assert.ok(paths.includes('./avatar/sofia-friendly-mouth.png?v=4194e1')); assert.ok(paths.includes('./avatar/sofia-thoughtful-mouth.png?v=4194e2'));
   assert.ok(paths.includes('./sofia-avatar.js?v=4192c1')); assert.ok(paths.includes('./avatar-presence.js?v=4193p3'));
 });
 
