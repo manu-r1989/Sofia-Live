@@ -17,3 +17,11 @@ test('open topics prepare a draft only after explicit choice and never replace a
 test('opening Today does not mark messages read and uses the contact ledger for the count',async()=>{const h=harness();let opened=null;h.window.SofiaSocial.unreadMessages=()=>[{id:'contact',text:'Hallo',createdAt:new Date().toISOString()}];h.window.SofiaSocial.unreadCount=()=>1;h.api.open();await new Promise(r=>setImmediate(r));assert.match(h.body.textContent,/Neue Nachrichten \(1\)/);assert.equal(opened,null);assert.equal(h.sent.length,0);});
 
 test('a pending duplicate never hides a completed photo from Today',()=>{const h=harness(),now=new Date();const view=h.api.model({images:[{id:'a',sentAt:now.toISOString(),status:'pending'},{id:'a',sentAt:now.toISOString(),status:'done'}]},now);assert.equal(view.photos.length,1);assert.equal(view.photos[0].status,'done');});
+
+test('Today refresh disables repeat gesture and exposes read-only loading state',async()=>{
+ let resolve;const h=harness(()=>new Promise(r=>resolve=r));h.api.open();const dialog=h.document.getElementById('sofia-today'),refresh=dialog.all().find(n=>n.tag==='button'&&n.textContent==='Aktualisieren');assert.equal(refresh.disabled,true);assert.ok(dialog.all().some(n=>n.attrs['aria-busy']==='true'));assert.equal(h.sent.length,0);assert.equal(h.calls.length,2);
+});
+test('task detail displays reminder and priority without creating any action',async()=>{
+ const at=new Date().toISOString();const h=harness(async url=>({ok:true,json:async()=>url==='/api/chat'?{images:[],life:null}:{tasks:[{id:'task1',title:'Testaufgabe',status:'open',dueAt:at,remindAt:at,priority:'high',notes:'Notiz'}]}}));h.api.open();await new Promise(r=>setImmediate(r));const task=h.body.all().find(x=>x.tag==='button'&&x.textContent.includes('Testaufgabe'));task.onclick();assert.match(h.body.textContent,/Erinnerung:/);assert.match(h.body.textContent,/Priorität: Hoch/);assert.equal(h.sent.length,0);assert.ok(h.body.all().some(n=>n.dataset.taskId==='task1'));
+});
+

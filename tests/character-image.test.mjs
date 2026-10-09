@@ -222,7 +222,7 @@ test('image delivery is private JPEG with download attachment and validated IDs'
 });
 test('UI integration loads shared renderer before app and does not alter avatar assets',async()=>{
  const root=new URL('../',import.meta.url);const index=await readFile(new URL('index.html',root),'utf8');
- assert.ok(index.indexOf('sofia-images.js?v=4657v3')<index.indexOf('app.js?v=4657v3'));
+ assert.ok(index.indexOf('sofia-images.js?v=4687v1')<index.indexOf('app.js?v=4687v1'));
  const chat=await readFile(new URL('api/chat.js',root),'utf8');
  assert.ok(chat.indexOf('!safeEqual(')<chat.indexOf('await servePortrait'));
  const ui=await readFile(new URL('sofia-images.js',root),'utf8');assert.match(ui,/dialog.showModal/);assert.match(ui,/link.download=/);assert.doesNotMatch(ui,/spinner|generating-status/);
@@ -441,6 +441,51 @@ test('natural snapshot edits allow only requested pose expression framing or dis
  assert.ok(poses.every(p=>/never standing/.test(api.photoBodyPose({location:'im Bett'},p))));
 });
 
+test('conflicting photo geometry asks a specific question without classifier, job or image billing',async()=>{
+ reset();const now=new Date(),sourceId=previousPhotograph(now);
+ const message='Dieses Foto bitte von hinten aufnehmen, das Gesicht frontal sichtbar lassen.';
+ await assert.rejects(api.preparePortrait(message,sourceId,now),error=>error.code==='portrait_clarification'&&/Rückansicht/.test(api.portraitPreparationReply(error)));
+ assert.equal(plannerInputs.length,0);assert.equal(imageCalls.length,0);assert.equal(db.has(prefix+'jobs'),false);
+ assert.equal(api.photoVariantClarification('Bitte nur beschreiben, wie das Foto von hinten mit Gesicht frontal aussehen würde.'),null);
+ assert.match(api.photoVariantClarification('Dieses Foto: nur den Kamerastandpunkt ändern, lass Sofia bitte aufstehen.'),/Körperhaltung/);
+ assert.equal(api.photoVariantClarification('Dieses Foto von hinten; Kopf zur Kamera drehen.'),null);
+});
+test('head gesture and camera requests are independent from full body pose',()=>{
+ assert.deepEqual(api.variantDimensions('Dieses Foto anpassen: Kopf gerade halten.'),['head-pose']);
+ assert.deepEqual(api.variantDimensions('Dieses Foto anpassen: Kopfhaltung anders.'),['head-pose']);
+ assert.deepEqual(api.variantDimensions('Dieses Foto: Hand heben.'),['gesture']);
+ assert.deepEqual(api.variantDimensions('Kamerastandpunkt: 90° nach links. Weichere Beleuchtung. Körperhaltung: entspannt stehen.'),['lighting','camera-angle','pose']);
+});
+test('deleted or unpublished explicit sources never fall back to the last visible photo',async()=>{
+ for(const flag of ['deleted','published']){reset();const now=new Date(),sourceId=previousPhotograph(now),source=JSON.parse(db.get(prefix+'image:'+sourceId));source[flag]=flag==='deleted';db.set(prefix+'image:'+sourceId,JSON.stringify(source));
+ await assert.rejects(api.preparePortrait('Dieses Foto aus anderer Perspektive zeigen.',sourceId,now),/ausgewählte Ausgangsbild/);assert.equal(plannerInputs.length,0);assert.equal(imageCalls.length,0);}
+});
+test('combined photo changes create one immutable source-bound job with the original capture time',async()=>{
+ reset();const now=new Date(),sourceId=previousPhotograph(now),source=JSON.parse(db.get(prefix+'image:'+sourceId));source.capturedAt=new Date(+now-3600000).toISOString();db.set(prefix+'image:'+sourceId,JSON.stringify(source));plan.action='new';
+ const job=await api.preparePortrait('Dieses Foto bitte entsprechend anpassen: Kamerastandpunkt: 90° nach links um das Motiv. Weichere Beleuchtung. Kopf gerade halten. Alle nicht genannten Merkmale beibehalten.',sourceId,now);
+ const request=JSON.parse(db.get(prefix+'request:'+job.id));assert.equal(request.sourceId,sourceId);assert.equal(request.sourceSnapshot.id,sourceId);assert.equal(request.capturedAt,source.capturedAt);assert.equal(request.bodyPose,'sitting');assert.equal(request.outfit,source.outfit);assert.deepEqual(request.dimensions,['lighting','camera-angle','head-pose']);assert.equal(JSON.parse(db.get(prefix+'jobs')).length,1);
+ source.deleted=true;db.set(prefix+'image:'+sourceId,JSON.stringify(source));await assert.rejects(api.generatePortrait(job.id),/Ausgangsbild/);assert.equal(imageCalls.length,0);
+});
+test('past photo discussion cannot overwrite current role location or outfit through learning',async()=>{
+ reset();const now=new Date('2026-10-07T19:00Z'),life=await api.getSofiaLife(now);plan={life:{location:'an der Universität',outfit:'rotes Shirt'}};
+ const next=await api.learnSofiaLife('Auf diesem Foto bist du an der Universität.','Ich bin an der Universität und trage ein rotes Shirt.',now);
+ assert.equal(next.location,life.location);assert.equal(next.outfit,life.outfit);assert.equal(api.selectedPhotoConversation('Wo bist du gerade?'),false);assert.match(api.roleMomentContext(next),/eine aktuelle Station/);
+});
+test('explicit distance suppresses voluntary questions and photo initiative but not normal answers',async()=>{
+ reset();const now=new Date(),life=api.defaultSofiaLife(now);
+ assert.equal(api.conversationMove(life,'Lass mir bitte etwas Zeit.',now).kind,'respond');assert.equal(api.conversationContinuity(life,'Möchte gerade nicht reden.',now).questionAllowed,false);
+ assert.equal(await api.prepareProactivePortrait('Lass mir bitte etwas Zeit.',life,'Okay.',now),null);assert.equal(plannerInputs.length,0);
+});
+test('a clarification reply resolves the frozen source once and keeps unrequested posture',async()=>{
+ reset();const now=new Date(),sourceId=previousPhotograph(now);
+ await assert.rejects(api.preparePortrait('Dieses Foto von hinten, das Gesicht frontal sichtbar lassen.',sourceId,now),/Rückansicht/);
+ const job=await api.preparePortrait('Rückansicht',null,new Date(+now+30000));assert.equal(job.sourceId,sourceId);const request=JSON.parse(db.get(prefix+'request:'+job.id));assert.deepEqual(request.dimensions,['camera-angle']);assert.match(api.photoCameraPositionPrompt(request),/actual rear view/);assert.equal(request.bodyPose,'sitting');assert.match(request.scene,/von hinten/);assert.doesNotMatch(request.scene,/frontal sichtbar/);assert.equal(db.has(prefix+'photo-clarification'),false);
+});
+test('head-only changes do not accidentally select body pose from preservation wording',()=>{
+ assert.deepEqual(api.variantDimensions('Kopf gerade halten. Körperhaltung und Mimik beibehalten.'),['head-pose']);
+ assert.deepEqual(api.variantDimensions('Kamerastandpunkt: 90° nach links. Kopf und Körperhaltung beibehalten.'),['camera-angle']);
+});
+
 test('a clear photo context mismatch retries once before storing only the checked result',async()=>{
  reset();reviewQueue=[{ok:false,confidence:.97,mismatches:['location','daylight']},{ok:true,confidence:.94,mismatches:[]}];const job=await api.preparePortrait('Selfie');const image=await api.generatePortrait(job.id);assert.equal(imageCalls.length,2);assert.equal(image.review.status,'passed');assert.match(imageCalls[1].prompt,/CORRECTION.*location, daylight/);assert.equal(JSON.parse(db.get(prefix+'gallery')).length,1);assert.equal(image.sentAt,image.createdAt);assert.equal(image.availabilityAt,image.createdAt);
 });
@@ -577,3 +622,4 @@ test('ordinary conversation and invalid photo IDs add no Redis query, selected s
  reset();await api.selectedPhotoContext('11111111-1111-4111-8111-111111111111','Wie geht es dir?');assert.equal(calls.length,0);await api.selectedPhotoContext('invalid','Auf dem Foto?');assert.equal(calls.length,0);
  db.set(prefix+'state',JSON.stringify({lastImageId:'22222222-2222-4222-8222-222222222222'}));const result=await api.selectedPhotoContext('11111111-1111-4111-8111-111111111111','Auf dem Foto?');assert.equal(result,'');assert.equal(calls.length,1);
 });
+

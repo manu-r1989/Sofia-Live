@@ -222,3 +222,11 @@ test('proactive project contact is eligible only for active projects without una
  assert.notEqual(api.contactKind({...life,sharedProjects:{items:[{status:'paused'}]}},box,[],{photos:false},()=>0),'project');
  assert.notEqual(api.contactKind(life,{...box,sequence:1},[],{photos:false},()=>0),'project');
 });
+
+test('sensitive turns and explicit distance suppress scheduled initiative before billing',async()=>{
+ for(const message of ['Ich habe Angst und bin traurig.','Lass mir bitte etwas Zeit.']){reset();const life=await photo.getSofiaLife(base);life.dialogue={at:new Date(+base-2*3600000).toISOString(),lastUser:message};db.set(prefix+'life',JSON.stringify(life));assert.equal((await api.socialTick(base)).reason,'distance');assert.equal(modelCalls,0);}
+});
+test('a late unread contact arriving during generation prevents another unsolicited delivery',async()=>{
+ reset();const original=globalThis.fetch;globalThis.fetch=async(u,o)=>{if(String(u).includes('openai.com'))db.set(prefix+'contact-inbox',JSON.stringify({sequence:2,read:0,items:[]}));return original(u,o);};try{const result=await api.socialTick(base);assert.equal(result.reason,'unread');assert.equal(db.has('sofia:main:history'),false);}finally{globalThis.fetch=original;}
+});
+
