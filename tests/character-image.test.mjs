@@ -222,7 +222,7 @@ test('image delivery is private JPEG with download attachment and validated IDs'
 });
 test('UI integration loads shared renderer before app and does not alter avatar assets',async()=>{
  const root=new URL('../',import.meta.url);const index=await readFile(new URL('index.html',root),'utf8');
- assert.ok(index.indexOf('sofia-images.js?v=46111v1')<index.indexOf('app.js?v=46111v1'));
+ assert.ok(index.indexOf('sofia-images.js?v=4657v3')<index.indexOf('app.js?v=4657v3'));
  const chat=await readFile(new URL('api/chat.js',root),'utf8');
  assert.ok(chat.indexOf('!safeEqual(')<chat.indexOf('await servePortrait'));
  const ui=await readFile(new URL('sofia-images.js',root),'utf8');assert.match(ui,/dialog.showModal/);assert.match(ui,/link.download=/);assert.doesNotMatch(ui,/spinner|generating-status/);
@@ -493,8 +493,8 @@ test('camera variants give visible source posture priority over stale sitting me
  reset();const now=new Date(),old=previousPhotograph(now);plan.action='none';
  const job=await api.preparePortrait('Zeig dieses Foto bitte aus einer anderen Perspektive. Kamerastandpunkt: 90° nach links um das Motiv.',old,now);
  const request=JSON.parse(db.get(prefix+'request:'+job.id));assert.equal(request.bodyPose,'sitting');const context=api.photoSceneContext(request);assert.match(context,/VISIBLE posture/);assert.doesNotMatch(context,/"posture":"sitting"/);
- reviewQueue=[{ok:false,confidence:.97,mismatches:['posture','camera-angle']},{ok:true,confidence:.95,mismatches:[]}];await api.generatePortrait(job.id);assert.equal(imageCalls.length,2);assert.match(imageCalls[1].prompt,/CORRECTION.*posture, camera-angle/);assert.doesNotMatch(imageCalls[0].prompt,/"activity":"sit/);
- const content=reviewInputs[0][1].content,pictures=content.filter(x=>x.type==='image_url');assert.equal(pictures.length,2);assert.equal(pictures[0].image_url.url,'data:image/jpeg;base64,/9j/AA==');assert.match(reviewInputs[0][0].content,/SOURCE and RESULT directly/);assert.match(reviewInputs[0][0].content,/standing-to-sitting/);assert.match(reviewInputs[0][0].content,/uncertain camera geometry must not cause a retry/);
+ reviewQueue=[{ok:false,confidence:.97,mismatches:['posture','camera-angle']},{ok:true,confidence:.95,mismatches:[]}];await api.generatePortrait(job.id);assert.equal(imageCalls.length,2);assert.match(imageCalls[1].prompt,/CORRECTION.*posture, camera-angle/);assert.match(imageCalls[0].prompt,/90-degree request.*visibly perpendicular/);assert.doesNotMatch(imageCalls[0].prompt,/"activity":"sit/);
+ const content=reviewInputs[0][1].content,pictures=content.filter(x=>x.type==='image_url');assert.equal(pictures.length,2);assert.equal(pictures[0].image_url.url,'data:image/jpeg;base64,/9j/AA==');assert.match(reviewInputs[0][0].content,/SOURCE and RESULT directly/);assert.match(reviewInputs[0][0].content,/standing-to-sitting/);assert.match(reviewInputs[0][0].content,/requested 90-degree orbit remains a frontal selfie/);assert.match(reviewInputs[0][0].content,/uncertain camera geometry must not cause a retry/);
 });
 test('repeated clear perspective or posture failure stays unpublished',async()=>{
  reset();const now=new Date(),old=previousPhotograph(now);plan.action='none';const job=await api.preparePortrait('Zeig dieses Foto bitte aus einer anderen Perspektive. Kamerastandpunkt: 90° nach links um das Motiv.',old,now);reviewQueue=[{ok:false,confidence:.95,mismatches:['camera-angle']},{ok:false,confidence:.97,mismatches:['posture']}];await assert.rejects(api.generatePortrait(job.id),/portrait_context_mismatch/);assert.equal(imageCalls.length,2);assert.equal(db.has(prefix+'image:'+job.id),false);
@@ -560,4 +560,20 @@ test('variants keep a stable series root with original scene and outfit',async()
  const job=await api.preparePortrait('Dieses Foto bitte nur bei anderer Beleuchtung zeigen. Alles andere beibehalten.',original.id,new Date('2026-10-08T12:02:00Z'));
  const request=JSON.parse(db.get(prefix+'request:'+job.id)),saved=JSON.parse(db.get(prefix+'image:'+original.id));
  assert.equal(request.seriesId,original.id);assert.equal(request.sourceId,original.id);assert.equal(request.outfit,saved.outfit);assert.equal(request.life.location,saved.life.location);assert.equal(request.capturedAt,saved.capturedAt||saved.requestedAt);
+});
+
+test('conversation about selected photographs distinguishes capture context from current life',()=>{
+ const now=new Date('2026-10-08T20:00Z'),image={id:'11111111-1111-4111-8111-111111111111',sentAt:'2026-10-08T10:00Z',location:'an der Uni',outfit:'blauer Pullover',scene:'Universität'};
+ const context=api.photoConversationContext(image,'Auf dem Foto bist du an der Uni?',now);assert.match(context,/an der Uni/);assert.match(context,/vergangene Aufnahme/);assert.match(context,/Aktueller Ort.*ausschließlich/);assert.match(context,/einmalige Fotoänderung.*keine dauerhafte Vorliebe/);
+ assert.equal(api.photoConversationContext({...image,deleted:true},'Auf dem Bild?',now),'');assert.equal(api.photoConversationContext({...image,sentAt:'2026-09-01T10:00Z'},'Auf dem Bild?',now),'');
+});
+test('ambiguous deictic questions do not revive an unrelated old photo',()=>{
+ const now=new Date('2026-10-08T20:00Z'),image={sentAt:now.toISOString(),location:'an der Uni'};
+ assert.equal(api.photoConversationContext(image,'Regnet es dort?',now),'');assert.equal(api.photoConversationContext(image,'Dein Outfit gefällt mir',now),'');
+ const life={dialogue:{at:'2026-10-08T19:58Z',lastUser:'Schick mir ein Selfie',lastAssistant:'Hier ist das Foto'}};assert.match(api.photoConversationContext(image,'Wie ist es dort?',now,life),/an der Uni/);
+ assert.equal(api.photoConversationContext(image,'Wie ist es dort?',new Date('2026-10-08T20:20Z'),life),'');
+});
+test('ordinary conversation and invalid photo IDs add no Redis query, selected source never falls back',async()=>{
+ reset();await api.selectedPhotoContext('11111111-1111-4111-8111-111111111111','Wie geht es dir?');assert.equal(calls.length,0);await api.selectedPhotoContext('invalid','Auf dem Foto?');assert.equal(calls.length,0);
+ db.set(prefix+'state',JSON.stringify({lastImageId:'22222222-2222-4222-8222-222222222222'}));const result=await api.selectedPhotoContext('11111111-1111-4111-8111-111111111111','Auf dem Foto?');assert.equal(result,'');assert.equal(calls.length,1);
 });

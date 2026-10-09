@@ -17,7 +17,8 @@
   const r=await fetch('/api/session?social=1',{method:operation?'POST':'GET',credentials:'same-origin',cache:'no-store',headers:operation?{'Content-Type':'application/json'}:undefined,body:operation?JSON.stringify({operation,...extra}):undefined});
   const d=await r.json();if(!r.ok)throw Error(d.error||'Nicht erreichbar.');return acceptState({...d,requestSequence:sequence});
  }
- async function badge(count){try{if(count>0)await navigator.setAppBadge?.(count);else await navigator.clearAppBadge?.();}catch{}}
+ function badgeCount(){return (state?.unread||0)+(window.SofiaWorkspace?.unreadMessages?.()||[]).filter(x=>!x.contactId).length;}
+ async function badge(count){count=badgeCount();try{if(count>0)await navigator.setAppBadge?.(count);else await navigator.clearAppBadge?.();}catch{}}
  async function markRead(){
   if(!state?.unread||reading||!chatVisible())return;
   const messages=document.getElementById('messages');if(!messages||(messages.getClientRects&&messages.getClientRects().length===0)||messages.scrollHeight-messages.scrollTop-messages.clientHeight>100)return;
@@ -26,7 +27,7 @@
   if(!seq||seq<=state.read)return;
   reading=true;try{state=await request('read',{sequence:seq});await badge(state.unread);renderBadge();}catch{}finally{reading=false;}
  }
- function renderBadge(){const node=document.getElementById('socialAction')?.querySelector('span');if(node)node.textContent=state?.unread?'Nachrichten ('+state.unread+')':'Nachrichten';}
+ function renderBadge(){window.SofiaWorkspace?.acknowledgeContacts?.((state?.contacts||[]).filter(x=>x.sequence<=state.read).map(x=>x.id));if(typeof Event!=='undefined')window.dispatchEvent?.(new Event('sofia-social-state-changed'));const node=document.getElementById('socialAction')?.querySelector('span');if(node)node.textContent=state?.unread?'Nachrichten ('+state.unread+')':'Nachrichten';}
  async function sync(){if(syncing)return;syncing=true;try{state=await request();await badge(state.unread);renderBadge();await markRead();}catch{}finally{syncing=false;}}
  async function preferences(){
   const dialog=document.createElement('dialog');dialog.style.cssText='max-width:90vw;width:400px;max-height:85dvh;overflow:auto;background:#171722;color:white;border:0;border-radius:16px;padding:20px';
@@ -99,7 +100,8 @@
   };
   disable.onclick=async()=>{disable.disabled=true;try{const sub=await registration.pushManager.getSubscription();if(sub){await request('unsubscribe',{subscription:sub.toJSON()});await sub.unsubscribe();}state=await request();paintDevices();status.textContent='Mitteilungen auf diesem Gerät deaktiviert.';}catch(e){status.textContent=e.message;}finally{disable.disabled=false;}};
  }
- window.SofiaSocial={sync,preferences};
+ window.SofiaSocial={sync,preferences,unreadMessages:()=>state?.contacts?.filter(x=>x.sequence>state.read).map(x=>({...x}))||[],unreadCount:badgeCount};
+ window.addEventListener('sofia-unread-updated',()=>void badge());
  document.getElementById('galleryAction')?.addEventListener('click',()=>window.SofiaImages?.openGallery());
  document.getElementById('socialAction')?.addEventListener('click',preferences);
  document.getElementById('messages')?.addEventListener('scroll',()=>void markRead(),{passive:true});
