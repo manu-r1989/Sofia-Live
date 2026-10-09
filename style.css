@@ -1042,3 +1042,20 @@ dialog legend,dialog label{font-size:13px;color:var(--ui-muted)}
 .today-dialog label{display:flex;align-items:center;gap:8px;margin:14px 0}
 
 .sofia-photo-view .photo-follow-ups>button{flex-basis:160px;hyphens:auto}
+
+
+/* 4.67: bounded photo controls and a compact, read-only day overview. */
+.photo-change-options{grid-column:1/-1;flex-basis:100%;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:12px;border:1px solid var(--ui-border);border-radius:12px;min-width:0}
+.photo-change-options[hidden]{display:none}
+.photo-change-options label{display:grid;gap:6px;min-width:0;font-size:13px}
+.photo-change-options select{width:100%;min-width:0;min-height:44px;padding:8px;background:var(--ui-raised);color:inherit;border:1px solid var(--ui-border);border-radius:8px;font:inherit}
+.photo-change-options p{grid-column:1/-1;line-height:1.5;font-size:12px;color:var(--ui-muted);margin:0}
+.photo-source-stamp{grid-column:1/-1;font-size:11px;opacity:.75;overflow-wrap:anywhere}
+.photo-comparison-boundaries{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 16px}
+.photo-comparison-boundaries button{flex:1;min-height:44px;white-space:normal}
+.photo-comparison{max-width:calc(100vw - 24px);box-sizing:border-box;overflow-x:hidden}
+.photo-comparison-slider{max-width:100%}
+.today-summary{padding:12px;background:var(--ui-raised);border-radius:10px;line-height:1.6;overflow-wrap:anywhere}
+.today-task-detail{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.6}
+.today-dialog section h3{font-size:15px;margin-bottom:0}
+@media(max-width:420px){.photo-change-options{grid-template-columns:1fr}.photo-comparison-boundaries button{font-size:12px}.sofia-photo-view .photo-follow-ups>button{flex-basis:120px;min-height:44px}}

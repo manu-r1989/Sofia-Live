@@ -323,3 +323,22 @@ test('comparison slider exposes both boundaries and is keyboard accessible',()=>
 test('gallery keeps date filter and scroll when closed and reopened',()=>{
  const h=harness(async()=>preparedPhoto());h.api.openGallery();const first=h.document.getElementById('sofia-gallery'),date=first.all().find(n=>n.type==='date');date.value='2026-10-07';date.onchange();first.scrollTop=315;first.close();h.api.openGallery();const second=h.document.getElementById('sofia-gallery');assert.equal(second.all().find(n=>n.type==='date').value,'2026-10-07');assert.equal(second.scrollTop,315);
 });
+
+test('combined editor is inert until apply and submits all chosen dimensions once against the chosen ancestor',()=>{
+ const h=harness(async()=>preparedPhoto()),sent=[],now=new Date().toISOString();h.window.SofiaPhotoAction=(text,source)=>{sent.push({text,source});return true;};h.api.restore([{...image(id),createdAt:now},{...image(id2),sourceId:id,createdAt:now}]);h.api.openGallery(id2);
+ const viewer=h.document.getElementById('sofia-photo-'+id2),toggle=viewer.all().find(x=>x.textContent==='Mehrere Änderungen'),box=viewer.all().find(x=>x.className==='photo-change-options');toggle.onclick();assert.equal(box.hidden,false);assert.equal(sent.length,0);
+ box.all().find(x=>x.textContent==='Änderungen als ein Foto zeigen').onclick();assert.equal(sent.length,0);assert.ok(h.document.getElementById(viewer.id));
+ const source=viewer.all().find(x=>x['aria-label']==='Ausgangsfoto auswählen');source.value=id;source.onchange();
+ box.all().find(x=>x['aria-label']==='Fotoänderung: Kamera').value='Kamerastandpunkt: 90° nach links um das Motiv.';box.all().find(x=>x['aria-label']==='Fotoänderung: Licht').value='Weichere Beleuchtung.';
+ box.all().find(x=>x.textContent==='Änderungen als ein Foto zeigen').onclick();assert.equal(sent.length,1);assert.equal(sent[0].source,id);assert.match(sent[0].text,/90° nach links.*Weichere Beleuchtung/);assert.equal(h.document.getElementById('sofia-gallery'),null);
+});
+test('busy combined submission preserves choices, cancel sends nothing and navigation resets them',()=>{
+ const h=harness(async()=>preparedPhoto()),now=new Date().toISOString();h.window.SofiaPhotoAction=()=>false;h.api.restore([{...image(id),createdAt:now},{...image(id2),createdAt:now}]);h.api.openGallery(id2);
+ const viewer=h.document.getElementById('sofia-photo-'+id2),box=viewer.all().find(x=>x.className==='photo-change-options'),toggle=viewer.all().find(x=>x.textContent==='Mehrere Änderungen');toggle.onclick();const light=box.all().find(x=>x['aria-label']==='Fotoänderung: Licht');light.value='Weichere Beleuchtung.';box.all().find(x=>x.textContent==='Änderungen als ein Foto zeigen').onclick();assert.equal(light.value,'Weichere Beleuchtung.');assert.ok(h.document.getElementById(viewer.id));box.all().find(x=>x.textContent==='Abbrechen').onclick();assert.equal(box.hidden,true);assert.equal(toggle['aria-expanded'],'false');viewer.all().find(x=>x['aria-label']==='Nächstes Foto').onclick();assert.equal(light.value,'');assert.equal(box.hidden,true);
+});
+test('comparison shortcut buttons select actual source and variant boundaries',()=>{
+ const h=harness(async()=>preparedPhoto()),now=new Date().toISOString();h.api.restore([{...image(id),createdAt:now},{...image(id2),sourceId:id,createdAt:now}]);h.api.openGallery(id2);h.document.getElementById('sofia-photo-'+id2).all().find(x=>x.textContent==='Mit Original vergleichen').onclick();const dialog=h.body.all().find(x=>x.className==='photo-comparison'),range=dialog.all().find(x=>x.type==='range');
+ for(const [label,value]of [['Ausgangsfoto','0'],['Halb / halb','50'],['Variante','100']]){dialog.all().find(x=>x.tag==='button'&&x.textContent===label).onclick();assert.equal(range.value,value);assert.equal(range['aria-valuetext'],value+' Prozent Variante');}
+ assert.equal(dialog.all().filter(x=>x.tag==='button'&&x.textContent==='Schließen').length,2);
+});
+
