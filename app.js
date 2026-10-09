@@ -416,6 +416,7 @@ async function syncConversationFromServer({ silent = false } = {}) {
       typeof item.content === 'string'
     ).map(({role,content,imageRequestId,contactId,createdAt})=>({role,content,...(imageRequestId?{imageRequestId}:{}),...(contactId?{contactId}:{}),...(createdAt?{createdAt}:{})})).slice(-MAX_STORED_MESSAGES);
 
+    window.SofiaWorkspace?.reconcileSubmission(serverHistory);
     const localPending=(typeof conversationHistory!=='undefined'?conversationHistory:[]).filter(x=>x.delivery==='unconfirmed');
     if(localPending.length && !localPending.every(x=>serverHistory.some((s,i)=>s.role==='user'&&s.content===x.content&&serverHistory[i+1]?.role==='assistant'))){window.SofiaImages?.restore(data.images);return false;}
     void window.SofiaSocial?.sync();
@@ -781,7 +782,7 @@ async function askSofia(userMessage, imageDataUrl = null, options = {}) {
 
     const errorMessage = failure.message;
 
-    window.SofiaWorkspace?.failSubmission(userMessage);
+    window.SofiaWorkspace?.failSubmission(userMessage,{uncertain:!Number.isInteger(error?.status)||error.status>=500});
     const failureNode=addMessage(errorMessage,'sofia');
     window.SofiaWorkspace?.failed(failureNode,userMessage,{uncertain:failure.uncertainAction,image:!!imageDataUrl,knownRejected:error?.status===429});
 
@@ -2150,6 +2151,7 @@ syncConversationFromServer().then(ok => {
 console.log(
   `Sofia V3.9 gestartet. Lokaler Chat: ${conversationHistory.length} Nachrichten.`
 );
+
 
 
 

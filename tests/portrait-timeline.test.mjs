@@ -342,3 +342,7 @@ test('comparison shortcut buttons select actual source and variant boundaries',(
  assert.equal(dialog.all().filter(x=>x.tag==='button'&&x.textContent==='Schließen').length,2);
 });
 
+
+test('combined edit summary follows selected source and named dimensions without submission',()=>{
+ let submissions=0;const h=harness(async()=>preparedPhoto()),now=new Date().toISOString();h.window.SofiaPhotoAction=()=>{submissions++;return true;};h.api.restore([{...image(id),sentAt:now},{...image(id2),sourceId:id,sentAt:now}]);h.api.openGallery(id2);const viewer=h.body.all().find(n=>n.tag==='dialog'&&n.all().some(x=>x.textContent==='Mehrere Änderungen'));viewer.all().find(n=>n.textContent==='Mehrere Änderungen').onclick();const fields=viewer.all().filter(n=>n.tag==='select'&&String(n['aria-label']).startsWith('Fotoänderung:'));fields[0].value='Kamerastandpunkt: 90° nach links um das Motiv.';fields[0].onchange();const summary=viewer.all().find(n=>n.className==='photo-change-summary');assert.match(summary.textContent,/Kamera: 90° links/);assert.match(summary.textContent,/Übrige Merkmale/);assert.equal(submissions,0);
+});
