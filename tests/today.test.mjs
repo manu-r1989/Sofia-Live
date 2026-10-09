@@ -27,5 +27,5 @@ test('task detail displays reminder and priority without creating any action',as
 
 
 test('overdue open tasks remain visible separately from today and completed tasks',()=>{
- const h=harness(),now=new Date('2026-10-09T13:00:00Z');const view=h.api.model({tasks:[{id:'old',title:'Offen',status:'open',dueAt:'2026-10-08T10:00:00Z'},{id:'done',status:'completed',dueAt:'2026-10-07T10:00:00Z'},{id:'later',status:'open',dueAt:'2026-10-10T10:00:00Z'}]},now);assert.deepEqual(Array.from(view.overdue,x=>x.id),['old']);assert.equal(view.tasks.length,0);
+ const h=harness(),now=new Date('2026-10-09T13:00:00Z');const view=h.api.model({tasks:[{id:'old',title:'Offen',status:'open',dueAt:'2026-10-08T10:00:00Z'},{id:'done',status:'completed',dueAt:'2026-10-07T10:00:00Z'},{id:'later',status:'open',dueAt:'2026-10-10T10:00:00Z'},{id:'undated',status:'open',dueAt:null,remindAt:null}]},now);assert.deepEqual(Array.from(view.overdue,x=>x.id),['old']);assert.equal(view.tasks.length,0);
 });

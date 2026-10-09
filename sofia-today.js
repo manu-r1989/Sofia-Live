@@ -3,7 +3,7 @@
   const KEY='sofia_today_sections_v465';
   const sections=['messages','photos','tasks','topics'];
   const normalize=value=>Object.fromEntries(sections.map(key=>[key,value?.[key]!==false]));
-  const day=value=>{const date=new Date(value);if(!Number.isFinite(+date))return null;return new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Berlin',year:'numeric',month:'2-digit',day:'2-digit'}).format(date);};
+  const day=value=>{if(value===null||value===undefined||value==='')return null;const date=new Date(value);if(!Number.isFinite(+date))return null;return new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Berlin',year:'numeric',month:'2-digit',day:'2-digit'}).format(date);};
   const time=value=>new Date(value).toLocaleString('de-DE',{timeZone:'Europe/Berlin',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
   function model({images=[],tasks=[],life=null}={},now=new Date()){
     const today=day(now),seen=new Set();

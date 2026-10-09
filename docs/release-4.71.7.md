@@ -1,6 +1,6 @@
 # Sofia V4.71.7 — delivery recovery, photo review and conversation pacing
 
-Scope: 4.69.0 plus the agreed 4.69–4.71 refinements, building on the already present source/review, gallery and role-continuity foundations of 4.68.7. One release commit per environment; no empty stage commits. Assets/cache: 4717v1. Voice D, WebRTC, half-duplex, lipsync and avatar assets are unchanged. No credentials, environment configuration, protection, namespace or limits changed.
+Scope: 4.69.0 plus the agreed 4.69–4.71 refinements, building on the already present source/review, gallery and role-continuity foundations of 4.68.7. One release commit per environment; no empty stage commits. Assets/cache: 4717v2. Voice D, WebRTC, half-duplex, lipsync and avatar assets are unchanged. No credentials, environment configuration, protection, namespace or limits changed.
 
 ## 4.69.0 — sent message returning as a draft
 
@@ -33,3 +33,8 @@ Unknown network/5xx outcomes remain parked. Known rejection can restore the draf
 ## Release procedure
 
 Use current branch heads and file SHAs, retain unrelated changes, and update with leases. Test preserves its Test-only voice-comparison link; Productiv omits it. Known exact Vercel project IDs are used without redundant team filters. Check Git deploy first, avoid duplicate API deploys. Main changes only after Test UI verification. Productiv acceptance by the user is authorized for the ongoing live operation.
+
+
+## Actual Test browser acceptance, 2026-10-09
+
+Test candidate 295a052182097f341549ace845aea25f72685940 deployed READY as dpl_6ikvqNE1DK74u2WHVz9jTWS7vmQQ. One actual text-only request was submitted; the window was closed during “denkt nach” and reopened. The exact response “Versandprobe 4717 bestätigt.” appeared in server history, while the composer stayed empty. No photo was requested. Today showed retained variants and an overdue test task with read-only reminder/priority detail and both close controls. Browser QA exposed a null-date task falsely displayed as 01.01.1970; the follow-up rejects missing dates before calendar conversion and tests this case. Final assets are 4717v2.
