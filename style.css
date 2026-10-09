@@ -1059,3 +1059,11 @@ dialog legend,dialog label{font-size:13px;color:var(--ui-muted)}
 .today-task-detail{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.6}
 .today-dialog section h3{font-size:15px;margin-bottom:0}
 @media(max-width:420px){.photo-change-options{grid-template-columns:1fr}.photo-comparison-boundaries button{font-size:12px}.sofia-photo-view .photo-follow-ups>button{flex-basis:120px;min-height:44px}}
+
+/* V4.70 — review text and accessible narrow/large-type controls. */
+.photo-change-summary{grid-column:1/-1;padding:10px;border:1px solid rgba(255,255,255,.15);border-radius:10px;line-height:1.5;overflow-wrap:anywhere;}
+.photo-source-choice:focus-within{outline:2px solid rgba(215,198,152,.8);outline-offset:3px;}
+.photo-follow-ups button,.today-dialog button,.workspace-dialog button{white-space:normal;overflow-wrap:anywhere;min-height:44px;}
+.photo-follow-ups select,.photo-change-options select{min-width:0;max-width:100%;font:inherit;}
+html[data-chat-font="large"] .photo-follow-ups{grid-template-columns:repeat(2,minmax(0,1fr));}
+@media(max-width:420px){html[data-chat-font="large"] .photo-follow-ups,.photo-change-options{grid-template-columns:minmax(0,1fr);}.photo-comparison-buttons{flex-wrap:wrap;}}

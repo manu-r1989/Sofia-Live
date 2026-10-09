@@ -27,7 +27,7 @@ function harness(saved={}){
  return{api:window.SofiaWorkspace,window,document,events,db,navigator,input:document.getElementById('input'),root:document.getElementById('messages'),message};
 }
 test('draft survives reload, remains pending until receipt and returns after failed submission',()=>{
- const h=harness({'sofia_draft_v448':{text:'Entwurf\nzweite Zeile'}});assert.equal(h.input.value,'Entwurf\nzweite Zeile');h.api.beginSubmission(h.input.value);h.input.value='';h.events.pagehide();assert.equal(JSON.parse(h.db.get('sofia_draft_v448')).text,'Entwurf\nzweite Zeile');h.api.failSubmission('Entwurf\nzweite Zeile');assert.equal(h.input.value,'Entwurf\nzweite Zeile');h.api.beginSubmission(h.input.value);h.input.value='';h.api.confirmSubmission('Entwurf\nzweite Zeile');assert.equal(JSON.parse(h.db.get('sofia_draft_v448')).text,'');
+ const h=harness({'sofia_draft_v448':{text:'Entwurf\nzweite Zeile'}});assert.equal(h.input.value,'Entwurf\nzweite Zeile');h.api.beginSubmission(h.input.value);h.input.value='';h.events.pagehide();assert.equal(JSON.parse(h.db.get('sofia_draft_v448')).text,'');assert.equal(JSON.parse(h.db.get('sofia_draft_v448')).pending.text,'Entwurf\nzweite Zeile');h.api.failSubmission('Entwurf\nzweite Zeile');assert.equal(h.input.value,'Entwurf\nzweite Zeile');h.api.beginSubmission(h.input.value);h.input.value='';h.api.confirmSubmission('Entwurf\nzweite Zeile');assert.equal(JSON.parse(h.db.get('sofia_draft_v448')).text,'');
 });
 test('a photo reply never clears a separate text draft',()=>{const h=harness({'sofia_draft_v448':{text:'mein Entwurf'}});h.api.confirmSubmission('Dieses Foto anpassen');assert.equal(JSON.parse(h.db.get('sofia_draft_v448')).text,'mein Entwurf');});
 test('stored preferences are validated and local surface motion stays separate from avatar settings',()=>{const h=harness({'sofia_ui_v448':{font:'large',density:'compact',motion:'off'}});assert.equal(h.document.documentElement.dataset.chatFont,'large');assert.equal(h.api.motion(),'auto');assert.equal(h.document.documentElement.dataset.presenceMotion,undefined);assert.deepEqual(JSON.parse(JSON.stringify(h.api.normalize({font:'huge',motion:'broken'}))),{font:'normal',density:'comfortable',motion:'auto'});});
@@ -58,3 +58,28 @@ test('PWA update waits for idle state, saves draft and never resends a message',
 test('overview exposes unread turns without reading and can jump to the exact message',()=>{const h=harness({'sofia_read_at_v448':0}),turn={role:'assistant',content:'neue Nachricht',createdAt:'2026-10-08T10:00Z'},node=h.message(turn);h.api.reconcile([turn],[]);assert.equal(h.api.unreadMessages().length,1);assert.equal(h.api.messages()[0].content,turn.content);assert.equal(h.api.showMessage(turn),true);assert.equal(node.scrolled.block,'center');assert.equal(h.api.unreadMessages().length,1);assert.equal(h.api.showMessage({...turn,content:'andere'}),false);});
 
 test('server contact read receipts reconcile local unread without reading unrelated messages',()=>{const h=harness({'sofia_read_at_v448':0}),contact={role:'assistant',content:'Eigeninitiative',contactId:'contact',createdAt:'2026-10-08T10:00Z'},normal={role:'assistant',content:'normale Antwort',createdAt:'2026-10-08T10:01Z'};h.api.reconcile([contact,normal],[]);assert.equal(h.api.unreadMessages().length,2);h.api.acknowledgeContacts(['contact']);assert.equal(h.api.unreadMessages().length,1);assert.equal(h.api.unreadMessages()[0].content,normal.content);h.api.acknowledgeContacts(['other']);assert.equal(h.api.unreadMessages().length,1);});
+
+
+test('closing during submission parks it outside the composer and server receipt clears it after reopening',()=>{
+ const h=harness();h.api.beginSubmission('PWA Versandprobe');h.events.pagehide();const persisted=JSON.parse(h.db.get('sofia_draft_v448'));assert.equal(persisted.text,'');assert.equal(persisted.pending.text,'PWA Versandprobe');
+ const reopened=harness({'sofia_draft_v448':persisted});assert.equal(reopened.input.value,'');const at=new Date(persisted.pending.at+500).toISOString();assert.equal(reopened.api.reconcileSubmission([{role:'user',content:'PWA Versandprobe',createdAt:at},{role:'assistant',content:'Bestätigt',createdAt:at}]),true);reopened.events.pagehide();assert.equal(JSON.parse(reopened.db.get('sofia_draft_v448')).pending,undefined);assert.equal(harness({'sofia_draft_v448':JSON.parse(reopened.db.get('sofia_draft_v448'))}).input.value,'');
+});
+test('a historical identical message and optimistic local history are not a delivery receipt',()=>{
+ const h=harness();h.api.beginSubmission('Noch einmal');const at=JSON.parse(h.db.get('sofia_draft_v448')).pending.at;
+ assert.equal(h.api.reconcileSubmission([{role:'user',content:'Noch einmal',createdAt:new Date(at-86400000).toISOString()},{role:'assistant',content:'Alt'}]),false);
+ assert.equal(h.api.reconcileSubmission([{role:'user',content:'Noch einmal',createdAt:new Date(at).toISOString()}]),false);assert.ok(JSON.parse(h.db.get('sofia_draft_v448')).pending);
+});
+test('a fresh unsent draft survives the receipt for an earlier parked submission',()=>{
+ const h=harness();h.api.beginSubmission('gesendet');const at=JSON.parse(h.db.get('sofia_draft_v448')).pending.at;h.input.value='neuer Entwurf';h.events.input?.();h.events.pagehide();
+ const reopen=harness({'sofia_draft_v448':JSON.parse(h.db.get('sofia_draft_v448'))});assert.equal(reopen.input.value,'neuer Entwurf');reopen.api.reconcileSubmission([{role:'user',content:'gesendet',createdAt:new Date(at).toISOString()},{role:'assistant',content:'Antwort'}]);assert.equal(reopen.input.value,'neuer Entwurf');assert.equal(JSON.parse(reopen.db.get('sofia_draft_v448')).text,'neuer Entwurf');
+});
+test('unconfirmed parked submission can only be restored by explicit gesture and cannot overwrite a draft',()=>{
+ const h=harness();h.api.beginSubmission('noch unbestätigt');h.api.pendingSubmission();const d=h.document.body.all().find(n=>n.tagName==='DIALOG'),recover=d.all().find(n=>n.textContent==='Als Entwurf übernehmen');h.input.value='anderer Entwurf';recover.onclick();assert.equal(h.input.value,'anderer Entwurf');h.input.value='';recover.onclick();assert.equal(h.input.value,'noch unbestätigt');assert.equal(JSON.parse(h.db.get('sofia_draft_v448')).pending,undefined);
+});
+test('server reconciliation happens before an unchanged-history early return',async()=>{
+ const app=await readFile(new URL('../app.js',import.meta.url),'utf8');assert.ok(app.indexOf('reconcileSubmission(serverHistory)')<app.indexOf('signature === lastServerHistorySignature'));
+});
+
+test('unknown transport outcome stays parked across closure rather than returning as an unsent draft',()=>{
+ const h=harness();h.api.beginSubmission('möglicherweise zugestellt');h.api.failSubmission('möglicherweise zugestellt',{uncertain:true});h.events.pagehide();const stored=JSON.parse(h.db.get('sofia_draft_v448'));assert.equal(stored.text,'');assert.equal(stored.pending.text,'möglicherweise zugestellt');assert.equal(harness({'sofia_draft_v448':stored}).input.value,'');
+});

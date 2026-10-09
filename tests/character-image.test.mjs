@@ -222,7 +222,7 @@ test('image delivery is private JPEG with download attachment and validated IDs'
 });
 test('UI integration loads shared renderer before app and does not alter avatar assets',async()=>{
  const root=new URL('../',import.meta.url);const index=await readFile(new URL('index.html',root),'utf8');
- assert.ok(index.indexOf('sofia-images.js?v=4687v1')<index.indexOf('app.js?v=4687v1'));
+ assert.ok(index.indexOf('sofia-images.js?v=4717v2')<index.indexOf('app.js?v=4717v2'));
  const chat=await readFile(new URL('api/chat.js',root),'utf8');
  assert.ok(chat.indexOf('!safeEqual(')<chat.indexOf('await servePortrait'));
  const ui=await readFile(new URL('sofia-images.js',root),'utf8');assert.match(ui,/dialog.showModal/);assert.match(ui,/link.download=/);assert.doesNotMatch(ui,/spinner|generating-status/);
@@ -623,3 +623,12 @@ test('ordinary conversation and invalid photo IDs add no Redis query, selected s
  db.set(prefix+'state',JSON.stringify({lastImageId:'22222222-2222-4222-8222-222222222222'}));const result=await api.selectedPhotoContext('11111111-1111-4111-8111-111111111111','Auf dem Foto?');assert.equal(result,'');assert.equal(calls.length,1);
 });
 
+
+test('brief acknowledgements leave conversational room and opinion questions receive a position without a follow-up',()=>{
+ const now=new Date(),life=api.defaultSofiaLife(now);for(const message of ['ja genau','alles klar','mhm','verstehe']){assert.equal(api.conversationContinuity(life,message,now).questionAllowed,false);assert.equal(api.conversationMove(life,message,now).kind,'respond');}
+ assert.equal(api.conversationMove(life,'Was hältst du davon?',now).kind,'opinion');assert.equal(api.conversationMove(life,'Was hältst du davon?',now).question,false);
+});
+test('photo clarification freezes the current photo even when no explicit source is supplied',async()=>{
+ reset();const now=new Date(),source=previousPhotograph(now);db.set(prefix+'state',JSON.stringify({lastImageId:source}));await assert.rejects(api.preparePortrait('Dieses Foto von hinten, Gesicht frontal sichtbar lassen.',null,now),/Rückansicht/);assert.equal(JSON.parse(db.get(prefix+'photo-clarification')).sourceId,source);
+ db.set(prefix+'state',JSON.stringify({lastImageId:'11111111-1111-4111-8111-111111111111'}));const job=await api.preparePortrait('Rückansicht',null,new Date(+now+1000));assert.equal(job.sourceId,source);
+});

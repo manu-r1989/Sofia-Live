@@ -13,13 +13,22 @@
   function applyPreferences(){document.documentElement.dataset.chatFont=prefs.font;document.documentElement.dataset.chatDensity=prefs.density;document.documentElement.dataset.uiMotion=prefs.motion;}
   applyPreferences();
   function motion(){return prefs.motion!=='auto'||window.matchMedia?.('(prefers-reduced-motion: reduce)').matches?'auto':'smooth';}
-  function saveDraft(){return put(KEYS.draft,{text:input?.value||pendingDraft||'',at:Date.now()});}
-  const draft=get(KEYS.draft,null);if(input&&typeof draft?.text==='string'&&!input.value){input.value=draft.text.slice(0,20000);window.SofiaUI?.resizeComposer(input);}
+  function saveDraft(){return put(KEYS.draft,{text:input?.value||'',at:Date.now(),...(pendingDraft?{pending:pendingDraft}:{})});}
+  const draft=get(KEYS.draft,null);
+  if(typeof draft?.pending?.text==='string'&&Number.isFinite(draft.pending.at))pendingDraft={text:draft.pending.text.slice(0,20000),at:draft.pending.at};
+  if(input&&typeof draft?.text==='string'&&!input.value){input.value=draft.text.slice(0,20000);window.SofiaUI?.resizeComposer(input);}
   input?.addEventListener('input',saveDraft);window.addEventListener('pagehide',saveDraft);
-  function clearDraft(){pendingDraft=null;put(KEYS.draft,{text:input?.value||'',at:Date.now()});}
-  function beginSubmission(text){pendingDraft=text;put(KEYS.draft,{text,at:Date.now()});}
-  function confirmSubmission(text){if(pendingDraft===text)clearDraft();}
-  function failSubmission(text){if(pendingDraft!==text)return;if(input&&!input.value){input.value=pendingDraft;window.SofiaUI?.resizeComposer(input);}pendingDraft=null;saveDraft();}
+  function clearDraft(){pendingDraft=null;saveDraft();}
+  function beginSubmission(text){pendingDraft={text,at:Date.now()};saveDraft();}
+  function confirmSubmission(text){if(pendingDraft?.text===text)clearDraft();}
+  function failSubmission(text,{uncertain=false}={}){if(pendingDraft?.text!==text)return;if(uncertain){saveDraft();notice('Versand noch unbestätigt. Bitte zuerst den Verlauf prüfen; der Text ist unter Einstellungen → Letzten Versand prüfen gesichert.');return;}if(input&&!input.value){input.value=pendingDraft.text;window.SofiaUI?.resizeComposer(input);}pendingDraft=null;saveDraft();}
+  function reconcileSubmission(history){
+    if(!pendingDraft||!Array.isArray(history))return false;
+    const delivered=history.some((turn,i)=>turn.role==='user'&&turn.content===pendingDraft.text&&Date.parse(turn.createdAt)>=pendingDraft.at-3000&&Date.parse(turn.createdAt)<=pendingDraft.at+90000&&history[i+1]?.role==='assistant');
+    if(!delivered)return false;
+    clearDraft();notice('Die zuletzt gesendete Nachricht ist im Gespräch bestätigt.');return true;
+  }
+  function pendingSubmission(){if(!pendingDraft)return;const d=panel('Letzter Versand'),text=document.createElement('p');text.textContent=pendingDraft.text;const hint=document.createElement('p');hint.textContent='Die Antwort wurde auf diesem Gerät noch nicht bestätigt. Prüfe zuerst den Chatverlauf. Es wird nichts automatisch erneut gesendet.';const status=statusNode(d);d.append(hint,text,button('Als Entwurf übernehmen',()=>{if(input?.value.trim()){status.textContent='Es ist bereits ein Entwurf vorhanden.';return;}if(!pendingDraft){status.textContent='Der Versand ist inzwischen bestätigt.';return;}input.value=pendingDraft.text;window.SofiaUI?.resizeComposer(input);pendingDraft=null;saveDraft();d.close();input.focus();}));}
   function nodeTurn(node){return {role:node.classList.contains('user')?'user':'assistant',content:node.dataset.messageText||node.textContent,createdAt:node.dataset.createdAt||'',...(node.dataset.contactId?{contactId:node.dataset.contactId}:{})};}
   function turnNodes(){return root?[...root.querySelectorAll('.msg[data-created-at]')].filter(n=>!n.dataset.portraitStatus&&n.dataset.messageText):[];}
   function viewportAtLatest(){return !!root&&root.scrollHeight-root.clientHeight-root.scrollTop<=64;}
@@ -34,6 +43,7 @@
   function readVisible(){if(!canRead())return;unread.clear();lastRead=Math.max(lastRead,...turnNodes().map(n=>Date.parse(n.dataset.createdAt)||0));put(KEYS.read,lastRead);paintUnread();}
   function acknowledgeContacts(ids){const read=new Set(ids);let changed=false;for(const [key,turn]of unread){if(turn.contactId&&read.has(turn.contactId)){unread.delete(key);changed=true;}}if(changed)paintUnread();}
   function reconcile(next,previous){
+    reconcileSubmission(next);
     const known=new Set((previous||[]).map(keyFor));
     for(const turn of next||[]){if(turn.role!=='assistant')continue;const time=Date.parse(turn.createdAt);if(Number.isFinite(time)&&time>lastRead&&(!initialized||!known.has(keyFor(turn))))unread.set(keyFor(turn),turn);}
     initialized=true;
@@ -59,6 +69,7 @@
   function search(){const dialog=panel('Im Chat suchen'),field=document.createElement('input');field.type='search';field.placeholder='Suchbegriff';field.setAttribute('aria-label','Chat durchsuchen');const note=document.createElement('p');note.textContent='Suche im aktuell geladenen Gesprächsverlauf.';const results=document.createElement('div');results.className='workspace-results';dialog.append(field,note,results);field.focus();field.oninput=()=>{results.replaceChildren();const term=field.value.trim().toLocaleLowerCase('de-DE');if(!term){note.textContent='Suche im aktuell geladenen Gesprächsverlauf.';return;}const turns=turnNodes().map(nodeTurn).filter(t=>t.content.toLocaleLowerCase('de-DE').includes(term));note.textContent=turns.length+' Treffer';for(const turn of turns)results.append(resultRow(turn,dialog));};}
   function pinned(){const dialog=panel('Angeheftete Nachrichten'),note=document.createElement('p');note.textContent='Auf diesem Gerät gespeichert. Diese Markierungen ändern Sofias Gedächtnis nicht.';dialog.append(note);const list=document.createElement('div');dialog.append(list);const render=()=>{list.replaceChildren();if(!pins.length){const empty=document.createElement('p');empty.textContent='Noch keine Nachrichten angeheftet.';list.append(empty);}for(const turn of [...pins].reverse()){const row=resultRow(turn,dialog);row.append(button('Markierung entfernen',()=>{pins=pins.filter(t=>keyFor(t)!==keyFor(turn));put(KEYS.pins,pins);render();}));list.append(row);}};render();}
   function settings(){const dialog=panel('Einstellungen'),note=document.createElement('p');note.textContent='Darstellung und Entwürfe gelten auf diesem Gerät.';dialog.append(note);const status=statusNode(dialog);
+    if(pendingDraft)dialog.append(button('Letzten Versand prüfen',()=>{dialog.close();pendingSubmission();}));
     function select(label,name,options){const wrapper=document.createElement('label');wrapper.textContent=label;const field=document.createElement('select');field.setAttribute('aria-label',label);for(const [value,text]of options){const o=document.createElement('option');o.value=value;o.textContent=text;field.append(o);}field.value=prefs[name];field.onchange=()=>{prefs=normalize({...prefs,[name]:field.value});applyPreferences();status.textContent=put(KEYS.prefs,prefs)?'Darstellung gespeichert.':'Darstellung konnte nicht gespeichert werden.';};wrapper.append(field);dialog.append(wrapper);}
     select('Schriftgröße','font',[['small','Klein'],['normal','Normal'],['large','Groß']]);select('Chatdichte','density',[['comfortable','Angenehm'],['compact','Kompakt']]);select('Oberflächenbewegung','motion',[['auto','Systemeinstellung'],['reduced','Reduziert'],['off','Aus']]);
     if(updateAvailable)dialog.append(button('Neue Version laden',applyUpdate));
@@ -88,6 +99,8 @@
   const mode=document.getElementById('mode');
   function paintPhase(){if(!mode)return;const text=mode.textContent.trim();mode.dataset.phase=/Foto/.test(text)?'photo':/denkt/.test(text)?'thinking':/hört/.test(text)?'listening':/spricht/.test(text)?'speaking':/fehl|Fehler|Pause|warten/i.test(text)?'attention':'ready';}
   if(mode&&typeof MutationObserver!=='undefined')new MutationObserver(paintPhase).observe(mode,{childList:true,characterData:true,subtree:true});paintPhase();
-  window.SofiaWorkspace={acknowledgeContacts,messages:()=>turnNodes().map(nodeTurn),unreadMessages:()=>[...unread.values()],showMessage:turn=>{window.SofiaChatViewport?.reveal?.();return jump(turn);},motion,clearDraft,beginSubmission,confirmSubmission,failSubmission,saveDraft,refresh,reconcile,added,readVisible,notice,failed,settings,search,pinned,normalize,keyFor,safeRetry};
+  window.SofiaWorkspace={acknowledgeContacts,messages:()=>turnNodes().map(nodeTurn),unreadMessages:()=>[...unread.values()],showMessage:turn=>{window.SofiaChatViewport?.reveal?.();return jump(turn);},motion,clearDraft,beginSubmission,confirmSubmission,failSubmission,reconcileSubmission,pendingSubmission,saveDraft,refresh,reconcile,added,readVisible,notice,failed,settings,search,pinned,normalize,keyFor,safeRetry};
+  if(pendingDraft)notice('Letzter Versand noch unbestätigt. Du kannst ihn in den Einstellungen prüfen; es erfolgt kein automatisches Senden.');
   refresh();
 })();
+

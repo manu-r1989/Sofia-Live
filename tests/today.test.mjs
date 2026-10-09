@@ -25,3 +25,7 @@ test('task detail displays reminder and priority without creating any action',as
  const at=new Date().toISOString();const h=harness(async url=>({ok:true,json:async()=>url==='/api/chat'?{images:[],life:null}:{tasks:[{id:'task1',title:'Testaufgabe',status:'open',dueAt:at,remindAt:at,priority:'high',notes:'Notiz'}]}}));h.api.open();await new Promise(r=>setImmediate(r));const task=h.body.all().find(x=>x.tag==='button'&&x.textContent.includes('Testaufgabe'));task.onclick();assert.match(h.body.textContent,/Erinnerung:/);assert.match(h.body.textContent,/Priorität: Hoch/);assert.equal(h.sent.length,0);assert.ok(h.body.all().some(n=>n.dataset.taskId==='task1'));
 });
 
+
+test('overdue open tasks remain visible separately from today and completed tasks',()=>{
+ const h=harness(),now=new Date('2026-10-09T13:00:00Z');const view=h.api.model({tasks:[{id:'old',title:'Offen',status:'open',dueAt:'2026-10-08T10:00:00Z'},{id:'done',status:'completed',dueAt:'2026-10-07T10:00:00Z'},{id:'later',status:'open',dueAt:'2026-10-10T10:00:00Z'},{id:'undated',status:'open',dueAt:null,remindAt:null}]},now);assert.deepEqual(Array.from(view.overdue,x=>x.id),['old']);assert.equal(view.tasks.length,0);
+});

@@ -230,3 +230,7 @@ test('a late unread contact arriving during generation prevents another unsolici
  reset();const original=globalThis.fetch;globalThis.fetch=async(u,o)=>{if(String(u).includes('openai.com'))db.set(prefix+'contact-inbox',JSON.stringify({sequence:2,read:0,items:[]}));return original(u,o);};try{const result=await api.socialTick(base);assert.equal(result.reason,'unread');assert.equal(db.has('sofia:main:history'),false);}finally{globalThis.fetch=original;}
 });
 
+
+test('a recent unanswered conversation question blocks another unsolicited contact',()=>{
+ const now=new Date();assert.equal(api.contactReadiness({dialogue:{at:new Date(+now-3600000).toISOString(),pendingQuestion:'Wie lief dein Tag?',lastUser:'Hallo'}},{sequence:0,read:0,items:[]},now),'unanswered_question');assert.equal(api.contactReadiness({dialogue:{at:new Date(+now-5*3600000).toISOString(),pendingQuestion:'Wie lief dein Tag?',lastUser:'Hallo'}},{sequence:0,read:0,items:[]},now),null);
+});
