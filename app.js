@@ -1290,9 +1290,9 @@ async function loadLongTermMemories() {
     const search=document.createElement('input');search.type='search';search.placeholder='Erinnerungen durchsuchen';search.setAttribute('aria-label','Erinnerungen durchsuchen');search.style.cssText='flex:1;min-width:150px';
     const categoryFilter=document.createElement('select');categoryFilter.setAttribute('aria-label','Erinnerungen nach Kategorie filtern');
     for(const name of ['Alle Kategorien',...new Set(memoryItems.map(x=>x.category||'Sonstiges'))]){const o=document.createElement('option');o.value=name;o.textContent=name;categoryFilter.append(o);}
-    const filtered=document.createElement('span');filtered.setAttribute('role','status');
-    function filterMemories(){let count=0;for(const row of memoryList.querySelectorAll('[data-memory-text]')){row.hidden=!row.dataset.memoryText.includes(search.value.toLowerCase().trim())||(categoryFilter.value!=='Alle Kategorien'&&row.dataset.memoryCategory!==categoryFilter.value);if(!row.hidden)count++;}filtered.textContent=count+' passende Erinnerungen';}
-    search.oninput=categoryFilter.onchange=filterMemories;tools.append(projects,search,categoryFilter,filtered);memoryList.append(tools);
+    const reviewLabel=document.createElement('label'),reviewOnly=document.createElement('input');reviewOnly.type='checkbox';reviewOnly.setAttribute('aria-label','Nur Erinnerungen mit Prüfhinweisen');reviewLabel.append(reviewOnly,document.createTextNode(' Nur Prüfhinweise'));const filtered=document.createElement('span');filtered.setAttribute('role','status');
+    function filterMemories(){let count=0;for(const row of memoryList.querySelectorAll('[data-memory-text]')){row.hidden=!row.dataset.memoryText.includes(search.value.toLowerCase().trim())||(categoryFilter.value!=='Alle Kategorien'&&row.dataset.memoryCategory!==categoryFilter.value)||(reviewOnly.checked&&row.dataset.memoryReview!=='true');if(!row.hidden)count++;}filtered.textContent=count+' passende Erinnerungen';}
+    search.oninput=categoryFilter.onchange=reviewOnly.onchange=filterMemories;tools.append(projects,search,categoryFilter,reviewLabel,filtered);memoryList.append(tools);
 
 
     memoryCount.textContent =
@@ -1350,9 +1350,9 @@ async function loadLongTermMemories() {
         memoryList.appendChild(heading);
         lastCategory = category;
       }
-      renderMemoryItem(item.text, index, category);
+      renderMemoryItem(item.text, index, category,item);
     });
-    renderCharacterMemories(data.character);
+    renderCharacterMemories(data.character);filterMemories();
 
   } catch (error) {
     console.error(
@@ -1532,7 +1532,8 @@ function renderEmptyMemory() {
 function renderMemoryItem(
   memory,
   index,
-  category = 'Sonstiges'
+  category = 'Sonstiges',
+  metadata = {}
 ) {
   if (!memoryList) return;
 
@@ -1646,7 +1647,7 @@ function renderMemoryItem(
     const save=document.createElement('button'),cancel=document.createElement('button'),feedback=document.createElement('p');save.type=cancel.type='button';save.textContent='Änderung speichern';cancel.textContent='Abbrechen';feedback.setAttribute('role','status');
     cancel.onclick=()=>{editor.remove();editor=null;};
     save.onclick=async()=>{const value=content.value.trim();if(!value){feedback.textContent='Bitte einen Erinnerungstext eingeben.';return;}save.disabled=true;
-      try{const r=await fetch('/api/memory',{method:'PUT',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({old_memory:memory,new_memory:value,category:picker.value})});const d=await r.json();if(!r.ok)throw Error(d.error||'Die Erinnerung konnte nicht geändert werden.');await loadLongTermMemories();setMemoryStatus('Erinnerung geändert.');}
+      try{const r=await fetch('/api/memory',{method:'PUT',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({old_memory:memory,new_memory:value,category:picker.value,memoryId:metadata.id})});const d=await r.json();if(!r.ok)throw Error(d.error||'Die Erinnerung konnte nicht geändert werden.');await loadLongTermMemories();setMemoryStatus('Erinnerung geändert.');}
       catch(error){feedback.textContent=error.message;save.disabled=false;}
     };
     editor.append(content,picker,save,cancel,feedback);textWrap.append(editor);content.focus();
@@ -1683,13 +1684,15 @@ function renderMemoryItem(
     () => {
       deleteLongTermMemory(
         memory,
-        deleteButton
+        deleteButton,metadata.id
       );
     }
   );
 
   textWrap.appendChild(categoryLabel);
   textWrap.appendChild(text);
+  const details=document.createElement('small');details.className='memory-provenance';const stamp=metadata.updatedAt||metadata.createdAt;details.textContent='Über dich · '+(Number.isFinite(Date.parse(stamp))?(metadata.updatedAt?'Zuletzt geändert: ':'Gespeichert: ')+new Date(stamp).toLocaleString('de-DE',{timeZone:'Europe/Berlin',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}):'Zeitpunkt nicht hinterlegt');textWrap.append(details);
+  for(const hint of metadata.review||[]){const note=document.createElement('p');note.className='memory-review-note';note.textContent=hint;note.setAttribute('role','note');textWrap.append(note);}item.dataset.memoryReview=String(!!metadata.review?.length);item.dataset.memoryId=metadata.id||'';
 
   item.dataset.memoryText=memory.toLowerCase();
   item.dataset.memoryCategory=category;
@@ -1705,7 +1708,8 @@ function renderMemoryItem(
 
 async function deleteLongTermMemory(
   memory,
-  button
+  button,
+  memoryId
 ) {
   /*
     Absichtliche Sicherheitsabfrage:
@@ -1744,7 +1748,7 @@ async function deleteLongTermMemory(
           },
 
           body: JSON.stringify({
-            memory
+            memory,memoryId
           })
         }
       );

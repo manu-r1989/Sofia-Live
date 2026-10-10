@@ -63,3 +63,7 @@ test('late state reads cannot roll back read cursor, badge count or newer settin
 
 test('Today and app badge share contact counts and exclude duplicated contact turns',async()=>{const h=harness();h.window.SofiaWorkspace={unreadMessages:()=>[{content:'normal'},{content:'contact',contactId:'11111111-1111-4111-8111-111111111111'}]};h.messages.scrollTop=-200;await h.api.sync();assert.equal(h.api.unreadCount(),2);assert.equal(h.api.unreadMessages().length,1);h.messages.scrollTop=0;await h.api.sync();assert.equal(h.api.unreadCount(),1);assert.equal(h.api.unreadMessages().length,0);});
 
+
+ test('contact frequency explains the saved daily range and counts photos without a guarantee',async()=>{
+ const h=harness();h.state.contactPlan={min:1,max:5};await h.api.preferences({focus:'pause'});const note=h.nodes.find(n=>n.className==='contact-plan-note');assert.match(note.textContent,/1–5 Kontakte/);assert.match(note.textContent,/Fotos zählen mit/);assert.match(note.textContent,/Keine Mindestanzahl/);assert.equal(h.calls.filter(c=>c?.operation==='pause').length,0);
+ });

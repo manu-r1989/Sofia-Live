@@ -349,11 +349,23 @@ test('comparison shortcut buttons select actual source and variant boundaries',(
 
 
 test('combined edit summary follows selected source and named dimensions without submission',()=>{
- let submissions=0;const h=harness(async()=>preparedPhoto()),now=new Date().toISOString();h.window.SofiaPhotoAction=()=>{submissions++;return true;};h.api.restore([{...image(id),sentAt:now},{...image(id2),sourceId:id,sentAt:now}]);h.api.openGallery(id2);const viewer=h.body.all().find(n=>n.tag==='dialog'&&n.all().some(x=>x.textContent==='Mehrere Änderungen'));viewer.all().find(n=>n.textContent==='Mehrere Änderungen').onclick();const fields=viewer.all().filter(n=>n.tag==='select'&&String(n['aria-label']).startsWith('Fotoänderung:'));fields[0].value='Kamerastandpunkt: 90° nach links um das Motiv.';fields[0].onchange();const summary=viewer.all().find(n=>n.className==='photo-change-summary');assert.match(summary.textContent,/Kamera: 90° links/);assert.match(summary.textContent,/Übrige Merkmale/);assert.equal(submissions,0);
+ let submissions=0;const h=harness(async()=>preparedPhoto()),now=new Date().toISOString();h.window.SofiaPhotoAction=()=>{submissions++;return true;};h.api.restore([{...image(id),sentAt:now},{...image(id2),sourceId:id,sentAt:now}]);h.api.openGallery(id2);const viewer=h.body.all().find(n=>n.tag==='dialog'&&n.all().some(x=>x.textContent==='Mehrere Änderungen'));viewer.all().find(n=>n.textContent==='Mehrere Änderungen').onclick();const fields=viewer.all().filter(n=>n.tag==='select'&&String(n['aria-label']).startsWith('Fotoänderung:'));fields[0].value='Kamerastandpunkt: 90° nach links um das Motiv.';fields[0].onchange();const summary=viewer.all().find(n=>n.className==='photo-change-summary');assert.match(summary.textContent,/Kamera: 90° links/);assert.match(summary.textContent,/Gesicht, Haarfarbe und alle nicht ausgewählten Merkmale/);assert.equal(submissions,0);
 });
 
 test('photo proposals populate editable fields without submitting until apply',()=>{let submissions=0;const h=harness(async()=>preparedPhoto()),now=new Date().toISOString();h.window.SofiaPhotoAction=()=>{submissions++;return true;};h.api.restore([{...image(id),sentAt:now}]);h.api.openGallery(id);const viewer=h.document.getElementById('sofia-photo-'+id);viewer.all().find(n=>n.textContent==='Mehrere Änderungen').onclick();const presets=viewer.all().find(n=>n.className==='photo-edit-presets');presets.all().find(n=>n.textContent==='Kopf gerade').onclick();presets.all().find(n=>n.textContent==='Seitliche Kamera').onclick();assert.equal(submissions,0);assert.equal(viewer.all().find(n=>n['aria-label']==='Fotoänderung: Kopfhaltung').value,'Kopf gerade halten.');const camera=viewer.all().find(n=>n['aria-label']==='Fotoänderung: Kamera');assert.match(camera.value,/90°/);camera.value='';camera.onchange();viewer.all().find(n=>n.textContent==='Änderungen als ein Foto zeigen').onclick();assert.equal(submissions,1);});
 
 test('photo actions share one grid independently of source and lineage controls',()=>{
  const h=harness(async()=>preparedPhoto()),at=new Date().toISOString();h.api.restore([{...image(id),createdAt:at},{...image(id2),sourceId:id,createdAt:at}]);h.api.openGallery(id2);const view=h.document.getElementById('sofia-photo-'+id2),grid=view.all().find(n=>n.className==='photo-action-grid');assert.equal(grid.children.length,8);assert.ok(grid.children.every(n=>n.tag==='button'&&n.className==='photo-action'));assert.equal(grid.children[0].textContent,'Andere Perspektive');const source=view.all().find(n=>n.className==='photo-source-choice');assert.equal(source.tag,'div');assert.ok(!grid.all().some(n=>n.className==='photo-source-preview'));
+});
+
+test('series navigation excludes unrelated photos and leaves gallery filters unchanged',()=>{
+ const h=harness(async()=>preparedPhoto()),now=Date.now(),other='33333333-3333-4333-8333-333333333333';
+ h.api.restore([{...image(id),sentAt:new Date(now-3000).toISOString()},{...image(other),sentAt:new Date(now-2000).toISOString()},{...image(id2),sourceId:id,sentAt:new Date(now-1000).toISOString()}]);
+ h.api.openGallery(id2);const viewer=h.document.getElementById('sofia-photo-'+id2),toggle=viewer.all().find(x=>x.className==='photo-series-toggle');
+ assert.equal(toggle['aria-pressed'],'false');toggle.onclick();assert.equal(toggle['aria-pressed'],'true');
+ assert.match(viewer.all().find(x=>x.className==='photo-current-info').textContent,/Variante/);
+ viewer.all().find(x=>x['aria-label']==='Nächstes Foto').onclick();assert.equal(h.api.referenceId,id);
+ assert.match(viewer.all().find(x=>x.className==='photo-current-info').textContent,/Original/);
+ assert.equal(toggle['aria-pressed'],'true');toggle.onclick();assert.equal(toggle['aria-pressed'],'false');
+ viewer.all().find(x=>x['aria-label']==='Vorheriges Foto').onclick();assert.equal(h.api.referenceId,other);
 });
