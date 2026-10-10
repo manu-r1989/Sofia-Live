@@ -1067,3 +1067,11 @@ dialog legend,dialog label{font-size:13px;color:var(--ui-muted)}
 .photo-follow-ups select,.photo-change-options select{min-width:0;max-width:100%;font:inherit;}
 html[data-chat-font="large"] .photo-follow-ups{grid-template-columns:repeat(2,minmax(0,1fr));}
 @media(max-width:420px){html[data-chat-font="large"] .photo-follow-ups,.photo-change-options{grid-template-columns:minmax(0,1fr);}.photo-comparison-buttons{flex-wrap:wrap;}}
+
+/* V4.74 — photo proposals and section-specific state. */
+.photo-edit-presets{grid-column:1/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;}
+.photo-variant-info{grid-column:1/-1;margin:4px 0;line-height:1.5;overflow-wrap:anywhere;color:rgba(255,255,255,.7);}
+.photo-source-choice[data-source-relation="parent"],.photo-source-choice[data-source-relation="root"]{border-left:3px solid rgba(215,198,152,.75);padding-left:10px;}
+.today-section-warning{font-size:.9em;color:#e9c998;line-height:1.5;overflow-wrap:anywhere;}
+.workspace-dialog{max-height:calc(var(--sofia-visible-height,100dvh) - 32px);overscroll-behavior:contain;}
+@media(max-width:420px){.photo-edit-presets{grid-template-columns:minmax(0,1fr);}}
