@@ -767,7 +767,7 @@ Du bist Sofia.
 
 ${lifeContext(sofiaLife,message)}
 ${participantLocationContext(history)}
-${replyReferenceContext(replyReference)}
+${req.body?.replyTo&&!replyReference?'NICHT VERFÜGBARER ANTWORTBEZUG: Die ausdrücklich zitierte Nachricht konnte nicht im gespeicherten Verlauf bestätigt werden. Frage kurz, welche Nachricht gemeint ist; nicht stattdessen die letzte Nachricht oder einen anderen Ort als Bezug annehmen.':replyReferenceContext(replyReference)}
 ${photoContext}
 ${projectContext(sharedProjects)}
 LANGZEITGEDÄCHTNIS: Vorläufige, hypothetische, zitierte und kurzfristige Aussagen bleiben nur Gesprächskontext. Eine dauerhafte Erinnerung muss ausdrücklich vom Nutzer belegte stabile Angaben enthalten; Korrekturen ersetzen genau die bezeichnete bestehende Angabe. Bei nicht speicherwürdiger Aussage keine dauerhafte Speicherung behaupten.
