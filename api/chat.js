@@ -1,10 +1,11 @@
 import { dataPrefix, testModeRequested, publicTestMode, guardTestRequest } from "../lib/environment.js";
-import { resolveReplyReference, replyReferenceContext, participantLocationContext } from '../lib/message-context.js';
+import { resolveReplyReference, replyReferenceContext, participantLocationContext, visibleConversation, DELETE_MESSAGE_SCRIPT, RESTORE_MESSAGE_SCRIPT, SAVE_VISIBLE_HISTORY_SCRIPT, conversationReferenceContext, replyPhotoReference } from '../lib/message-context.js';
 import { persistMemorySnapshot, executeProjectCommand, executeMemoryCommand, projectState, projectContext, projectBinding, linkProjectResult, appearanceChoice, conversationClarification, guardPermanentMemory, compactConversationHistory, safeDiagnostic, taskReceipt, hamburgReferenceTime, portraitPreparationReply, preparePortrait, generatePortrait, servePortrait, portraitGallery, appendPortraitAcknowledgment, PORTRAIT_FAILURE_REPLY, getSofiaLife, currentSituationCorrection, synchronizeSituation, learnSofiaLife, lifeContext, selectedPhotoContext, prepareProactivePortrait, PROACTIVE_PHOTO_ANNOUNCEMENT } from '../lib/character-image.js';
 import crypto from "node:crypto";
 import { executeUnifiedAction, getActionState, getResearchState } from "./action-engine.js";
 
 const HISTORY_KEY = dataPrefix() + 'history';
+const HIDDEN_MESSAGES_KEY=dataPrefix()+'chat-hidden-messages';
 const MEMORY_KEY = dataPrefix() + 'longterm';
 const IDENTITY_KEY = dataPrefix() + 'identity';
 const TASKS_KEY = dataPrefix() + 'tasks';
@@ -516,6 +517,7 @@ export default async function handler(req, res) {
 
 
   }
+  if(req.method==='POST'&&req.headers?.origin){try{if(new URL(req.headers.origin).host!==req.headers.host)throw Error();}catch{return res.status(403).json({error:'Origin not allowed'});}}
   if(!await guardTestRequest(req,res,"chat"))return;
 
   /* ========================================
@@ -524,6 +526,26 @@ export default async function handler(req, res) {
 
   const turnStartedAt=new Date().toISOString();
   try {
+
+    if(req.method==='POST'&&req.body?.operation==='restore_message') {
+      const hidden=await redisGetJSON(HIDDEN_MESSAGES_KEY,[]);const target=resolveReplyReference(req.body?.messageReference,hidden);
+      if(!target)return res.status(404).json({error:'Nachricht nicht verfügbar.'});
+      const history=await redisGetJSON(HISTORY_KEY,[]);if(history.length>=MAX_HISTORY_MESSAGES&&Date.parse(target.createdAt)<Date.parse(history[history.length-MAX_HISTORY_MESSAGES]?.createdAt))return res.status(410).json({error:'Diese Nachricht liegt außerhalb des aktuell verfügbaren Chatverlaufs.'});
+      await redisPipeline([['EVAL',RESTORE_MESSAGE_SCRIPT,2,HISTORY_KEY,HIDDEN_MESSAGES_KEY,JSON.stringify(target)]]);return res.status(200).json({ok:true});
+    }
+    if(req.method==='POST'&&req.body?.operation==='delete_message') {
+      if(req.headers?.origin){try{if(new URL(req.headers.origin).host!==req.headers.host)throw Error();}catch{return res.status(403).json({error:'Origin not allowed'});}}
+      const target=resolveReplyReference(req.body?.messageReference,await redisGetJSON(HISTORY_KEY,[]));
+      if(!target)return res.status(404).json({error:'Diese Nachricht ist nicht mehr im gespeicherten Verlauf.'});
+      const result=await redisPipeline([['EVAL',DELETE_MESSAGE_SCRIPT,2,HISTORY_KEY,HIDDEN_MESSAGES_KEY,JSON.stringify(target)]]);
+      return res.status(200).json({ok:true,reference:target});
+    }
+    if(req.method==='POST'&&['hide_photo_chat','show_photo_chat'].includes(req.body?.operation)) {
+      const id=req.body?.imageId;if(typeof id!=='string'||!/^[0-9a-f-]{36}$/i.test(id))return res.status(400).json({error:'Ungültiges Foto.'});
+      const photos=await portraitGallery();if(!photos.some(x=>x.id===id))return res.status(404).json({error:'Foto nicht verfügbar.'});
+      await redisPipeline([['EVAL',`local list=cjson.decode(redis.call('GET',KEYS[1]) or '[]');for _,x in ipairs(list) do if x.id==ARGV[1] then x.chatHidden=ARGV[2]=='1' end end;redis.call('SET',KEYS[1],#list==0 and '[]' or cjson.encode(list));return 1`,1,dataPrefix()+'portrait:gallery',id,req.body.operation==='hide_photo_chat'?'1':'0']]);
+      return res.status(200).json({ok:true});
+    }
 
     if (req.method === "GET" && req.query?.image) return await servePortrait(req, res);
     if (req.method === "POST" && req.body?.operation === "generate_image") {
@@ -536,11 +558,12 @@ export default async function handler(req, res) {
         return res.status(500).json({ error: "Redis-Konfiguration fehlt." });
       }
       const storedHistory = await redisGetJSON(HISTORY_KEY, []);
-      const history = (Array.isArray(storedHistory) ? storedHistory : [])
+      const hidden=await redisGetJSON(HIDDEN_MESSAGES_KEY,[]);
+      const history = visibleConversation(storedHistory,hidden)
         .filter(item => item && ["user","assistant"].includes(item.role) && typeof item.content === "string")
         .slice(-MAX_HISTORY_MESSAGES);
       res.setHeader("Cache-Control","no-store");
-      return res.status(200).json({ history, life: await getSofiaLife(), images: await portraitGallery() });
+      return res.status(200).json({ history, hiddenMessages:hidden, life: await getSofiaLife(), images: await portraitGallery() });
     }
 
     const { message, image, history: clientHistory } =
@@ -597,6 +620,11 @@ export default async function handler(req, res) {
     }
 
 
+    const hiddenMessages=await redisGetJSON(HIDDEN_MESSAGES_KEY,[]);
+    const quoteHistory=visibleConversation(await redisGetJSON(HISTORY_KEY,[]),hiddenMessages);
+    const quoteReference=resolveReplyReference(req.body?.replyTo,quoteHistory)||replyPhotoReference(req.body?.replyTo,req.body?.replyTo?.imageId?await portraitGallery():[]);
+    if(req.body?.replyTo?.imageId&&!quoteReference)return res.status(409).json({error:'Das zitierte Foto ist nicht mehr verfügbar. Bitte wähle ein anderes Foto.',code:'portrait_source_unavailable'});
+    const selectedReferenceId=quoteReference?.imageId||req.body?.referenceImageId;
     if(currentSituationCorrection(message))await synchronizeSituation(message,new Date(),req.body?.mood);
 
     const directCommand=await executeMemoryCommand(message) || await executeProjectCommand(message);
@@ -605,7 +633,7 @@ export default async function handler(req, res) {
     try {
       const appearance=await appearanceChoice(message,new Date(),req.body?.mood);
       if(appearance?.reply){const createdAt=await appendPortraitAcknowledgment(message,appearance.reply);return res.status(200).json({reply:appearance.reply,createdAt,life:appearance.life,mood:appearance.life.mood,taskAction:{ok:true,action:'none'}});}
-      const imageRequest = appearance?.imageRequest || await preparePortrait(message, req.body?.referenceImageId, new Date(), req.body?.mood);
+      const imageRequest = appearance?.imageRequest || await preparePortrait(message, selectedReferenceId, new Date(), req.body?.mood);
       if (imageRequest) {
         let taskAction={ok:true,action:"none"},calendarAction=null;
         if(imageRequest.taskMessage) {
@@ -614,9 +642,9 @@ export default async function handler(req, res) {
         }
         const receipt=imageRequest.taskMessage?(calendarAction && taskAction.action==='none'?'Kalenderimport ist vorbereitet.':taskReceipt(taskAction)):'';
         const reply = imageRequest.correction ? "Ich korrigiere das Foto entsprechend deiner Beschreibung." : receipt ? receipt + " Gib mir einen kleinen Moment." : "Gib mir einen kleinen Moment.";
-        const createdAt=await appendPortraitAcknowledgment(message, reply, imageRequest.id);
+        const createdAt=await appendPortraitAcknowledgment(message, reply, imageRequest.id,quoteReference);
         const life = await getSofiaLife();
-        return res.status(200).json({ reply,createdAt, life, mood: life.mood || "entspannt", imageRequest, taskAction, calendarAction });
+        return res.status(200).json({ reply,createdAt, life, mood: life.mood || "entspannt", imageRequest, taskAction, calendarAction,...(quoteReference?{replyTo:quoteReference}:{}) });
       }
     } catch (error) {
       return res.status(200).json({ reply:portraitPreparationReply(error), taskAction:{ok:true,action:"none"} });
@@ -761,12 +789,14 @@ export default async function handler(req, res) {
     const photoContext=await selectedPhotoContext(req.body?.referenceImageId,message,new Date(),sofiaLife);
     const sharedProjects=await projectState();
     const projectTask=projectBinding(message,sharedProjects);
-    const replyReference=resolveReplyReference(req.body?.replyTo,storedHistory);
+    history=visibleConversation(history,hiddenMessages);
+    const replyReference=quoteReference;
     const SOFIA_PROMPT = `
 Du bist Sofia.
 
 ${lifeContext(sofiaLife,message)}
 ${participantLocationContext(history)}
+${conversationReferenceContext(history,message,replyReference)}
 ${req.body?.replyTo&&!replyReference?'NICHT VERFÜGBARER ANTWORTBEZUG: Die ausdrücklich zitierte Nachricht konnte nicht im gespeicherten Verlauf bestätigt werden. Frage kurz, welche Nachricht gemeint ist; nicht stattdessen die letzte Nachricht oder einen anderen Ort als Bezug annehmen.':replyReferenceContext(replyReference)}
 ${photoContext}
 ${projectContext(sharedProjects)}
@@ -1645,7 +1675,7 @@ Kein Markdown außerhalb des JSON-Objekts.
     ].filter(Boolean);
 
 
-    const clarification=taskAction?.ok && taskAction.action==="none"?conversationClarification(sofiaLife,message):null;
+    const clarification=!replyReference&&taskAction?.ok && taskAction.action==="none"?conversationClarification(sofiaLife,message):null;
     failureStage="chat_provider_failed";
     const response = clarification ? {ok:true,json:async()=>({output:[{content:[{type:"output_text",text:JSON.stringify({reply:clarification,mood:sofiaLife.mood,memory_action:{action:"none"},calendar_action:null})}]}]})} :
       await fetch(
@@ -1957,6 +1987,7 @@ Kein Markdown außerhalb des JSON-Objekts.
       {
         role: "assistant",
         createdAt: new Date().toISOString(),
+        ...(replyReference?{replyTo:replyReference}:{}),
         ...(spontaneousImageRequest ? {imageRequestId:spontaneousImageRequest.id} : {}),
         content:
           reply
@@ -1976,7 +2007,7 @@ Kein Markdown außerhalb des JSON-Objekts.
     ======================================== */
 
     failureStage="chat_store_unconfirmed";
-    await redisPipeline([["SET",HISTORY_KEY,JSON.stringify(history)]]);
+    await redisPipeline([["EVAL",SAVE_VISIBLE_HISTORY_SCRIPT,2,HISTORY_KEY,HIDDEN_MESSAGES_KEY,JSON.stringify(history)]]);
 
     // V4.12.5: Sofia's own continuity is stored separately from user memory.
     try {
@@ -2002,6 +2033,7 @@ Kein Markdown außerhalb des JSON-Objekts.
 
       reply,
       createdAt: history.at(-1)?.createdAt,
+      ...(replyReference?{replyTo:replyReference}:{}),
       life: sofiaLife,
       ...(spontaneousImageRequest ? {imageRequest:spontaneousImageRequest} : {}),
 

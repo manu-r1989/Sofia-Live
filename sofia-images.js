@@ -117,7 +117,7 @@
       function updateNavigation(){const items=sequence(),index=items.findIndex(x=>x.id===image.id);previous.disabled=index<=0;next.disabled=index<0 || index>=items.length-1;counter.textContent=(index>=0?index+1:1)+' / '+Math.max(1,items.length);photoDate.textContent=Number.isFinite(sentTime(image))?new Date(sentTime(image)).toLocaleString('de-DE',{timeZone:'Europe/Berlin',dateStyle:'medium',timeStyle:'short'}):'Datum unbekannt';}
       function changePhoto(offset){const items=sequence(),index=items.findIndex(x=>x.id===image.id),target=index<0?null:items[index+offset];if(!target)return;
         image=target;url='/api/chat?image='+image.id;dialog.id='sofia-photo-'+image.id;full.src=url;full.alt=image.caption||'Sofia';selectionVersion++;rememberReference(image.id);
-        if(objectUrl){URL.revokeObjectURL(objectUrl);objectUrl=null;}blob=null;file=null;updateNavigation();updateCompare();updateChat();updateSource();compass.hidden=true;perspective.setAttribute('aria-expanded','false');detailBox.hidden=true;customBox.hidden=true;detail.setAttribute('aria-expanded','false');custom.setAttribute('aria-expanded','false');combinedBox.hidden=true;combinedToggle.setAttribute('aria-expanded','false');for(const select of changeSelects)select.value='';paintChangeSummary();void prepareDownload();
+        if(objectUrl){URL.revokeObjectURL(objectUrl);objectUrl=null;}blob=null;file=null;updateNavigation();updateCompare();updateChat();updateSource();paintLineage();compass.hidden=true;perspective.setAttribute('aria-expanded','false');detailBox.hidden=true;customBox.hidden=true;detail.setAttribute('aria-expanded','false');custom.setAttribute('aria-expanded','false');combinedBox.hidden=true;combinedToggle.setAttribute('aria-expanded','false');for(const select of changeSelects)select.value='';paintChangeSummary();void prepareDownload();
       }
       previous.onclick=()=>changePhoto(-1);next.onclick=()=>changePhoto(1);navigation.append(previous,counter,next);
       if(gallerySequence){
@@ -130,10 +130,14 @@
       const toolbar=document.createElement('div');toolbar.className='photo-toolbar';remove.className='photo-delete';toolbar.append(download,remove);
       const header=document.createElement('div');header.className='photo-header';header.append(photoDate,close);
       const follow=document.createElement('div');follow.className='photo-follow-ups';follow.setAttribute('aria-label','Foto ändern und vergleichen');
+      const lineage=document.createElement('div');lineage.className='photo-series-nav';lineage.setAttribute('aria-label','Fotoreihe');
+      function showRelative(target){if(!target||!retained(target))return;dialog.dataset.returnToLatest='true';dialog.close();openPhoto(target,gallerySequence);}
+      function paintLineage(){lineage.replaceChildren();const parent=galleryItems.get(image.sourceId);if(parent&&retained(parent))lineage.append(nodeButton('Vorgänger öffnen',()=>showRelative(parent)));const rootPhoto=seriesRoot();if(rootPhoto&&rootPhoto.id!==image.id&&rootPhoto.id!==parent?.id)lineage.append(nodeButton('Ursprung öffnen',()=>showRelative(rootPhoto)));for(const child of [...galleryItems.values()].filter(x=>x.sourceId===image.id&&retained(x)).slice(-4))lineage.append(nodeButton('Folgevariante · '+new Date(sentTime(child)).toLocaleTimeString('de-DE',{timeZone:'Europe/Berlin',hour:'2-digit',minute:'2-digit'}),()=>showRelative(child)));}
+      function nodeButton(text,action){const b=document.createElement('button');b.type='button';b.textContent=text;b.onclick=action;return b;}
       const perspective=document.createElement('button'),detail=document.createElement('button');perspective.type=detail.type='button';perspective.textContent='Andere Perspektive';detail.textContent='Detail ansehen';
       const detailBox=document.createElement('div');detailBox.className='photo-detail-controls';detailBox.hidden=true;
       const detailInput=document.createElement('input');detailInput.maxLength=160;detailInput.placeholder='Welches Detail möchtest du sehen?';detailInput.setAttribute('aria-label','Gewünschtes Fotodetail');
-      const detailSend=document.createElement('button');detailSend.type='button';detailSend.textContent='Detail zeigen';detailBox.append(detailInput,detailSend);
+      const detailSend=document.createElement('button');detailSend.type='button';detailSend.textContent='Detail zeigen';const regions=document.createElement('div');regions.className='photo-detail-selector';regions.setAttribute('aria-label','Bildbereich auswählen');for(const [label,value]of [['Gesicht','das Gesicht'],['Oberteil','das Oberteil'],['Hände','die Hände'],['Hintergrund','den Hintergrund']]){const region=document.createElement('button');region.type='button';region.textContent=label;region.onclick=()=>{detailInput.value=value;detailInput.focus();};regions.append(region);}detailBox.append(regions,detailInput,detailSend);
       function requestPhoto(message){const selected=sourcePhoto();if(!selected){status.textContent='Das ausgewählte Ausgangsfoto ist nicht mehr verfügbar.';return false;}const selectedId=selected.id;rememberReference(selectedId);if(!window.SofiaPhotoAction?.(message,selectedId)){status.textContent='Bitte warte, bis die laufende Aktion beendet ist, und prüfe die Verbindung.';return false;}dialog.dataset.returnToLatest='true';const gallery=document.getElementById('sofia-gallery');if(gallery)gallery.dataset.returnToLatest='true';dialog.close();gallery?.close();window.SofiaChatViewport?.latest?.();return true;}
       const sourceBox=document.createElement('label');sourceBox.className='photo-source-choice';sourceBox.textContent='Ausgangsfoto für die Änderung';
       const sourceChoice=document.createElement('select');sourceChoice.setAttribute('aria-label','Ausgangsfoto auswählen');
@@ -145,6 +149,8 @@
       const sourceStamp=document.createElement('small');sourceStamp.className='photo-source-stamp';
       const variantInfo=document.createElement('p');variantInfo.className='photo-variant-info';
       function paintVariantInfo(){const names={'camera-angle':'Kamera','head-pose':'Kopfhaltung',gesture:'Gestik',expression:'Mimik',pose:'Körperhaltung',lighting:'Licht',framing:'Ausschnitt',distance:'Abstand',background:'Hintergrund',outfit:'Kleidung',hairstyle:'Frisur',time:'Tageszeit'};variantInfo.textContent=image.sourceId?'Fotovariante · Bezug: unmittelbar vorheriges Ausgangsfoto'+((image.dimensions||[]).length?' · Angefordert: '+image.dimensions.map(x=>names[x]||x).join(', '):''):'Originalfoto · Noch keine Variante';}
+      const quotePhoto=document.createElement('button');quotePhoto.type='button';quotePhoto.textContent='Auf dieses Foto antworten';quotePhoto.onclick=()=>{window.SofiaWorkspace?.selectReply({role:'assistant',content:'Foto vom '+new Date(image.sentAt||image.createdAt).toLocaleString('de-DE',{timeZone:'Europe/Berlin'}),createdAt:image.sentAt||image.createdAt,imageId:image.id});dialog.dataset.returnToLatest='true';const gallery=document.getElementById('sofia-gallery');if(gallery)gallery.dataset.returnToLatest='true';dialog.close();gallery?.close();document.getElementById('input')?.focus();};sourceBox.append(quotePhoto);
+      const chatVisibility=document.createElement('button');chatVisibility.type='button';chatVisibility.textContent='Im Chat wieder anzeigen';chatVisibility.hidden=!image.chatHidden;chatVisibility.onclick=async()=>{chatVisibility.disabled=true;try{const r=await fetch('/api/chat',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({operation:'show_photo_chat',imageId:image.id})});if(!r.ok)throw Error();image.chatHidden=false;galleryItems.set(image.id,image);show(image);chatVisibility.hidden=true;}catch{status.textContent='Das Foto konnte nicht im Chat eingeblendet werden.';chatVisibility.disabled=false;}};sourceBox.append(chatVisibility);
       const originalPreviewSource=previewSource;function previewWithDate(){originalPreviewSource();const selected=sourcePhoto();sourceBox.dataset.sourceRelation=selected?.id===image.id?'current':selected?.id===image.sourceId?'parent':'root';sourceStamp.textContent=selected?'Aufnahme: '+new Date(selected.capturedAt||selected.sentAt||selected.createdAt).toLocaleString('de-DE',{timeZone:'Europe/Berlin',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}):'Ausgangsfoto nicht verfügbar.';paintVariantInfo();}
       sourceChoice.onchange=()=>{previewWithDate();paintChangeSummary();};sourceBox.append(sourceChoice,sourcePreview,sourceStamp,variantInfo);updateSource();previewWithDate();
       const compass=document.createElement('section');compass.className='photo-perspective-controls';compass.id='photo-perspective-'+image.id;compass.hidden=true;compass.setAttribute('aria-label','Kameraperspektive auswählen');
@@ -207,7 +213,7 @@
         const pair=document.createElement('div');pair.className='photo-comparison-slider';const before=document.createElement('img'),after=document.createElement('img');before.src='/api/chat?image='+original.id;before.alt='Ausgangsfoto';after.src='/api/chat?image='+image.id;after.alt='Variante';pair.append(before,after);
         const control=document.createElement('input');control.type='range';control.min='0';control.max='100';control.value='50';control.setAttribute('aria-label','Fotovergleich: Anteil der Variante');const labels=document.createElement('p');labels.textContent='Ausgangsfoto links · Variante rechts · '+new Date(original.sentAt||original.createdAt).toLocaleString('de-DE',{timeZone:'Europe/Berlin',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});const paint=()=>{after.style.clipPath='inset(0 0 0 '+(100-Number(control.value))+'%)';control.setAttribute('aria-valuetext',control.value+' Prozent Variante');};control.oninput=paint;paint();const boundaries=document.createElement('div');boundaries.className='photo-comparison-boundaries';for(const [value,text]of [['0','Ausgangsfoto'],['50','Halb / halb'],['100','Variante']]){const button=document.createElement('button');button.type='button';button.textContent=text;button.onclick=()=>{control.value=value;paint();control.focus();};boundaries.append(button);}const closeEnd=document.createElement('button');closeEnd.type='button';closeEnd.textContent='Schließen';closeEnd.onclick=()=>comparison.close();comparison.append(heading,closeComparison,pair,control,labels,boundaries,closeEnd);document.body.append(comparison);comparison.addEventListener('close',()=>comparison.remove(),{once:true});comparison.showModal();control.focus();};
       updateCompare();updateChat();
-      follow.append(sourceBox,perspective,detail,lighting,framing,custom,combinedToggle,compare,chat,compass,detailBox,customBox,combinedBox);
+      paintLineage();follow.append(sourceBox,lineage,perspective,detail,lighting,framing,custom,combinedToggle,compare,chat,compass,detailBox,customBox,combinedBox);
       full.addEventListener('error',()=>{status.textContent='Foto konnte nicht geladen werden. Bitte Verbindung prüfen.';});
       dialog.append(header,full);if(gallerySequence){dialog.append(navigation);updateNavigation();}dialog.append(toolbar,follow,status); document.body.append(dialog);
       dialog.addEventListener('close',()=>{closed=true;if(objectUrl)URL.revokeObjectURL(objectUrl);dialog.remove();},{once:true});
@@ -287,6 +293,7 @@
     if(image.status!=='pending')galleryItems.set(image.id,{...galleryItems.get(image.id),...image});
     const messages=document.getElementById('messages');
     if (!messages) return;
+    if(image.chatHidden){document.getElementById('portrait-slot-'+image.id)?.remove();document.getElementById('portrait-'+image.id)?.remove();return;}
     const slot=locate(image);
     if (!slot) return;
     hideAcknowledgment(image);
@@ -314,6 +321,8 @@
     }
     const figure = document.createElement('figure');
     figure.className = 'msg sofia'; figure.dataset.portraitStatus='done';figure.dataset.presentation=mode; figure.id = 'portrait-' + image.id;
+    figure.dataset.imageId=image.id;
+    figure.dataset.messageText='Foto vom '+new Date(image.sentAt||image.createdAt).toLocaleString('de-DE',{timeZone:'Europe/Berlin'});
     figure.style.margin = '8px 0';
     const button = document.createElement('button'); button.type = 'button';
     button.style.cssText = 'border:0;background:transparent;padding:0;cursor:pointer';
@@ -326,7 +335,7 @@
     button.append(img);
     button.onclick = () => openPhoto(image);
     figure.append(button); slot.append(figure); slot.hidden=false;
-    window.SofiaTimeline?.decorate(figure,image.sentAt||image.createdAt);window.SofiaUI?.refreshDays(messages);
+    window.SofiaTimeline?.decorate(figure,image.sentAt||image.createdAt);window.SofiaWorkspace?.added(figure,true);window.SofiaUI?.refreshDays(messages);
     window.SofiaChatViewport?.restore(viewport);
   }
   function refreshExpiry(){for(const image of galleryItems.values()){const expired=!retained(image);show({...image,...(expired?{status:'expired'}:{})});if(expired){document.getElementById('sofia-photo-'+image.id)?.close();document.getElementById('sofia-gallery')?.querySelector('[data-gallery-photo-id="'+image.id+'"]')?.remove();}}}

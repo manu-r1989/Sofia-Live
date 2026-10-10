@@ -234,3 +234,5 @@ test('a late unread contact arriving during generation prevents another unsolici
 test('a recent unanswered conversation question blocks another unsolicited contact',()=>{
  const now=new Date();assert.equal(api.contactReadiness({dialogue:{at:new Date(+now-3600000).toISOString(),pendingQuestion:'Wie lief dein Tag?',lastUser:'Hallo'}},{sequence:0,read:0,items:[]},now),'unanswered_question');assert.equal(api.contactReadiness({dialogue:{at:new Date(+now-5*3600000).toISOString(),pendingQuestion:'Wie lief dein Tag?',lastUser:'Hallo'}},{sequence:0,read:0,items:[]},now),null);
 });
+
+test('future events never become past-event proactive followups',()=>{const now=new Date('2026-10-10T12:00:00Z');const life={threads:[{topic:'Termin',text:'Termin am Montag',status:'open',eventDate:'2026-10-12',expiresAt:'2026-10-15T12:00:00Z'}]};assert.equal(api.contactThreads(life,{items:[]},now).length,0);life.threads[0].eventDate='2026-10-09';assert.equal(api.contactThreads(life,{items:[]},now).length,1);life.threads[0].lastReferencedAt='2026-10-10T11:00:00Z';assert.equal(api.contactThreads(life,{items:[]},now).length,0);});

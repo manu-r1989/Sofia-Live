@@ -1084,3 +1084,15 @@ html[data-chat-font="large"] .photo-follow-ups{grid-template-columns:repeat(2,mi
 .composer-reply span{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .composer-reply button{flex:none;min-width:32px;min-height:32px;border:0;background:transparent;color:var(--ui-muted);font-size:20px}
 .message-quote{display:block;max-width:100%;width:100%;margin:0 0 7px;padding:7px 9px;border:0;border-left:2px solid currentColor;border-radius:5px;text-align:left;background:#00000010;color:inherit;opacity:.75;font-size:12px;line-height:1.35;white-space:normal;overflow-wrap:anywhere;cursor:pointer}
+
+/* 4.74.11–4.78.7: embedded source, never a separate floating quote. */
+.message-quote{white-space:pre-wrap;text-align:left;font-size:12px;line-height:1.45;padding:9px 11px;margin:0 0 9px;border:0;border-left:3px solid currentColor;border-radius:7px;background:#ffffff0a;max-height:180px;overflow:auto;opacity:.8}
+.msg.user .message-quote{background:#00000008}
+.search-context{display:block;margin:8px 0;color:var(--ui-muted);font-size:11px}
+.settings-group{margin:12px 0;border-top:1px solid var(--ui-border);padding-top:12px}
+.settings-group summary{cursor:pointer;font-weight:600;padding:8px 0}
+.photo-detail-selector{display:flex;flex-wrap:wrap;gap:5px;margin:8px 0}.photo-detail-selector button{flex:1;min-width:90px}
+.photo-series-nav{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}.photo-series-nav button{flex:1;min-width:100px}
+.today-draft{border-left:3px solid var(--ui-muted);padding:10px;margin:10px 0;background:#ffffff08;border-radius:8px}
+
+.message-quote img{display:block;width:56px;height:72px;object-fit:cover;border-radius:5px;margin-top:6px}
