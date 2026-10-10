@@ -4,7 +4,9 @@ import crypto from 'node:crypto';
 import {readFile as nativeReadFile} from 'node:fs/promises';
 const environmentSource=await nativeReadFile(new URL('../lib/environment.js',import.meta.url),'utf8');
 const environmentUrl='data:text/javascript;base64,'+Buffer.from(environmentSource).toString('base64');
-async function readFile(...args){const value=await nativeReadFile(...args);return typeof value==='string'?value.replaceAll('../lib/environment.js',environmentUrl):value;}
+const messageContextSource=await nativeReadFile(new URL('../lib/message-context.js',import.meta.url),'utf8');
+const messageContextUrl='data:text/javascript;base64,'+Buffer.from(messageContextSource).toString('base64');
+async function readFile(...args){const value=await nativeReadFile(...args);return typeof value==='string'?value.replaceAll('../lib/environment.js',environmentUrl).replaceAll('../lib/message-context.js',messageContextUrl):value;}
 
 // No credentials or services are used: all HTTP calls are intercepted.
 const root = new URL('../', import.meta.url);
@@ -526,4 +528,5 @@ test('text reply model receives a current correction already committed to the sh
 test('live context shares the same preflight correction without touching voice transport',async()=>{
  reset();const result=await endpoint('live-context','Du sitzt doch gerade auf dem Sofa.');assert.equal(result.life.location,'auf dem Sofa');assert.match(result.context,/auf dem Sofa/);assert.equal(result.life.situation.sources.location.source,'correction');assert.equal(writes,0);
 });
+
 

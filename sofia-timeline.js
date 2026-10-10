@@ -8,7 +8,8 @@
     const time=document.createElement('time');time.className='message-time';time.dateTime=date.toISOString();
     time.textContent=new Intl.DateTimeFormat('de-DE',{timeZone:'Europe/Berlin',hour:'2-digit',minute:'2-digit'}).format(date);
     time.title=new Intl.DateTimeFormat('de-DE',{timeZone:'Europe/Berlin',dateStyle:'medium',timeStyle:'short'}).format(date);
-    time.setAttribute('aria-label','Gesendet am '+time.title);node.append(time);
+    time.setAttribute('aria-label','Gesendet am '+time.title);let meta=node.querySelector?.('.message-meta');if(!meta){meta=document.createElement('div');meta.className='message-meta';node.append(meta);}meta.append(time);
   }
   window.SofiaTimeline={decorate};
 })();
+

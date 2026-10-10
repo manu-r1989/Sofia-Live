@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import {readFile as nativeReadFile} from 'node:fs/promises';
 const environmentSource=await nativeReadFile(new URL('../lib/environment.js',import.meta.url),'utf8');
 const environmentUrl='data:text/javascript;base64,'+Buffer.from(environmentSource).toString('base64');
-async function readFile(...args){const value=await nativeReadFile(...args);return typeof value==='string'?value.replaceAll('../lib/environment.js',environmentUrl):value;}
+const messageContextSource=await nativeReadFile(new URL('../lib/message-context.js',import.meta.url),'utf8');
+const messageContextUrl='data:text/javascript;base64,'+Buffer.from(messageContextSource).toString('base64');
+async function readFile(...args){const value=await nativeReadFile(...args);return typeof value==='string'?value.replaceAll('../lib/environment.js',environmentUrl).replaceAll('../lib/message-context.js',messageContextUrl):value;}
 import crypto from 'node:crypto';
 const source=await readFile(new URL('../lib/character-image.js',import.meta.url),'utf8');
 const url=s=>'data:text/javascript;base64,'+Buffer.from(s).toString('base64');
@@ -622,3 +624,4 @@ test('photographic camera and gaze vary independently and retained variants rema
  assert.notEqual(next.head,first.head);assert.notEqual(next.camera,first.camera);assert.notEqual(next.gaze,first.gaze);
  assert.deepEqual(api.photoPose({photoPose:first},true,'ernst',[{photoPose:next}]),first);
 });
+

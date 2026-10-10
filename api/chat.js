@@ -1,4 +1,5 @@
 import { dataPrefix, testModeRequested, publicTestMode, guardTestRequest } from "../lib/environment.js";
+import { resolveReplyReference, replyReferenceContext, participantLocationContext } from '../lib/message-context.js';
 import { persistMemorySnapshot, executeProjectCommand, executeMemoryCommand, projectState, projectContext, projectBinding, linkProjectResult, appearanceChoice, conversationClarification, guardPermanentMemory, compactConversationHistory, safeDiagnostic, taskReceipt, hamburgReferenceTime, portraitPreparationReply, preparePortrait, generatePortrait, servePortrait, portraitGallery, appendPortraitAcknowledgment, PORTRAIT_FAILURE_REPLY, getSofiaLife, currentSituationCorrection, synchronizeSituation, learnSofiaLife, lifeContext, selectedPhotoContext, prepareProactivePortrait, PROACTIVE_PHOTO_ANNOUNCEMENT } from '../lib/character-image.js';
 import crypto from "node:crypto";
 import { executeUnifiedAction, getActionState, getResearchState } from "./action-engine.js";
@@ -760,10 +761,13 @@ export default async function handler(req, res) {
     const photoContext=await selectedPhotoContext(req.body?.referenceImageId,message,new Date(),sofiaLife);
     const sharedProjects=await projectState();
     const projectTask=projectBinding(message,sharedProjects);
+    const replyReference=resolveReplyReference(req.body?.replyTo,storedHistory);
     const SOFIA_PROMPT = `
 Du bist Sofia.
 
 ${lifeContext(sofiaLife,message)}
+${participantLocationContext(history)}
+${req.body?.replyTo&&!replyReference?'NICHT VERFÜGBARER ANTWORTBEZUG: Die ausdrücklich zitierte Nachricht konnte nicht im gespeicherten Verlauf bestätigt werden. Frage kurz, welche Nachricht gemeint ist; nicht stattdessen die letzte Nachricht oder einen anderen Ort als Bezug annehmen.':replyReferenceContext(replyReference)}
 ${photoContext}
 ${projectContext(sharedProjects)}
 LANGZEITGEDÄCHTNIS: Vorläufige, hypothetische, zitierte und kurzfristige Aussagen bleiben nur Gesprächskontext. Eine dauerhafte Erinnerung muss ausdrücklich vom Nutzer belegte stabile Angaben enthalten; Korrekturen ersetzen genau die bezeichnete bestehende Angabe. Bei nicht speicherwürdiger Aussage keine dauerhafte Speicherung behaupten.
@@ -1946,7 +1950,8 @@ Kein Markdown außerhalb des JSON-Objekts.
         role: "user",
         content:
           message.trim(),
-        createdAt: turnStartedAt
+        createdAt: turnStartedAt,
+        ...(replyReference?{replyTo:replyReference}:{})
       },
 
       {
@@ -2190,5 +2195,6 @@ async function redisPipeline(
   return data;
 
 }
+
 
 
