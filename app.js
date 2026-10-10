@@ -415,7 +415,7 @@ async function syncConversationFromServer({ silent = false } = {}) {
       item &&
       (item.role === 'user' || item.role === 'assistant') &&
       typeof item.content === 'string'
-    ).map(({role,content,imageRequestId,contactId,createdAt})=>({role,content,...(imageRequestId?{imageRequestId}:{}),...(contactId?{contactId}:{}),...(createdAt?{createdAt}:{})})).slice(-MAX_STORED_MESSAGES);
+    ).map(({role,content,imageRequestId,contactId,createdAt,replyTo})=>({role,content,...(imageRequestId?{imageRequestId}:{}),...(contactId?{contactId}:{}),...(createdAt?{createdAt}:{}),...(replyTo?{replyTo}:{})})).slice(-MAX_STORED_MESSAGES);
 
     window.SofiaWorkspace?.reconcileSubmission(serverHistory);
     const localPending=(typeof conversationHistory!=='undefined'?conversationHistory:[]).filter(x=>x.delivery==='unconfirmed');
