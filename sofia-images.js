@@ -317,8 +317,8 @@
     }
     if(mode==='archived'||mode==='expired') {
       const marker=document.createElement(mode==='archived'?'button':'div');marker.id='portrait-'+image.id;marker.className='msg sofia';marker.dataset.presentation=mode;marker.dataset.portraitStatus='done';marker.textContent=mode==='archived'?'Bild in der Galerie':'Bild nicht mehr verfügbar';
-      if(mode==='archived'){marker.type='button';marker.onclick=()=>openGallery(image.id);}
-      window.SofiaTimeline?.decorate(marker,image.sentAt||image.createdAt);slot.append(marker);slot.hidden=false;window.SofiaUI?.refreshDays(messages);window.SofiaChatViewport?.restore(viewport);return;
+      if(mode==='archived'){marker.type='button';marker.setAttribute('aria-label','Bild in der Galerie');marker.onclick=()=>openGallery(image.id);}
+      const stamp=image.sentAt||image.createdAt;if(mode==='archived'&&Number.isFinite(Date.parse(stamp))){marker.dataset.createdAt=stamp;const time=document.createElement('time');time.className='message-time';time.dateTime=stamp;time.textContent=new Date(stamp).toLocaleTimeString('de-DE',{timeZone:'Europe/Berlin',hour:'2-digit',minute:'2-digit'});marker.append(time);}slot.append(marker);slot.hidden=false;window.SofiaUI?.refreshDays(messages);window.SofiaChatViewport?.restore(viewport);return;
     }
     const figure = document.createElement('figure');
     figure.className = 'msg sofia'; figure.dataset.portraitStatus='done';figure.dataset.presentation=mode; figure.id = 'portrait-' + image.id;

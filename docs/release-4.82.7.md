@@ -18,6 +18,13 @@ Bestehende geprüfte Funktionen bleiben erhalten; diese Runde ergänzt konkrete 
 | 4.82.7 | Gesamttests/Syntax, Testabnahme, dann Produktiv und exakte Assetprüfung. |
 
 ## Prüfung
-599 automatisierte Tests bestanden, 0 Fehler. Syntax: acht geänderte JavaScript-Dateien und zwei Inline-Skripte bestanden. Asset-/Cachekennung 4827v1. Bestehende Tests zu Fotoreferenzen, Winkel-/Pose-Review, Tageszeit/Wetter, Entwürfen, Updates, Kalender, Sichtbarkeit und Kontext bestanden ebenfalls.
+600 automatisierte Tests bestanden, 0 Fehler. Syntax: acht geänderte JavaScript-Dateien und zwei Inline-Skripte bestanden. Asset-/Cachekennung 4827v2. Bestehende Tests zu Fotoreferenzen, Winkel-/Pose-Review, Tageszeit/Wetter, Entwürfen, Updates, Kalender, Sichtbarkeit und Kontext bestanden ebenfalls.
 
 Testbrowser prüft reale Dialog-/Galerie-/Quellwahl-/Vergleichsabläufe, Entwurf/Reload, Ausgangszustand der Leiste und neue Assets. Echte mobile Tastatur, Pinch/Swipe auf Geräten, Audio/Mikrofon und Mehrtagesbeobachtung verbleiben für die Nutzerabnahme im laufenden Betrieb. Diese Runde verändert die Bildgenerierung nicht; keine kostenpflichtigen Bildversuche für UI-/Kontextprüfungen erforderlich. Gesprächsqualität ist modellabhängig und nicht durch reine Prompttests abschließend garantiert.
+
+## Reale Testprüfung am 10.10.2026
+- Test-API/Browser: Antwort auf die ausdrücklich zitierte synthetische Nutzernachricht zu Lübeck lautete korrekt „Lübeck“, ohne Fotoauftrag oder Verwechslung mit Sofias aktuellem Ort. Ausgewähltes Zitat bleibt im Antwortturn enthalten.
+- Mehrzeiliger ungesendeter Entwurf samt Antwortbezug nach Reload erhalten; anschließend durch den ausdrücklich gesendeten Testturn ersetzt. Versand bestätigt, Sendefeld leer.
+- Quellwahl zeigt exakt den Vorgänger, Kompass geöffnet und ohne Auftrag abgebrochen. Vergleich 100 Prozent Variante und Rückkehr zum offenen Fotoviewer geprüft.
+- Browser deckte verschachtelten Aktionsbutton durch neuen Archiv-Zeitstempel auf: korrigiert und zusätzlich regressionsgeprüft. Archivverweis erhält Versandzeit ohne Nachrichtenaktionen innerhalb seines Buttons. Finaler UI-Folgepatch: Assets 4827v2, 600 Tests bestanden.
+- Finale Bereitstellung/Assetprüfung und Produktivverifikation folgen diesen Tests; keine Aussage über echte mobile Geräteprüfung oder Mehrtagesbetrieb.
