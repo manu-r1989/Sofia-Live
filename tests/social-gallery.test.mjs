@@ -236,3 +236,18 @@ test('a recent unanswered conversation question blocks another unsolicited conta
 });
 
 test('future events never become past-event proactive followups',()=>{const now=new Date('2026-10-10T12:00:00Z');const life={threads:[{topic:'Termin',text:'Termin am Montag',status:'open',eventDate:'2026-10-12',expiresAt:'2026-10-15T12:00:00Z'}]};assert.equal(api.contactThreads(life,{items:[]},now).length,0);life.threads[0].eventDate='2026-10-09';assert.equal(api.contactThreads(life,{items:[]},now).length,1);life.threads[0].lastReferencedAt='2026-10-10T11:00:00Z';assert.equal(api.contactThreads(life,{items:[]},now).length,0);});
+
+test('contact plan exposes Hamburg day and existing policy without guaranteeing sends',()=>{
+ assert.deepEqual(api.contactPlan({level:'natural'},base),{day:'2026-10-07',min:3,max:7,spacingHours:[2,3],guaranteed:false});
+ assert.equal(api.contactPlan({level:'off',today:'more'},base).max,0);
+ assert.equal(api.contactPlan({level:'quiet',today:'less'},base).min,0);
+ assert.equal(api.contactPlan({level:'active',today:'more'},base).max,9);
+ assert.equal(api.contactPlan({},new Date('2026-10-07T22:30Z')).day,'2026-10-08');
+});
+for(const text of ['Meld dich doch mal','Sag mal, wie lief die Uni','Antworte mir bitte','Wie geht es dir'])test('unanswered contact avoids pressure without punctuation: '+text,()=>assert.equal(api.unansweredFollowup(text),true));
+test('observation remains available after an unanswered contact',()=>assert.equal(api.unansweredFollowup('Der Regen am Fenster klingt beruhigend.'),false));
+test('reordered repeated contact is detected without rejecting a different topic',()=>{
+ const old='Kaffee schmeckt wunderbar draußen neben alten Backsteinhäusern zwischen Regentropfen';
+ assert.equal(api.repeatedContact('Zwischen Regentropfen schmeckt Kaffee wunderbar draußen neben alten Backsteinhäusern',[{text:old}]),true);
+ assert.equal(api.repeatedContact('Heute lese ich ein neues Buch über Musik.',[{text:old}]),false);
+});

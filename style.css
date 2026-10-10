@@ -1160,3 +1160,11 @@ html[data-chat-font="large"] .photo-follow-ups{grid-template-columns:repeat(2,mi
 }
 
 @media(max-width:760px){:root[data-compact-viewport="true"] #replyPreview{max-height:28px}:root[data-compact-viewport="true"] #replyPreview span{-webkit-line-clamp:1}:root[data-compact-viewport="true"] .messages{min-height:24px}}
+
+/* Sofia 4.83–4.85: memory provenance, photo series and contact policy. */
+.memory-provenance{display:block;opacity:.65;font-size:11px;margin-top:6px}
+.memory-review-note{font-size:12px;color:#edce9e;margin:6px 0}
+.photo-current-info{grid-column:1/-1;font-size:12px;opacity:.8;margin:0}
+.photo-series-toggle{grid-column:1/-1;min-height:44px}
+.photo-series-toggle[aria-pressed="true"]{border-color:#dec5a3;background:#dec5a31f}
+.contact-plan-note{font-size:13px;line-height:1.5;padding:10px;border:1px solid #ffffff25;border-radius:10px}

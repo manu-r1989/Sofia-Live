@@ -251,12 +251,18 @@ test('day story preserves current-day stations and resets next date without losi
 });
 test('memory API separates user memories from character state and validates correction versions',async()=>{
  reset();const now=new Date();let state=await api.getSofiaLife(now);
- const code=(await readFile(new URL('../api/memory.js',import.meta.url),'utf8')).replace('../lib/character-image.js',url(source));
+ const code=(await readFile(new URL('../api/memory.js',import.meta.url),'utf8')).replace('../lib/character-image.js',url(source)).replace('../lib/memory-view.js',new URL('../lib/memory-view.js',import.meta.url).href);
  const handler=(await import(url(code))).default;
  const session=crypto.createHmac('sha256','test-only').update('sofia-authorized-session-v1').digest('hex');
  db.set('sofia:main:longterm',JSON.stringify([{text:'Der Nutzer mag Tee.',category:'Vorlieben'}]));
  const invoke=async(method,body,cookie='sofia_session='+session)=>{let status,data;await handler({method,body,headers:{cookie}}, {setHeader(){},status(n){status=n;return this;},json(d){data=d;return d;}});return {status,data};};
  const before=await invoke('GET');assert.equal(before.data.items[0].text,'Der Nutzer mag Tee.');assert.equal(before.data.character.revision,state.revision);
+ const item=before.data.items[0];assert.equal(item.owner,'user');assert.equal(typeof item.id,'string');
+ assert.equal((await invoke('PUT',{old_memory:item.text,new_memory:'Der Nutzer mag Kaffee.',memoryId:'stale'})).status,409);
+ assert.equal((await invoke('DELETE',{memory:item.text,memoryId:'stale'})).status,409);
+ assert.equal(JSON.parse(db.get('sofia:main:longterm'))[0].text,item.text);
+ const changed=await invoke('PUT',{old_memory:item.text,new_memory:'Der Nutzer mag Tee.',category:'Vorlieben',memoryId:item.id});assert.equal(changed.status,200);
+ assert.notEqual((await invoke('GET')).data.items[0].id,item.id);
  const edit=await invoke('PUT',{scope:'character',revision:state.revision,field:'preference',topic:'getränk',value:'Sofia mag Kaffee.'});assert.equal(edit.status,200);
  const conflict=await invoke('PUT',{scope:'character',revision:state.revision,field:'preference',topic:'getränk',value:'Tee'});assert.equal(conflict.status,409);
  assert.equal((await invoke('GET')).data.items[0].text,'Der Nutzer mag Tee.');

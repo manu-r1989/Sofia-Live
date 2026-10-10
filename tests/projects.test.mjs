@@ -8,7 +8,7 @@ const messageContext=url(await readFile(new URL('../lib/message-context.js',impo
 const character=url((await readFile(new URL('../lib/character-image.js',import.meta.url),'utf8')).replaceAll('../lib/environment.js',environment));
 const api=await import(character);
 const engine=url('export async function executeUnifiedAction(){throw Error("Unexpected task execution")} export async function getActionState(){return {}} export async function getResearchState(){return {}}');
-async function handler(file){return (await import(url((await readFile(new URL('../api/'+file,import.meta.url),'utf8')).replaceAll('../lib/environment.js',environment).replaceAll('../lib/message-context.js',messageContext).replaceAll('../lib/character-image.js',character).replaceAll('./action-engine.js',engine)))).default;}
+async function handler(file){return (await import(url((await readFile(new URL('../api/'+file,import.meta.url),'utf8')).replaceAll('../lib/environment.js',environment).replaceAll('../lib/message-context.js',messageContext).replaceAll('../lib/character-image.js',character).replaceAll('./action-engine.js',engine).replaceAll('../lib/memory-view.js',new URL('../lib/memory-view.js',import.meta.url).href)))).default;}
 const chat=await handler('chat.js'),live=await handler('live-context.js'),memory=await handler('memory.js');
 const prefix='sofia:main:portrait:',savedFetch=globalThis.fetch,keys=['KV_REST_API_URL','KV_REST_API_TOKEN','OPENAI_API_KEY','SOFIA_PASSWORD','SOFIA_TEST_MODE'],env=Object.fromEntries(keys.map(k=>[k,process.env[k]]));
 let db,commands;

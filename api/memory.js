@@ -1,5 +1,6 @@
 import { dataPrefix, testModeRequested, publicTestMode, guardTestRequest } from "../lib/environment.js";
 import crypto from "node:crypto";
+import {memoryReview,selectMemory} from '../lib/memory-view.js';
 import { projectOverview, editProject, persistMemorySnapshot, getSofiaLife, editCharacterState } from '../lib/character-image.js';
 
 const MEMORY_KEY = dataPrefix() + 'longterm';
@@ -177,7 +178,7 @@ export default async function handler(req, res) {
 
       return res.status(200).json({
         memories: items.map(item => item.text),
-        items,
+        items: memoryReview(items),
         count: items.length,
         character: await getSofiaLife(),
         projects: await projectOverview()
@@ -203,7 +204,8 @@ export default async function handler(req, res) {
       const stored = await redisGetJSON(MEMORY_KEY, []);
       const memories = Array.isArray(stored) ? stored.map(normalizeMemoryItem).filter(Boolean) : [];
       const target = old_memory.trim().toLowerCase();
-      const index = memories.findIndex(item => item.text.toLowerCase() === target);
+      const selected=selectMemory(memories,target,req.body?.memoryId),index=selected?.index??-1;
+      if(index===-1&&memories.some(x=>x.text.toLowerCase()===target))return res.status(409).json({error:'Die Erinnerung ist nicht eindeutig oder wurde inzwischen geändert. Bitte neu laden.'});
       if (index === -1) {
         return res.status(404).json({ error: "Erinnerung nicht gefunden." });
       }
@@ -270,11 +272,8 @@ export default async function handler(req, res) {
           .toLowerCase();
 
 
-      const index =
-        memories.findIndex(
-          item =>
-            item.text.toLowerCase() === target
-        );
+      const selected=selectMemory(memories,target,req.body?.memoryId),index=selected?.index??-1;
+      if(index===-1&&memories.some(x=>x.text.toLowerCase()===target))return res.status(409).json({error:'Die Erinnerung ist nicht eindeutig oder wurde inzwischen geändert. Bitte neu laden.'});
 
 
       if (index === -1) {
@@ -446,3 +445,4 @@ async function redisSetJSON(
   return data.result;
 
 }
+
