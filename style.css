@@ -1,0 +1,1098 @@
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}html,body{margin:0;width:100%;height:100%;background:#080a0d;color:#f5f5f5;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;overscroll-behavior:none}body{position:fixed;inset:0;overflow:hidden}button,input{font:inherit}.app{height:100vh;height:100dvh;position:relative;overflow:hidden;background:#0b0e12;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}.avatarStage{position:absolute;inset:0;overflow:hidden;background:#17191d}.avatar{width:100%;height:100%;object-fit:cover;object-position:50% 36%;transform:scale(1.045);animation:idle 8s ease-in-out infinite;filter:saturate(.92) contrast(1.03);will-change:transform}.cinema{position:absolute;inset:0;background:linear-gradient(90deg,rgba(4,6,9,.83) 0%,rgba(4,6,9,.18) 24%,rgba(4,6,9,.04) 52%,rgba(4,6,9,.68) 100%),linear-gradient(0deg,rgba(4,6,9,.78),transparent 35%,rgba(4,6,9,.16))}.breathGlow{position:absolute;width:50vw;height:50vw;left:25%;top:12%;border-radius:50%;background:radial-gradient(circle,rgba(255,177,128,.09),transparent 64%);animation:glow 5s ease-in-out infinite}.presence{position:absolute;top:max(90px,calc(env(safe-area-inset-top) + 58px));left:100px;display:flex;align-items:center;gap:8px;font-size:11px;letter-spacing:.18em}.presence i{width:7px;height:7px;border-radius:50%;background:#8ce99a;box-shadow:0 0 15px #8ce99a}.thought{position:absolute;left:12%;bottom:22%;max-width:390px;padding:14px 18px;border:1px solid rgba(255,255,255,.16);border-radius:18px;background:rgba(13,16,20,.42);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);font-size:18px;transition:.25s}.voiceBars{position:absolute;left:50%;bottom:13%;transform:translateX(-50%);height:35px;display:flex;gap:4px;align-items:center;opacity:0;transition:.2s}.voiceBars b{width:3px;height:10px;border-radius:3px;background:white}.app[data-speaking="true"] .voiceBars{opacity:.85}.app[data-speaking="true"] .voiceBars b{animation:bar .65s ease-in-out infinite alternate}.voiceBars b:nth-child(2){animation-delay:.1s!important}.voiceBars b:nth-child(3){animation-delay:.2s!important}.voiceBars b:nth-child(4){animation-delay:.3s!important}.voiceBars b:nth-child(5){animation-delay:.4s!important}.rail{position:absolute;left:0;top:0;bottom:0;width:70px;border-right:1px solid rgba(255,255,255,.09);background:rgba(7,9,12,.42);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);display:flex;flex-direction:column;align-items:center;gap:15px;padding-top:max(24px,env(safe-area-inset-top))}.logo{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:#fff;color:#111;font-family:Georgia,serif;font-size:24px;margin-bottom:28px}.railBtn,.icon{border:0;color:#ddd;background:transparent;cursor:pointer;touch-action:manipulation}.railBtn{width:44px;height:44px;border-radius:13px;font-size:19px}.railBtn.active{background:rgba(255,255,255,.12)}header{position:absolute;left:95px;right:28px;top:max(22px,env(safe-area-inset-top));display:flex;justify-content:space-between;align-items:center}header strong{font-family:Georgia,serif;font-size:24px;font-weight:500}.online{margin-left:10px;font-size:11px;color:#aeb5bd}.meta{display:flex;gap:16px;font-size:12px;color:#c8cbd0}.moodPanel{position:absolute;left:96px;top:145px;width:185px;padding:16px;border:1px solid rgba(255,255,255,.12);border-radius:18px;background:rgba(10,12,15,.45);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px)}.moodPanel small{font-size:10px;letter-spacing:.18em;color:#b8bbc1}.moods{display:grid;gap:5px;margin-top:10px}.moods button{min-height:42px;border:0;text-align:left;color:#ddd;background:transparent;padding:8px 10px;border-radius:10px;cursor:pointer}.moods button.active{background:rgba(255,255,255,.13);color:#fff}.chatPanel{position:absolute;right:28px;top:95px;bottom:92px;width:min(390px,32vw);border:1px solid rgba(255,255,255,.13);border-radius:22px;background:rgba(9,11,14,.55);-webkit-backdrop-filter:blur(24px);backdrop-filter:blur(24px);display:flex;flex-direction:column;padding:17px}.chatHead{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(255,255,255,.1);padding-bottom:13px}.chatHead small{display:block;color:#90969d;margin-top:2px}.icon{width:44px;height:44px;border-radius:12px;background:rgba(255,255,255,.08)}.icon.active{background:rgba(255,255,255,.17)}.messages{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;padding:15px 1px;display:flex;flex-direction:column;gap:10px;scrollbar-width:none}.msg{max-width:88%;padding:11px 13px;border-radius:15px;line-height:1.38;font-size:14px}.msg.sofia{align-self:flex-start;background:rgba(255,255,255,.1)}.msg.user{align-self:flex-end;background:#eee;color:#151515}form{display:flex;gap:8px}input{min-width:0;flex:1;min-height:44px;border:1px solid rgba(255,255,255,.13);background:rgba(255,255,255,.07);color:#fff;border-radius:13px;padding:0 13px;outline:none;font-size:16px}input:focus{border-color:rgba(255,255,255,.35)}.send{width:44px;height:44px;border:0;border-radius:13px;background:#f0f0f0;color:#111;cursor:pointer;touch-action:manipulation}.actions{position:absolute;left:50%;bottom:max(25px,calc(env(safe-area-inset-bottom) + 10px));transform:translateX(-50%);display:flex;gap:9px;padding:7px;border-radius:18px;background:rgba(8,10,13,.46);border:1px solid rgba(255,255,255,.1);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px)}.actions button{min-width:72px;min-height:44px;border:0;background:transparent;color:#ddd;padding:8px 12px;border-radius:12px;cursor:pointer;touch-action:manipulation}.actions button.on{background:rgba(255,255,255,.12)}.actions span{display:block;font-size:9px;margin-top:3px}.app[data-mood="amüsiert"] .avatar{filter:saturate(1.03) brightness(1.03)}.app[data-mood="ernst"] .avatar{filter:saturate(.72) contrast(1.08)}.app[data-mood="genervt"] .avatar{filter:saturate(.78) contrast(1.08)}.app.focus .chatPanel,.app.focus .moodPanel,.app.focus .rail{opacity:.15;transition:.35s}.app.focus .thought{bottom:15%}@keyframes idle{0%,100%{transform:scale(1.045) translate3d(0,0,0)}50%{transform:scale(1.055) translate3d(0,-4px,0)}}@keyframes glow{50%{transform:scale(1.06);opacity:.65}}@keyframes bar{to{height:31px}}
+@media(max-width:850px){.app{min-height:0}.rail{display:none}header{left:16px;right:16px;top:calc(env(safe-area-inset-top) + 10px)}header strong{font-size:21px}.meta{display:none}.avatar{object-position:50% 18%;transform:scale(1.08)}.cinema{background:linear-gradient(0deg,rgba(4,6,9,.95) 0%,rgba(4,6,9,.52) 40%,rgba(4,6,9,.08) 72%,rgba(4,6,9,.2))}.presence{left:16px;top:calc(env(safe-area-inset-top) + 54px)}.moodPanel{display:none}.thought{left:16px;right:16px;bottom:calc(49% + env(safe-area-inset-bottom));max-width:none;font-size:14px;padding:11px 13px}.chatPanel{left:10px;right:10px;top:auto;bottom:calc(72px + env(safe-area-inset-bottom));width:auto;height:43dvh;min-height:280px;border-radius:20px;padding:13px;background:rgba(9,11,14,.68)}.chatHead{padding-bottom:9px}.messages{padding:10px 1px}.msg{font-size:14px}.actions{bottom:calc(7px + env(safe-area-inset-bottom));width:calc(100% - 20px);justify-content:space-around;gap:3px;padding:4px 5px}.actions button{min-width:0;flex:1;padding:5px 4px}.voiceBars{bottom:52%}}
+@media(max-width:430px) and (max-height:750px){.thought{display:none}.chatPanel{height:48dvh}.presence{display:none}}
+@media(orientation:landscape) and (max-height:500px){header{top:calc(env(safe-area-inset-top) + 4px)}.presence,.thought{display:none}.chatPanel{top:calc(env(safe-area-inset-top) + 48px);bottom:calc(env(safe-area-inset-bottom) + 8px);left:auto;right:calc(env(safe-area-inset-right) + 10px);width:44vw;height:auto}.actions{left:calc(env(safe-area-inset-left) + 10px);bottom:calc(env(safe-area-inset-bottom) + 8px);transform:none;width:44vw}.avatar{object-position:30% 25%}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important}}
+
+
+/* =========================================================
+   SOFIA V4.3.5 — MOBILE CHAT / COMPOSER FIXES
+   ========================================================= */
+
+#sofiaAvatar,
+.sofia-avatar-v435 {
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  overflow:hidden;
+}
+
+.avatar {
+  animation:none !important;
+  transform:none;
+}
+
+.chatHeadActions {
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex:0 0 auto;
+}
+
+.chatMinimize {
+  display:none;
+}
+
+#form {
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 48px;
+  gap:8px;
+  width:100%;
+  align-items:center;
+  flex:0 0 auto;
+}
+
+#form .send {
+  position:relative;
+  inset:auto;
+  transform:none;
+  width:44px;
+  min-width:44px;
+  height:44px;
+  margin:0;
+  z-index:1;
+}
+
+#form #input {
+  width:100%;
+  min-width:0;
+}
+
+@media(max-width:850px) {
+  .chatPanel {
+    transition:height .24s ease, transform .24s ease, background .24s ease;
+  }
+
+  .chatMinimize {
+    display:grid;
+    place-items:center;
+  }
+
+  .chatPanel.minimized {
+    height:62px;
+    min-height:62px;
+    padding:9px 12px;
+    overflow:hidden;
+  }
+
+  .chatPanel.minimized .chatHead {
+    height:44px;
+    padding:0;
+    border-bottom:0;
+  }
+
+  .chatPanel.minimized .messages,
+  .chatPanel.minimized #form {
+    display:none;
+  }
+
+  .chatPanel.minimized .chatHead small {
+    display:none;
+  }
+
+  .chatPanel.minimized .chatHead strong {
+    font-size:14px;
+  }
+
+  #form {
+    grid-template-columns:minmax(0,1fr) 48px;
+  }
+
+  #form .send {
+    width:48px;
+    min-width:48px;
+  }
+}
+
+
+/* =========================
+   V4.3.6 LIVE BUTTON MERGE
+========================= */
+
+/* live.js behält seinen technischen Button als Controller,
+   sichtbar ist nur noch der Mikrofon-Button im Composer. */
+#liveVoiceButton {
+  display:none !important;
+}
+
+#mic.live-active,
+#mic.active {
+  background:rgba(255,255,255,.20) !important;
+  border:1px solid rgba(255,255,255,.28);
+  box-shadow:0 0 0 3px rgba(255,255,255,.06), 0 0 22px rgba(255,255,255,.12);
+}
+
+#mic.live-active::after {
+  content:'';
+  position:absolute;
+  right:5px;
+  top:5px;
+  width:7px;
+  height:7px;
+  border-radius:50%;
+  background:#ff5d67;
+  box-shadow:0 0 8px rgba(255,93,103,.75);
+}
+
+
+/* ===== Sofia V4.4 ===== */
+.liveMic{position:relative}.liveMic .liveDot{position:absolute;right:7px;top:7px;width:7px;height:7px;border-radius:50%;background:#ff4d57;box-shadow:0 0 10px rgba(255,77,87,.9);opacity:0;transform:scale(.7);transition:.2s}.liveMic.live-active .liveDot{opacity:1;transform:scale(1)}
+#liveVoiceButton{display:none!important}
+.cameraOverlay{position:fixed;inset:0;z-index:100000;background:#000;display:grid;place-items:center}.cameraView{position:absolute;inset:0;overflow:hidden;background:#000}.cameraView>video{width:100%;height:100%;object-fit:cover}.cameraTop{position:absolute;left:0;right:0;top:0;padding:max(18px,env(safe-area-inset-top)) 18px 18px;display:flex;justify-content:flex-end;background:linear-gradient(rgba(0,0,0,.55),transparent)}.cameraTop button{width:46px;height:46px;border:0;border-radius:50%;background:rgba(20,20,20,.6);color:#fff;font-size:28px}.cameraBottom{position:absolute;left:0;right:0;bottom:0;padding:24px 20px max(28px,calc(env(safe-area-inset-bottom) + 16px));display:flex;justify-content:center;background:linear-gradient(transparent,rgba(0,0,0,.55))}.shutter{width:72px;height:72px;border-radius:50%;border:5px solid #fff;background:rgba(255,255,255,.25);box-shadow:0 0 0 2px rgba(0,0,0,.25)}.cameraReview{position:absolute;inset:0;background:#000;display:flex;flex-direction:column}.cameraReview img{width:100%;height:100%;object-fit:contain;min-height:0}.cameraReview>div{position:absolute;left:0;right:0;bottom:0;display:flex;gap:12px;padding:18px 18px max(24px,calc(env(safe-area-inset-bottom) + 12px));background:linear-gradient(transparent,rgba(0,0,0,.8));justify-content:center}.cameraReview button{border:1px solid rgba(255,255,255,.3);border-radius:14px;padding:13px 18px;background:rgba(20,20,20,.75);color:#fff}.cameraReview button.primary{background:#fff;color:#111}.cameraAttachment{width:44px;height:44px;flex:0 0 44px;position:relative;border-radius:11px;overflow:hidden;border:1px solid rgba(255,255,255,.18)}.cameraAttachment img{width:100%;height:100%;object-fit:cover}.cameraAttachment button{position:absolute;right:-2px;top:-2px;width:20px;height:20px;border:0;border-radius:50%;background:rgba(0,0,0,.75);color:#fff;line-height:18px;padding:0}
+
+
+/* Sofia V4.4.1 */
+.liveMic.live-connecting .liveDot{
+  opacity:1;
+  transform:scale(1);
+  background:#ffd166;
+  box-shadow:0 0 10px rgba(255,209,102,.9);
+  animation:sofiaLivePulse .8s ease-in-out infinite alternate;
+}
+@keyframes sofiaLivePulse{from{opacity:.35;transform:scale(.75)}to{opacity:1;transform:scale(1.15)}}
+#mute.on{background:rgba(255,255,255,.12)}
+.chatPanel.minimized.liveCompact .chatHead small::after{
+  content:" · Live";
+  color:#ff7b83;
+}
+
+
+/* SOFIA V4.5 — photo composer + expressions */
+#form .cameraAttachment{grid-column:1 / -1;grid-row:auto;width:64px;height:64px;flex:none;margin:0 0 2px 0}
+#form #input{grid-column:1;grid-row:auto;width:100%;min-width:0}
+#form .send{grid-column:2;grid-row:auto}
+@media(max-width:850px){#form .cameraAttachment{width:58px;height:58px}}
+
+/* SOFIA V4.5.1 — stable local expression layers + photo composer */
+#form{grid-template-columns:minmax(0,1fr) 48px!important;align-items:end}
+#form .cameraAttachment{grid-column:1 / -1!important;justify-self:start}
+#form #input{grid-column:1!important;width:100%!important;min-width:0!important}
+#form .send{grid-column:2!important}
+
+
+/* V4.5.9: SofiaAvatar provides the lip-sync; hide the old mouth equalizer. */
+.voiceBars { display: none !important; }
+
+
+/* =========================================================
+   V4.6.1 — compact mood popover
+   ========================================================= */
+.voiceBars { display:none !important; }
+
+.moodPanel {
+  display: none !important;
+  position: absolute !important;
+  left: 50% !important;
+  right: auto !important;
+  top: auto !important;
+  bottom: 92px !important;
+  transform: translateX(-50%) translateY(8px);
+  width: min(520px, calc(100% - 28px)) !important;
+  padding: 14px !important;
+  z-index: 150 !important;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity .18s ease, transform .18s ease, visibility .18s;
+  background: rgba(9,11,14,.88) !important;
+  -webkit-backdrop-filter: blur(24px) !important;
+  backdrop-filter: blur(24px) !important;
+}
+
+.app.mood-open .moodPanel {
+  display: block !important;
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateX(-50%) translateY(0);
+}
+
+.moodPanel small { display:block; margin:0 4px 8px; }
+.moods {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0,1fr));
+  gap: 6px !important;
+  margin-top: 0 !important;
+}
+.moods button {
+  min-height: 42px !important;
+  text-align: center !important;
+  padding: 8px 6px !important;
+  white-space: nowrap;
+}
+#moodToggle.on { background: rgba(255,255,255,.14); }
+
+@media (max-width:850px) {
+  .actions { z-index: 160; }
+  .moodPanel {
+    display: none !important;
+    position: fixed !important;
+    left: 10px !important;
+    right: 10px !important;
+    bottom: calc(76px + env(safe-area-inset-bottom)) !important;
+    width: auto !important;
+    transform: translateY(8px);
+    border-radius: 18px !important;
+  }
+  .app.mood-open .moodPanel {
+    display:block !important;
+    transform:translateY(0);
+  }
+  .moods { grid-template-columns: repeat(3,minmax(0,1fr)); }
+  .actions button { min-width:0; }
+}
+
+@media (orientation:landscape) and (max-height:500px) {
+  .moodPanel {
+    left: 50% !important;
+    right: auto !important;
+    bottom: calc(62px + env(safe-area-inset-bottom)) !important;
+    width: min(620px, calc(100% - 150px)) !important;
+    transform: translateX(-50%) translateY(8px);
+  }
+  .app.mood-open .moodPanel {
+    transform: translateX(-50%) translateY(0);
+  }
+  .moods { grid-template-columns: repeat(6,minmax(0,1fr)); }
+}
+
+/* V4.6.2 */
+.rail{display:none!important}.thought,#thought{display:none!important}
+.actions{display:grid!important;grid-template-columns:repeat(5,minmax(0,1fr))!important;gap:4px!important;z-index:170!important}
+.actions button{min-width:0!important;pointer-events:auto!important;touch-action:manipulation}
+.actions button span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media(max-width:850px) and (orientation:portrait){.actions{left:10px!important;right:10px!important;width:auto!important}.actions button{font-size:12px!important}}
+@media(orientation:landscape) and (min-width:851px){.chatPanel{right:28px!important;top:72px!important;bottom:118px!important}.actions{position:absolute!important;left:auto!important;right:28px!important;bottom:28px!important;width:min(390px,32vw)!important}header{left:28px!important}}
+@media(orientation:landscape) and (max-height:500px){.chatPanel{left:auto!important;right:max(12px,env(safe-area-inset-right))!important;top:12px!important;bottom:66px!important;width:min(420px,42vw)!important;height:auto!important}.actions{position:fixed!important;left:auto!important;right:max(12px,env(safe-area-inset-right))!important;bottom:max(8px,env(safe-area-inset-bottom))!important;width:min(420px,42vw)!important;height:50px!important}.actions button{padding:3px 2px!important}.actions button span{font-size:10px!important}}
+
+
+/* =========================================================
+   V4.6.3 — Chat + toolbar as one responsive unit
+   ========================================================= */
+
+/* iPhone portrait:
+   toolbar centered and visually attached directly below chat */
+@media (max-width:850px) and (orientation:portrait) {
+  .chatPanel {
+    left:18px !important;
+    right:18px !important;
+    width:auto !important;
+  }
+
+  .actions {
+    position:absolute !important;
+    left:50% !important;
+    right:auto !important;
+    width:calc(100% - 36px) !important;
+    max-width:670px !important;
+    transform:translateX(-50%) !important;
+    margin:0 !important;
+  }
+
+  /* Remove the visual gap between chat and controls. */
+  .chatPanel + .actions {
+    margin-top:8px !important;
+  }
+}
+
+/* Landscape on phones/tablets:
+   Sofia remains on the left; chat and controls form a right column. */
+@media (orientation:landscape) and (max-height:650px) {
+  .chatPanel {
+    position:fixed !important;
+    left:auto !important;
+    right:max(16px,env(safe-area-inset-right)) !important;
+    top:max(16px,env(safe-area-inset-top)) !important;
+    bottom:82px !important;
+    width:min(42vw,640px) !important;
+    max-width:640px !important;
+    height:auto !important;
+    margin:0 !important;
+    z-index:120 !important;
+  }
+
+  .actions {
+    position:fixed !important;
+    left:auto !important;
+    right:max(16px,env(safe-area-inset-right)) !important;
+    bottom:max(16px,env(safe-area-inset-bottom)) !important;
+    width:min(42vw,640px) !important;
+    max-width:640px !important;
+    height:58px !important;
+    transform:none !important;
+    margin:0 !important;
+    z-index:170 !important;
+  }
+
+  .moodPanel {
+    left:auto !important;
+    right:max(16px,env(safe-area-inset-right)) !important;
+    bottom:86px !important;
+    width:min(42vw,640px) !important;
+    transform:translateY(8px) !important;
+  }
+
+  .app.mood-open .moodPanel {
+    transform:translateY(0) !important;
+  }
+}
+
+/* Desktop/Mac landscape:
+   same composition — avatar left, one chat column right,
+   toolbar exactly aligned under the chat. */
+@media (orientation:landscape) and (min-width:851px) and (min-height:651px) {
+  .chatPanel {
+    position:absolute !important;
+    left:auto !important;
+    right:28px !important;
+    top:72px !important;
+    bottom:118px !important;
+    width:min(430px,34vw) !important;
+    max-width:430px !important;
+  }
+
+  .actions {
+    position:absolute !important;
+    left:auto !important;
+    right:28px !important;
+    bottom:28px !important;
+    width:min(430px,34vw) !important;
+    max-width:430px !important;
+    transform:none !important;
+  }
+}
+
+
+/* =========================================================
+   V4.6.4 — collapsible toolbar above chat + split landscape
+   ========================================================= */
+#toolsToggle{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  touch-action:manipulation;
+}
+#toolsToggle.on{background:rgba(255,255,255,.14)}
+
+.actions{
+  transition:opacity .18s ease,transform .18s ease,visibility .18s;
+}
+.app.tools-closed .actions{
+  opacity:0!important;
+  visibility:hidden!important;
+  pointer-events:none!important;
+  transform:translateY(8px)!important;
+}
+
+/* Portrait: toolbar floats immediately above the chat panel. */
+@media (max-width:850px) and (orientation:portrait){
+  .chatPanel{
+    left:18px!important;
+    right:18px!important;
+    width:auto!important;
+  }
+  .actions{
+    position:absolute!important;
+    left:18px!important;
+    right:18px!important;
+    width:auto!important;
+    bottom:auto!important;
+    transform:none!important;
+    z-index:170!important;
+  }
+  .app.tools-closed .actions{transform:translateY(8px)!important}
+}
+
+/* Landscape: reserve the left side for Sofia and the right side for UI.
+   Neither the chat nor toolbar is allowed to cover Sofia's column. */
+@media (orientation:landscape){
+  .chatPanel{
+    position:fixed!important;
+    left:52%!important;
+    right:max(18px,env(safe-area-inset-right))!important;
+    top:max(82px,env(safe-area-inset-top))!important;
+    bottom:max(18px,env(safe-area-inset-bottom))!important;
+    width:auto!important;
+    max-width:none!important;
+    height:auto!important;
+    margin:0!important;
+    z-index:120!important;
+  }
+
+  .actions{
+    position:fixed!important;
+    left:52%!important;
+    right:max(18px,env(safe-area-inset-right))!important;
+    top:max(18px,env(safe-area-inset-top))!important;
+    bottom:auto!important;
+    width:auto!important;
+    max-width:none!important;
+    height:56px!important;
+    margin:0!important;
+    transform:none!important;
+    z-index:170!important;
+  }
+
+  .moodPanel{
+    position:fixed!important;
+    left:52%!important;
+    right:max(18px,env(safe-area-inset-right))!important;
+    top:82px!important;
+    bottom:auto!important;
+    width:auto!important;
+    max-width:none!important;
+    transform:translateY(-8px)!important;
+    z-index:190!important;
+  }
+  .app.mood-open .moodPanel{transform:translateY(0)!important}
+}
+
+/* Short iPhone landscape: tighter split while preserving separate columns. */
+@media (orientation:landscape) and (max-height:500px){
+  .actions{
+    left:50%!important;
+    top:max(8px,env(safe-area-inset-top))!important;
+    height:48px!important;
+  }
+  .chatPanel{
+    left:50%!important;
+    top:max(62px,calc(env(safe-area-inset-top) + 54px))!important;
+    bottom:max(8px,env(safe-area-inset-bottom))!important;
+  }
+  .moodPanel{
+    left:50%!important;
+    top:max(60px,calc(env(safe-area-inset-top) + 52px))!important;
+  }
+}
+
+
+/* =========================================================
+   V4.6.5 — final placement correction
+   ========================================================= */
+
+/* Toggle visually matches the adjacent microphone control. */
+#toolsToggle{
+  width:64px!important;
+  height:64px!important;
+  min-width:64px!important;
+  padding:0!important;
+  border:0!important;
+  border-radius:18px!important;
+  background:rgba(255,255,255,.08)!important;
+  color:#fff!important;
+  box-shadow:none!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+}
+#toolsToggle.on,
+#toolsToggle[aria-expanded="true"]{
+  background:rgba(255,255,255,.08)!important;
+  color:#fff!important;
+}
+#toolsToggle .toolsGlyph{
+  font-size:25px!important;
+  line-height:1!important;
+  font-weight:400!important;
+}
+
+/* Portrait: chat anchored to bottom; toolbar sits immediately above it. */
+@media (orientation:portrait) and (max-width:850px){
+  .chatPanel{
+    position:absolute!important;
+    left:18px!important;
+    right:18px!important;
+    top:auto!important;
+    bottom:126px!important;
+    width:auto!important;
+    max-width:none!important;
+    height:auto!important;
+    max-height:min(52vh,520px)!important;
+    margin:0!important;
+  }
+
+  .actions{
+    position:absolute!important;
+    left:18px!important;
+    right:18px!important;
+    top:auto!important;
+    bottom:calc(126px + min(52vh,520px) + 8px)!important;
+    width:auto!important;
+    max-width:none!important;
+    height:64px!important;
+    transform:none!important;
+  }
+
+  /* When the bar is hidden the chat stays fixed at the bottom. */
+  .app.tools-closed .actions{
+    transform:translateY(8px)!important;
+  }
+}
+
+/* Landscape is a true two-column composition.
+   Sofia is constrained to the left half; UI is constrained to the right.
+   No chat element may extend into Sofia's half. */
+@media (orientation:landscape){
+  .avatarStage{
+    position:absolute!important;
+    left:0!important;
+    top:0!important;
+    bottom:0!important;
+    width:50%!important;
+    max-width:50%!important;
+    overflow:hidden!important;
+  }
+
+  .sofia-avatar-v435{
+    width:100%!important;
+    height:100%!important;
+  }
+
+  .sofia-avatar-v435-layer{
+    object-fit:cover!important;
+    object-position:50% 36%!important;
+  }
+
+  .chatPanel{
+    position:absolute!important;
+    left:calc(50% + 16px)!important;
+    right:18px!important;
+    top:auto!important;
+    bottom:18px!important;
+    width:auto!important;
+    max-width:none!important;
+    height:min(58vh,440px)!important;
+    max-height:calc(100vh - 110px)!important;
+    margin:0!important;
+    transform:none!important;
+    z-index:120!important;
+  }
+
+  .actions{
+    position:absolute!important;
+    left:calc(50% + 16px)!important;
+    right:18px!important;
+    top:auto!important;
+    bottom:calc(18px + min(58vh,440px) + 8px)!important;
+    width:auto!important;
+    max-width:none!important;
+    height:58px!important;
+    margin:0!important;
+    transform:none!important;
+    z-index:170!important;
+  }
+
+  .moodPanel{
+    position:absolute!important;
+    left:calc(50% + 16px)!important;
+    right:18px!important;
+    top:auto!important;
+    bottom:calc(18px + min(58vh,440px) + 74px)!important;
+    width:auto!important;
+    max-width:none!important;
+    transform:translateY(8px)!important;
+    z-index:190!important;
+  }
+  .app.mood-open .moodPanel{
+    transform:translateY(0)!important;
+  }
+}
+
+/* Short iPhone landscape: keep enough room for both the toolbar and chat. */
+@media (orientation:landscape) and (max-height:500px){
+  .chatPanel{
+    left:calc(50% + 10px)!important;
+    right:max(10px,env(safe-area-inset-right))!important;
+    bottom:max(8px,env(safe-area-inset-bottom))!important;
+    height:calc(100vh - 76px - env(safe-area-inset-top) - env(safe-area-inset-bottom))!important;
+    max-height:none!important;
+  }
+
+  .actions{
+    left:calc(50% + 10px)!important;
+    right:max(10px,env(safe-area-inset-right))!important;
+    top:max(8px,env(safe-area-inset-top))!important;
+    bottom:auto!important;
+    height:52px!important;
+  }
+
+  .moodPanel{
+    left:calc(50% + 10px)!important;
+    right:max(10px,env(safe-area-inset-right))!important;
+    top:max(66px,calc(env(safe-area-inset-top) + 62px))!important;
+    bottom:auto!important;
+  }
+
+  #toolsToggle{
+    width:56px!important;
+    height:56px!important;
+    min-width:56px!important;
+    border-radius:16px!important;
+  }
+}
+
+/* MacBook / larger landscape: right column is deliberately narrower,
+   so it cannot reach into Sofia's face. */
+@media (orientation:landscape) and (min-width:1000px) and (min-height:501px){
+  .avatarStage{
+    width:58%!important;
+    max-width:58%!important;
+  }
+  .chatPanel,
+  .actions,
+  .moodPanel{
+    left:60%!important;
+    right:28px!important;
+  }
+  .chatPanel{
+    bottom:28px!important;
+    height:min(56vh,470px)!important;
+  }
+  .actions{
+    bottom:calc(28px + min(56vh,470px) + 10px)!important;
+  }
+  .moodPanel{
+    bottom:calc(28px + min(56vh,470px) + 78px)!important;
+  }
+}
+
+
+/* =========================================================
+   V4.6.6 — portrait bottom anchoring + mic-matched tools button
+   ========================================================= */
+#toolsToggle{
+  box-sizing:border-box!important;
+  width:76px!important;height:76px!important;min-width:76px!important;min-height:76px!important;
+  padding:0!important;margin:0!important;border:0!important;border-radius:18px!important;
+  background:rgba(255,255,255,.075)!important;color:#fff!important;font-family:inherit!important;
+  font-size:22px!important;font-weight:400!important;line-height:1!important;box-shadow:none!important;
+  display:inline-flex!important;align-items:center!important;justify-content:center!important;
+  appearance:none!important;-webkit-appearance:none!important;
+}
+#toolsToggle.on,#toolsToggle[aria-expanded="true"],#toolsToggle:active,#toolsToggle:focus{
+  background:rgba(255,255,255,.075)!important;color:#fff!important;box-shadow:none!important;outline:none!important;
+}
+@media (orientation:portrait) and (max-width:850px){
+  .chatPanel{
+    position:fixed!important;left:18px!important;right:18px!important;top:auto!important;
+    bottom:max(12px,env(safe-area-inset-bottom))!important;width:auto!important;max-width:none!important;
+    height:min(54vh,560px)!important;
+    max-height:calc(100dvh - 150px - env(safe-area-inset-top) - env(safe-area-inset-bottom))!important;
+    margin:0!important;transform:none!important;z-index:120!important;
+  }
+  .actions{
+    position:fixed!important;left:18px!important;right:18px!important;top:auto!important;
+    bottom:calc(max(12px,env(safe-area-inset-bottom)) + min(54vh,560px) + 8px)!important;
+    width:auto!important;max-width:none!important;height:62px!important;margin:0!important;
+    transform:none!important;z-index:170!important;
+  }
+  .app.tools-closed .actions{transform:translateY(8px)!important}
+  #toolsToggle{
+    width:64px!important;height:64px!important;min-width:64px!important;min-height:64px!important;
+    border-radius:18px!important;font-size:20px!important;
+  }
+}
+
+
+/* V4.6.7 compact portrait chat */
+@media (orientation:portrait) and (max-width:850px){
+  #toolsToggle{
+    width:44px!important;height:44px!important;min-width:44px!important;min-height:44px!important;
+    border-radius:12px!important;font-size:18px!important;
+  }
+  .chatPanel:not(.minimized){
+    height:min(36vh,390px)!important;max-height:min(36vh,390px)!important;
+    bottom:max(12px,env(safe-area-inset-bottom))!important;
+  }
+  .actions{
+    bottom:calc(max(12px,env(safe-area-inset-bottom)) + min(36vh,390px) + 8px)!important;
+  }
+  .chatPanel.minimized{
+    height:76px!important;min-height:76px!important;max-height:76px!important;
+    bottom:max(12px,env(safe-area-inset-bottom))!important;padding:9px 12px!important;overflow:hidden!important;
+  }
+  .chatPanel.minimized .chatHead{
+    height:56px!important;min-height:56px!important;padding:0!important;border-bottom:0!important;
+  }
+  .chatPanel.minimized .messages,.chatPanel.minimized #form,.chatPanel.minimized .chatHead small{display:none!important}
+  .chatPanel.minimized ~ .actions{
+    bottom:calc(max(12px,env(safe-area-inset-bottom)) + 84px)!important;
+  }
+}
+
+
+/* V4.6.8 three-state chat */
+.chatPanel.chat-hidden{
+  opacity:0!important;visibility:hidden!important;pointer-events:none!important;
+}
+#toolsToggle{
+  width:44px!important;height:44px!important;min-width:44px!important;min-height:44px!important;
+  border-radius:12px!important;font-size:18px!important;
+}
+@media (orientation:portrait) and (max-width:850px){
+  .chatPanel:not(.minimized):not(.chat-hidden):not(.chat-full){
+    height:min(30vh,330px)!important;max-height:min(30vh,330px)!important;
+  }
+  .chatPanel.minimized{
+    height:min(30vh,330px)!important;min-height:0!important;max-height:min(30vh,330px)!important;
+    padding:18px 22px!important;overflow:hidden!important;
+  }
+  .chatPanel.minimized .chatHead{
+    height:auto!important;min-height:0!important;padding:0 0 12px!important;border-bottom:1px solid rgba(255,255,255,.08)!important;
+  }
+  .chatPanel.minimized .messages,.chatPanel.minimized #form{display:flex!important}
+  .chatPanel.minimized .chatHead small{display:block!important}
+  .chatPanel.chat-full{
+    height:min(68vh,720px)!important;max-height:min(68vh,720px)!important;
+  }
+  .chatPanel.chat-hidden ~ .actions{bottom:max(12px,env(safe-area-inset-bottom))!important}
+  .chatPanel.minimized ~ .actions{
+    bottom:calc(max(12px,env(safe-area-inset-bottom)) + min(30vh,330px) + 8px)!important;
+  }
+  .chatPanel.chat-full ~ .actions{
+    bottom:calc(max(12px,env(safe-area-inset-bottom)) + min(68vh,720px) + 8px)!important;
+  }
+}
+@media (orientation:landscape) and (min-width:851px){
+  #toolsToggle{
+    width:44px!important;height:44px!important;min-width:44px!important;min-height:44px!important;
+    border-radius:12px!important;font-size:18px!important;
+  }
+  .chatPanel.minimized{height:min(38vh,320px)!important;max-height:min(38vh,320px)!important}
+  .chatPanel.chat-full{height:min(72vh,680px)!important;max-height:min(72vh,680px)!important}
+}
+
+
+/* V4.6.9 persistent chat restore */
+.chatRestore{
+  display:none;
+  position:fixed;
+  right:18px;
+  bottom:max(12px,env(safe-area-inset-bottom));
+  width:44px;height:44px;
+  border:0;border-radius:12px;
+  background:rgba(25,25,28,.88);
+  color:#fff;font-size:18px;
+  align-items:center;justify-content:center;
+  z-index:220;
+  backdrop-filter:blur(16px);
+  -webkit-backdrop-filter:blur(16px);
+}
+.app.chat-is-hidden .chatRestore{display:flex}
+@media (orientation:landscape) and (min-width:851px){
+  .chatRestore{right:28px;bottom:28px}
+}
+
+
+/* V4.17 task reminder opt-in */
+.taskNotificationOptIn button {
+  appearance: none;
+  border: 1px solid rgba(255,255,255,.18);
+  border-radius: 999px;
+  padding: 9px 13px;
+  background: rgba(255,255,255,.08);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.taskNotificationOptIn button:disabled { opacity: .65; cursor: default; }
+
+
+/* V4.22.3 — full-height desktop chat with persistent tools. */
+.chatHead > div:first-child { min-width:0; flex:1; padding-right:8px; }
+#sofiaLocation { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+@media (orientation:landscape) and (min-width:851px) {
+  .chatPanel,
+  .chatPanel.minimized,
+  .chatPanel.chat-full {
+    top:84px!important;
+    bottom:max(18px,env(safe-area-inset-bottom))!important;
+    height:auto!important;
+    min-height:0!important;
+    max-height:none!important;
+  }
+  .chatPanel .messages { min-height:0; }
+  .actions,
+  .app.tools-closed .actions {
+    top:max(18px,env(safe-area-inset-top))!important;
+    bottom:auto!important;
+    height:58px!important;
+    opacity:1!important;
+    visibility:visible!important;
+    pointer-events:auto!important;
+    transform:none!important;
+  }
+  #toolsToggle { display:none!important; }
+  .moodPanel {
+    top:84px!important;
+    bottom:auto!important;
+  }
+}
+
+/* V4.33.1 — seven tools stay in one row within the chat width. */
+.actions {
+  grid-template-columns:repeat(7,minmax(0,1fr))!important;
+  gap:2px!important;
+  padding:4px!important;
+  box-sizing:border-box;
+}
+.actions button {
+  width:100%;
+  min-width:0!important;
+  padding:5px 1px!important;
+}
+.actions button span { font-size:9px; }
+@media (max-width:420px) {
+  .actions { gap:0!important; }
+  .actions button span { font-size:8px!important; }
+}
+
+@media (orientation:landscape) and (min-width:851px) {
+  body:has(#sofia-test-banner) .actions { top:44px!important; }
+  body:has(#sofia-test-banner) .chatPanel,
+  body:has(#sofia-test-banner) .chatPanel.minimized,
+  body:has(#sofia-test-banner) .chatPanel.chat-full,
+  body:has(#sofia-test-banner) .moodPanel { top:110px!important; }
+}
+/* Sofia 4.34.2: persistent, unobtrusive Hamburg message times. */
+.contact-highlight { outline: 1px solid #b6a387; outline-offset: 3px; }
+.message-time {
+  display: block;
+  margin-top: 5px;
+  font-size: 10px;
+  line-height: 1.2;
+  font-weight: 400;
+  opacity: .55;
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* 4.44–4.45: shared interface, touch targets and responsive photo navigation. */
+:root{--ui-surface:#141820;--ui-raised:#202630;--ui-border:rgba(230,235,244,.14);--ui-muted:#a7afbd;--ui-accent:#d7c4a9;--ui-radius:18px;color-scheme:dark}
+button,input,textarea,select{font:inherit}
+button{touch-action:manipulation}
+button:disabled{opacity:.48;cursor:default}
+button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid var(--ui-accent)!important;outline-offset:3px!important}
+[hidden]{display:none!important}
+.chatPanel{padding:16px!important;border-color:var(--ui-border)!important;background:rgba(12,16,22,.86)!important;box-shadow:0 12px 44px #0003}
+.chatHead{min-height:58px;gap:8px;border-color:var(--ui-border)}
+#sofiaLocation{font-size:15px;font-weight:600;letter-spacing:.01em}
+#mode{font-size:12px;color:var(--ui-muted);min-height:18px;line-height:1.5}
+.chatHeadActions{gap:6px}
+.chatHeadActions button{flex-shrink:0}
+.messages{gap:12px;padding:18px 0;scrollbar-width:thin;scrollbar-color:#ffffff26 transparent;overflow-anchor:none}
+.msg{font-size:15px;line-height:1.55;padding:12px 14px;max-width:92%;overflow-wrap:anywhere;white-space:pre-wrap}
+.msg.sofia{background:#ffffff0b;border:1px solid #ffffff0b;border-bottom-left-radius:5px}
+.msg.user{background:#e6e2db;border-bottom-right-radius:5px}
+.message-time{font-size:10px;opacity:.7;margin-top:7px}
+.message-day{text-align:center;color:var(--ui-muted);font-size:11px;letter-spacing:.03em;margin:7px 0;flex-shrink:0}
+.chat-latest{align-self:flex-end;flex:none;position:relative;margin:0 0 4px;padding:0;width:36px;height:36px;min-height:36px;border-radius:50%;border:1px solid #ffffff18;background:#ffffff08;color:var(--ui-muted);font-size:20px;line-height:1;cursor:pointer}.chat-latest:hover,.chat-latest:focus-visible{color:#fff;background:var(--ui-raised)}
+#form{padding-top:10px;border-top:1px solid var(--ui-border)}
+#form #input{resize:none;min-height:46px;max-height:144px;line-height:1.45;padding:11px 13px;border:1px solid var(--ui-border);background:#ffffff08;color:#fff;border-radius:14px;overflow-y:auto;font-size:16px}
+#form #input::placeholder{color:#929cae}
+#form .send{min-height:46px;height:46px;border-radius:14px;background:var(--ui-accent)}
+.actions{background:rgba(12,16,22,.9)!important;border-color:var(--ui-border)!important;gap:3px!important;padding:5px!important;overflow-x:auto;scrollbar-width:thin}
+.actions button{min-height:46px!important;min-width:44px!important;border-radius:12px;padding:6px 2px!important;font-size:18px;flex-shrink:0}
+.actions button span{font-size:10px!important;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.actions button.on,.actions button[aria-pressed=true]{background:#ffffff14!important}
+.moodPanel{background:var(--ui-surface)!important;border-color:var(--ui-border)!important}
+.sofia-dialog,dialog{color:#edf0f6!important;background:var(--ui-surface)!important;border:1px solid var(--ui-border)!important;border-radius:var(--ui-radius)!important;box-shadow:0 24px 90px #0009;padding:20px!important;max-width:calc(100vw - 24px)!important;max-height:calc(100dvh - 32px - env(safe-area-inset-top) - env(safe-area-inset-bottom))!important;overscroll-behavior:contain;scrollbar-width:thin}
+dialog::backdrop{background:#03060acc;backdrop-filter:blur(8px)}
+dialog h2{font-size:21px;margin:0 100px 18px 0;letter-spacing:-.02em}
+dialog p{font-size:14px;line-height:1.55;color:var(--ui-muted)}
+dialog button,#sofiaMemoryOverlay button{min-height:44px;border:1px solid var(--ui-border)!important;border-radius:12px!important;background:var(--ui-raised)!important;color:#edf0f6!important;padding:9px 13px;cursor:pointer;line-height:1.35}
+dialog button[aria-pressed=true]{border-color:var(--ui-accent)!important;background:#d7c4a922!important}
+dialog input:not([type=checkbox]),dialog textarea,dialog select,#sofiaMemoryOverlay input,#sofiaMemoryOverlay textarea{min-height:44px;border:1px solid var(--ui-border)!important;background:#0c1016!important;color:#edf0f6!important;border-radius:11px;padding:9px 12px;max-width:100%}
+dialog input[type=checkbox]{accent-color:var(--ui-accent);min-height:24px;width:24px;flex:none;vertical-align:middle}
+dialog fieldset{border:1px solid var(--ui-border);border-radius:12px;padding:12px;margin:14px 0}
+dialog legend,dialog label{font-size:13px;color:var(--ui-muted)}
+#sofiaMemoryOverlay{background:rgba(3,6,10,.85)!important;padding:16px!important;border:0!important;border-radius:0!important}
+#sofiaMemoryOverlay>div{background:var(--ui-surface)!important;border-color:var(--ui-border)!important;width:min(680px,100%)!important;max-height:calc(100dvh - 32px)!important;border-radius:var(--ui-radius)!important}
+#sofiaMemoryOverlay .memory-close-bottom{margin:12px 20px 18px}
+#sofia-gallery{width:720px!important;overflow-y:auto;padding:22px!important}
+#sofia-gallery>button:nth-child(2){position:absolute;right:20px;top:16px}
+.gallery-filter-section{border:1px solid var(--ui-border);border-radius:14px;padding:12px;margin:14px 0}
+.gallery-filter-section summary{cursor:pointer;min-height:32px;font-size:14px;color:#edf0f6}
+.gallery-filter-section[open] summary{margin-bottom:12px}
+.gallery-filters{gap:8px!important;align-items:center}
+.gallery-grid{grid-template-columns:repeat(auto-fill,minmax(145px,1fr))!important;gap:16px!important}
+.gallery-grid h3{font-size:13px!important;color:var(--ui-muted);font-weight:500}
+.gallery-grid>div{min-width:0}
+.gallery-grid button:first-of-type{border:0!important;padding:0!important;background:transparent!important;display:block;width:100%}
+.gallery-grid img{display:block;width:100%;background:var(--ui-raised)}
+.gallery-grid>div>button:last-of-type{margin-top:8px;width:100%;font-size:12px}
+.gallery-grid time{font-size:12px!important;color:var(--ui-muted);opacity:1!important}
+.sofia-photo-view{width:min(760px,calc(100vw - 24px));overflow-y:auto;padding:16px!important}
+.sofia-photo-view>img{width:100%;max-width:100%!important;max-height:60dvh!important;object-fit:contain;display:block;background:#090d12;border-radius:12px}
+.photo-header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:12px 0;color:var(--ui-muted);font-size:13px}
+.photo-count{min-width:70px;text-align:center;align-self:center;font-size:13px;color:var(--ui-muted)}
+.photo-toolbar,.photo-follow-ups{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+.photo-toolbar button{margin:0!important;flex:1}
+.photo-delete{font-size:12px!important;color:#e3b4b4!important}
+.photo-follow-ups button{flex:1}
+.photo-detail-controls{display:flex;gap:8px;flex-wrap:wrap;width:100%;padding:10px;background:#ffffff06;border-radius:12px}
+.photo-detail-controls input{flex:1;min-width:150px}
+.photo-detail-controls button{flex:0 0 auto}
+.msg[data-portrait-status=done]{white-space:normal}
+.msg figure{margin:0}
+.msg[data-portrait-status=done] img{width:210px!important;max-width:100%;aspect-ratio:2/3;height:auto;background:var(--ui-raised)}
+.photo-retry{display:block;margin-top:12px;min-height:44px;background:var(--ui-raised);color:#fff;border:1px solid var(--ui-border);border-radius:12px;padding:9px 13px;cursor:pointer}
+@media (hover:hover){button:not(:disabled):hover{filter:brightness(1.12)}}
+@media (max-width:850px) and (orientation:portrait){
+ .app{--sofia-chat-height:min(38dvh,380px,calc(var(--sofia-visible-height,100dvh) - 112px))}
+ .chatPanel:not(.chat-hidden),.chatPanel.minimized{bottom:calc(var(--sofia-keyboard-inset,0px) + max(12px,env(safe-area-inset-bottom)))!important;height:var(--sofia-chat-height)!important;max-height:var(--sofia-chat-height)!important;min-height:0!important;left:12px!important;right:12px!important;padding:12px!important}
+ .app:has(.chatPanel.chat-full){--sofia-chat-height:min(72dvh,calc(var(--sofia-visible-height,100dvh) - 112px))}
+ .chatPanel:not(.chat-hidden)~.actions{left:12px!important;right:12px!important;width:auto!important;bottom:calc(var(--sofia-keyboard-inset,0px) + max(12px,env(safe-area-inset-bottom)) + var(--sofia-chat-height) + 8px)!important}
+ .actions{grid-template-columns:repeat(7,minmax(44px,1fr))!important;height:58px!important}
+ .actions button span{font-size:9px!important}
+ .chatHead{min-height:48px;padding-bottom:8px}.msg{font-size:14px;padding:10px 12px;max-width:94%}
+ .messages{padding:12px 0;gap:9px}.chatHeadActions{gap:4px}#sofiaLocation{font-size:14px}
+ .gallery-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:12px!important}
+ .sofia-photo-view>img{max-height:52dvh!important}
+ #sofia-gallery{padding:16px!important}
+}
+@media (orientation:landscape) and (max-height:500px){.sofia-photo-view>img{max-height:48dvh!important}.chatPanel{padding:10px!important}.messages{padding:8px 0}.chatHead{min-height:44px}#form{padding-top:6px}}
+@media (prefers-reduced-motion:reduce){dialog::backdrop{backdrop-filter:none}.chat-latest{scroll-behavior:auto}}
+
+.sofia-dialog button,#sofiaMemoryOverlay button{min-width:44px}
+#sofia-gallery button,.sofia-photo-view button{height:auto;min-height:44px;max-width:100%;white-space:normal;overflow-wrap:anywhere;line-height:1.3;box-sizing:border-box}
+.sofia-photo-view .photo-toolbar button,.sofia-photo-view .photo-follow-ups button{flex:1 1 130px;min-width:0}
+.sofia-photo-view .photo-detail-controls button{flex:0 1 auto;min-width:0}
+#sofia-gallery .gallery-filters>*{min-width:0;max-width:100%}
+.photo-perspective-controls{width:100%;padding:12px;border:1px solid var(--ui-border);border-radius:14px;box-sizing:border-box;background:var(--ui-raised)}
+.photo-perspective-controls[hidden]{display:none}
+.photo-perspective-controls p{margin:0 0 10px;line-height:1.45}
+.photo-perspective-note{font-size:12px;color:var(--ui-muted)}
+.photo-perspective-compass{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-areas:"front-left origin front-right" "left rear right" "back-left . back-right";gap:8px;margin:14px 0}
+.photo-perspective-compass button{width:100%;padding:10px 6px;font-size:13px;min-height:60px}
+.photo-perspective-origin{grid-area:origin;align-self:center;text-align:center;font-size:11px;color:var(--ui-muted)}
+.photo-perspective-front-left{grid-area:front-left}.photo-perspective-front-right{grid-area:front-right}.photo-perspective-left{grid-area:left}.photo-perspective-right{grid-area:right}.photo-perspective-back-left{grid-area:back-left}.photo-perspective-back-right{grid-area:back-right}
+.photo-perspective-rear{grid-area:rear;border-color:var(--ui-accent)!important;font-weight:600}
+.photo-header{position:sticky;top:-16px;z-index:2;background:var(--ui-surface);padding:8px 0;margin-top:0}
+
+/* V4.46–4.48: reading tools and device presentation preferences. */
+:root{--sofia-chat-font:15px;--sofia-msg-padding:12px 14px;--sofia-msg-gap:10px}
+:root[data-chat-font="small"]{--sofia-chat-font:14px}
+:root[data-chat-font="large"]{--sofia-chat-font:18px}
+:root[data-chat-density="compact"]{--sofia-msg-padding:8px 12px;--sofia-msg-gap:6px}
+#messages .msg{font-size:var(--sofia-chat-font);padding:var(--sofia-msg-padding);margin-top:var(--sofia-msg-gap)}
+#messages figure.msg{padding:0}
+.chat-preview{font-size:var(--sofia-chat-font);padding:var(--sofia-msg-padding);background:var(--ui-raised);border-radius:12px}
+.message-menu{display:inline-flex;float:right;width:30px;min-height:30px;margin:2px -4px -2px 8px;border:0;background:transparent;color:var(--ui-muted);font-size:20px;cursor:pointer}
+.message-menu:hover,.message-menu:focus-visible{color:var(--ui-accent);background:rgba(255,255,255,.08)}
+.message-unread{font-size:11px;letter-spacing:.02em;color:var(--ui-accent);text-align:center;border-top:1px solid var(--ui-border);padding:10px;margin:12px 0}
+.message-found{outline:2px solid var(--ui-accent);outline-offset:3px}
+.connection-status{margin:4px 12px;padding:8px 12px;font-size:12px;line-height:1.45;color:var(--ui-accent);background:var(--ui-raised);border-radius:10px}
+.workspace-dialog{width:540px;max-width:calc(100vw - 24px)}
+.workspace-dialog>button{margin:6px 6px 6px 0}
+.workspace-dialog>label{display:block;margin:14px 0}
+.workspace-dialog>label select{display:block;width:100%;margin-top:6px}
+.workspace-dialog input[type=search]{width:100%;margin-top:16px}
+.workspace-result{padding:12px 0;border-top:1px solid var(--ui-border)}
+.workspace-result small{color:var(--ui-muted)}
+.workspace-result p{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.55}
+.workspace-result button{margin:3px}
+.photo-follow-ups{grid-template-columns:repeat(2,minmax(0,1fr))}
+.photo-detail-controls{grid-column:1/-1}
+.photo-detail-controls textarea{width:100%;resize:vertical;min-height:70px}
+.photo-comparison{width:960px}
+.photo-comparison-pair{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.photo-comparison-pair figure{margin:0;min-width:0}
+.photo-comparison-pair img{display:block;width:100%;max-height:65dvh;object-fit:contain;border-radius:12px}
+.photo-comparison-pair figcaption{text-align:center;margin:8px;color:var(--ui-muted)}
+#mode[data-connection="offline"]{color:var(--ui-accent)}
+#workspaceAction{width:36px;min-height:40px;border:0;background:transparent;color:var(--ui-muted);font-size:23px;cursor:pointer}
+:root[data-ui-motion="reduced"] .chatPanel,:root[data-ui-motion="off"] .chatPanel,
+:root[data-ui-motion="reduced"] .sofia-dialog,:root[data-ui-motion="off"] .sofia-dialog,
+:root[data-ui-motion="reduced"] .chat-latest,:root[data-ui-motion="off"] .chat-latest{animation:none!important;transition:none!important;scroll-behavior:auto!important}
+@media(max-width:420px){.chatHeadActions{gap:2px}#workspaceAction{width:30px}.workspace-dialog{padding:16px!important}.photo-follow-ups button{font-size:12px}.message-menu{min-height:36px;width:36px}}
+#mode{display:inline-flex;align-items:center;gap:6px;font-size:11px;line-height:1.4}
+#mode::before{content:'';width:5px;height:5px;border-radius:50%;background:var(--ui-muted);flex-shrink:0}
+#mode[data-phase="thinking"]::before,#mode[data-phase="photo"]::before{background:var(--ui-accent)}
+#mode[data-phase="listening"]::before,#mode[data-phase="speaking"]::before{background:#a7c8b1}
+#mode[data-phase="attention"]::before{background:#d9b58e}
+
+/* V4.55.8: one initial/compact height, closed tools at every fresh launch. */
+@media (max-width:850px) and (orientation:portrait){
+ .chatPanel:not(.minimized):not(.chat-hidden):not(.chat-full),.chatPanel.minimized{height:var(--sofia-chat-height)!important;max-height:var(--sofia-chat-height)!important;min-height:0!important;box-sizing:border-box!important}
+ .chatPanel:not(.chat-hidden)~.actions{bottom:calc(var(--sofia-keyboard-inset,0px) + max(12px,env(safe-area-inset-bottom)) + var(--sofia-chat-height) + 8px)!important}
+}
+.app.tools-closed .actions{opacity:0!important;visibility:hidden!important;pointer-events:none!important}
+@media (orientation:landscape) and (min-width:851px){
+ #toolsToggle{display:inline-flex!important}
+ .app.tools-closed .chatPanel{top:max(18px,env(safe-area-inset-top))!important}
+ body:has(#sofia-test-banner) .app.tools-closed .chatPanel{top:44px!important}
+}
+/* Keep photo choices aligned despite the generic composer input rules. */
+#sofiaMemoryOverlay fieldset label{display:flex;align-items:center;gap:10px;min-height:44px;line-height:1.35}
+#sofiaMemoryOverlay fieldset input[type="checkbox"]{order:-1;flex:none;width:20px!important;height:20px!important;min-width:20px!important;min-height:20px!important;margin:0;padding:0;accent-color:#a9d0ff}
+
+/* 4.63–4.65: explicit photo source, accessible comparison and Hamburg day overview. */
+.photo-source-choice{flex:1 0 100%;display:grid;grid-template-columns:1fr 76px;gap:8px;align-items:center;min-width:0}
+.photo-source-choice select{min-width:0;width:100%;grid-column:1;padding:10px;border-radius:10px}
+.photo-source-preview{width:76px;height:90px;object-fit:cover;border-radius:8px;grid-column:2;grid-row:1/3}
+.photo-series-label{display:block;font-size:11px;opacity:.75;overflow-wrap:anywhere;margin:4px 0}
+.photo-comparison-slider{position:relative;width:min(720px,80vw);height:min(65dvh,640px);background:#111;border-radius:10px;overflow:hidden}
+.photo-comparison-slider img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+.photo-comparison input[type=range]{display:block;width:100%;min-height:44px;accent-color:#bfa8ff}
+.photo-perspective-compass button{min-height:70px;font-size:inherit;white-space:normal;overflow-wrap:anywhere}
+.today-dialog section{display:grid;gap:8px;margin:18px 0}
+.today-dialog section button{text-align:left;white-space:normal;overflow-wrap:anywhere;min-height:44px}
+.today-dialog label{display:flex;align-items:center;gap:8px;margin:14px 0}
+
+.sofia-photo-view .photo-follow-ups>button{flex-basis:160px;hyphens:auto}
+
+
+/* 4.67: bounded photo controls and a compact, read-only day overview. */
+.photo-change-options{grid-column:1/-1;flex-basis:100%;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:12px;border:1px solid var(--ui-border);border-radius:12px;min-width:0}
+.photo-change-options[hidden]{display:none}
+.photo-change-options label{display:grid;gap:6px;min-width:0;font-size:13px}
+.photo-change-options select{width:100%;min-width:0;min-height:44px;padding:8px;background:var(--ui-raised);color:inherit;border:1px solid var(--ui-border);border-radius:8px;font:inherit}
+.photo-change-options p{grid-column:1/-1;line-height:1.5;font-size:12px;color:var(--ui-muted);margin:0}
+.photo-source-stamp{grid-column:1/-1;font-size:11px;opacity:.75;overflow-wrap:anywhere}
+.photo-comparison-boundaries{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 16px}
+.photo-comparison-boundaries button{flex:1;min-height:44px;white-space:normal}
+.photo-comparison{max-width:calc(100vw - 24px);box-sizing:border-box;overflow-x:hidden}
+.photo-comparison-slider{max-width:100%}
+.today-summary{padding:12px;background:var(--ui-raised);border-radius:10px;line-height:1.6;overflow-wrap:anywhere}
+.today-task-detail{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.6}
+.today-dialog section h3{font-size:15px;margin-bottom:0}
+@media(max-width:420px){.photo-change-options{grid-template-columns:1fr}.photo-comparison-boundaries button{font-size:12px}.sofia-photo-view .photo-follow-ups>button{flex-basis:120px;min-height:44px}}
+
+/* V4.70 — review text and accessible narrow/large-type controls. */
+.photo-change-summary{grid-column:1/-1;padding:10px;border:1px solid rgba(255,255,255,.15);border-radius:10px;line-height:1.5;overflow-wrap:anywhere;}
+.photo-source-choice:focus-within{outline:2px solid rgba(215,198,152,.8);outline-offset:3px;}
+.photo-follow-ups button,.today-dialog button,.workspace-dialog button{white-space:normal;overflow-wrap:anywhere;min-height:44px;}
+.photo-follow-ups select,.photo-change-options select{min-width:0;max-width:100%;font:inherit;}
+html[data-chat-font="large"] .photo-follow-ups{grid-template-columns:repeat(2,minmax(0,1fr));}
+@media(max-width:420px){html[data-chat-font="large"] .photo-follow-ups,.photo-change-options{grid-template-columns:minmax(0,1fr);}.photo-comparison-buttons{flex-wrap:wrap;}}
+
+/* V4.74 — photo proposals and section-specific state. */
+.photo-edit-presets{grid-column:1/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;}
+.photo-variant-info{grid-column:1/-1;margin:4px 0;line-height:1.5;overflow-wrap:anywhere;color:rgba(255,255,255,.7);}
+.photo-source-choice[data-source-relation="parent"],.photo-source-choice[data-source-relation="root"]{border-left:3px solid rgba(215,198,152,.75);padding-left:10px;}
+.today-section-warning{font-size:.9em;color:#e9c998;line-height:1.5;overflow-wrap:anywhere;}
+.workspace-dialog{max-height:calc(var(--sofia-visible-height,100dvh) - 32px);overscroll-behavior:contain;}
+@media(max-width:420px){.photo-edit-presets{grid-template-columns:minmax(0,1fr);}}
+
+/* V4.74.10: compact metadata and explicit reply reference. */
+.message-meta{display:flex;justify-content:flex-end;align-items:center;gap:5px;margin-top:4px;min-height:24px}
+.message-meta .message-time{display:inline-block;order:0;margin:0;line-height:1.2}
+.message-meta .message-menu{order:1;float:none;display:inline-flex;align-items:center;justify-content:center;margin:0;width:28px;min-height:24px;height:24px;font-size:18px;border-radius:6px}
+.composer-reply{display:flex;align-items:center;gap:8px;flex:none;margin:4px 0 7px;padding:7px 9px;border-left:2px solid var(--ui-accent);border-radius:7px;background:#ffffff08;color:var(--ui-muted);font-size:12px;line-height:1.35}
+.composer-reply span{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.composer-reply button{flex:none;min-width:32px;min-height:32px;border:0;background:transparent;color:var(--ui-muted);font-size:20px}
+.message-quote{display:block;max-width:100%;width:100%;margin:0 0 7px;padding:7px 9px;border:0;border-left:2px solid currentColor;border-radius:5px;text-align:left;background:#00000010;color:inherit;opacity:.75;font-size:12px;line-height:1.35;white-space:normal;overflow-wrap:anywhere;cursor:pointer}
+
+/* 4.74.11–4.78.7: embedded source, never a separate floating quote. */
+.message-quote{white-space:pre-wrap;text-align:left;font-size:12px;line-height:1.45;padding:9px 11px;margin:0 0 9px;border:0;border-left:3px solid currentColor;border-radius:7px;background:#ffffff0a;max-height:180px;overflow:auto;opacity:.8}
+.msg.user .message-quote{background:#00000008}
+.search-context{display:block;margin:8px 0;color:var(--ui-muted);font-size:11px}
+.settings-group{margin:12px 0;border-top:1px solid var(--ui-border);padding-top:12px}
+.settings-group summary{cursor:pointer;font-weight:600;padding:8px 0}
+.photo-detail-selector{display:flex;flex-wrap:wrap;gap:5px;margin:8px 0}.photo-detail-selector button{flex:1;min-width:90px}
+.photo-series-nav{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}.photo-series-nav button{flex:1;min-width:100px}
+.today-draft{border-left:3px solid var(--ui-muted);padding:10px;margin:10px 0;background:#ffffff08;border-radius:8px}
+
+.message-quote img{display:block;width:56px;height:72px;object-fit:cover;border-radius:5px;margin-top:6px}
