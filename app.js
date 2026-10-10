@@ -431,7 +431,7 @@ async function syncConversationFromServer({ silent = false } = {}) {
 
     window.SofiaWorkspace?.reconcileSubmission(serverHistory);
     const localPending=(typeof conversationHistory!=='undefined'?conversationHistory:[]).filter(x=>x.delivery==='unconfirmed');
-    if(localPending.length && !localPending.every(x=>serverHistory.some((s,i)=>s.role==='user'&&s.content===x.content&&serverHistory[i+1]?.role==='assistant'))){window.SofiaImages?.restore(data.images);return false;}
+    if(localPending.length && !localPending.every(x=>window.SofiaWorkspace?.hasReceipt?.(serverHistory,{text:x.content,at:Date.parse(x.createdAt),replyTo:x.replyTo}))){window.SofiaImages?.restore(data.images);return false;}
     void window.SofiaSocial?.sync();
     const signature = historySignature(serverHistory);
     if (signature === lastServerHistorySignature) { window.SofiaImages?.restore(data.images); return true; }

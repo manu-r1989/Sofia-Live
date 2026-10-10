@@ -1146,3 +1146,17 @@ html[data-chat-font="large"] .photo-follow-ups{grid-template-columns:repeat(2,mi
 @media(max-width:420px){.dialog-header{top:-16px}.dialog-header h2{font-size:18px}.sofia-photo-view .photo-action-grid>.photo-action{font-size:13px;padding:9px 7px}.photo-source-choice{padding:10px}.gallery-filters>*{flex-basis:100%}.composer-reply{padding:6px 8px}}
 @media(max-width:340px){.photo-action-grid,.photo-series-nav{grid-template-columns:minmax(0,1fr)}}
 @media(prefers-reduced-motion:reduce){.message-found{transition:none}}
+
+/* Sofia 4.80–4.82: visible keyboard space and touch-safe dialogs. */
+.sofia-dialog,dialog{max-height:calc(var(--sofia-visible-height,100dvh) - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom))!important;scroll-padding-top:80px}
+.sofia-photo-view .photo-action,.gallery-filters button,.gallery-filter-section summary{min-height:44px}
+.message-quote-toggle:focus-visible,.photo-action:focus-visible,#sendButton:focus-visible{outline:2px solid #e2c39e;outline-offset:3px}
+@media(max-width:760px){
+ :root[data-composer-focused="true"] .app{--sofia-chat-height:min(80dvh,calc(var(--sofia-visible-height,100dvh) - 32px))}
+ :root[data-composer-focused="true"] .chatHead{min-height:32px}
+ :root[data-composer-focused="true"] #form{padding-top:4px;gap:6px}
+ :root[data-composer-focused="true"] #replyPreview{max-height:52px}
+ .gallery-grid{grid-template-columns:repeat(auto-fit,minmax(min(110px,100%),1fr))!important}
+}
+
+@media(max-width:760px){:root[data-compact-viewport="true"] #replyPreview{max-height:28px}:root[data-compact-viewport="true"] #replyPreview span{-webkit-line-clamp:1}:root[data-compact-viewport="true"] .messages{min-height:24px}}

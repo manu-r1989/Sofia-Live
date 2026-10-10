@@ -5,7 +5,7 @@
   const get=(key,fallback)=>{try{return JSON.parse(localStorage.getItem(key))??fallback;}catch{return fallback;}};
   const put=(key,value)=>{try{localStorage.setItem(key,JSON.stringify(value));return true;}catch{return false;}};
   const normalize=value=>({font:['small','normal','large'].includes(value?.font)?value.font:defaults.font,density:value?.density==='compact'?'compact':'comfortable',motion:['auto','reduced','off'].includes(value?.motion)?value.motion:'auto'});
-  const keyFor=turn=>JSON.stringify([turn.role,turn.createdAt||'',turn.content]);
+  const keyFor=turn=>JSON.stringify([turn?.role,turn?.createdAt||'',turn?.content]);
   const safeRetry=(text,uncertain,image)=>!uncertain&&!image&&!/aufgab|erinner|termin|kalender|erledig|lösch|verschieb|priorität|änder|mach das|nochmal|foto|bild|selfie|zeig|schick/i.test(text);
   let prefs=normalize(get(KEYS.prefs,defaults)),pins=get(KEYS.pins,[]),unread=new Map(),initialized=false,lastRead=get(KEYS.read,Date.now()),pendingDraft=null;
   if(!Array.isArray(pins))pins=[];pins=pins.filter(x=>x&&typeof x.content==='string'&&['user','assistant'].includes(x.role)).slice(-50);
@@ -31,9 +31,10 @@
   function beginSubmission(text,reference=null){pendingDraft={text,at:Date.now(),id:newIdentity(),...(validReply(reference)?{replyTo:validReply(reference)}:{})};saveDraft();}
   function confirmSubmission(text){if(pendingDraft?.text===text){clearDraft();}}
   function failSubmission(text,{uncertain=false}={}){if(pendingDraft?.text!==text)return;if(uncertain){saveDraft();notice('Versand noch unbestätigt. Bitte zuerst den Verlauf prüfen; der Text ist unter Einstellungen → Letzten Versand prüfen gesichert.');return;}if(input&&!input.value){input.value=pendingDraft.text;replyTo=validReply(pendingDraft.replyTo);paintReply();window.SofiaUI?.resizeComposer(input);}settlePending();saveDraft();}
+  function hasReceipt(history,pending){return !!pending&&Array.isArray(history)&&history.some((turn,i)=>turn.role==='user'&&turn.content===pending.text&&Date.parse(turn.createdAt)>=pending.at-3000&&Date.parse(turn.createdAt)<=pending.at+300000&&history[i+1]?.role==='assistant'&&(!pending.replyTo||keyFor(turn.replyTo)===keyFor(pending.replyTo)));}
   function reconcileSubmission(history){
     if(!pendingDraft||!Array.isArray(history))return false;
-    const delivered=history.some((turn,i)=>turn.role==='user'&&turn.content===pendingDraft.text&&Date.parse(turn.createdAt)>=pendingDraft.at-3000&&Date.parse(turn.createdAt)<=pendingDraft.at+90000&&history[i+1]?.role==='assistant');
+    const delivered=hasReceipt(history,pendingDraft);
     if(!delivered)return false;
     clearDraft();return true;
   }
@@ -120,7 +121,7 @@
   });
   async function applyUpdate(){
     const phase=document.getElementById('mode')?.dataset.phase;
-    if(window.SofiaImages?.isGenerating||document.getElementById('voiceToggle')?.checked||['thinking','photo','listening','speaking'].includes(phase)){notice('Bitte beende zuerst die laufende Aktion oder Live-Unterhaltung.');return;}
+    if(pendingDraft||window.SofiaImages?.isGenerating||document.getElementById('voiceToggle')?.checked||['thinking','photo','listening','speaking'].includes(phase)){notice(pendingDraft?'Bitte prüfe zuerst den noch unbestätigten Versand.':'Bitte beende zuerst die laufende Aktion oder Live-Unterhaltung.');return;}
     if(!saveDraft()){notice('Dein Entwurf konnte nicht gesichert werden. Bitte kopiere ihn vor dem Aktualisieren.');return;}
     if(window.SofiaCharacterSettings?.flush&&!await window.SofiaCharacterSettings.flush()){notice('Bitte zuerst die ungespeicherten Einstellungen sichern.');return;}
     window.location.reload();
@@ -133,7 +134,7 @@
   const mode=document.getElementById('mode');
   function paintPhase(){if(!mode)return;const text=mode.textContent.trim();mode.dataset.phase=/Foto/.test(text)?'photo':/denkt/.test(text)?'thinking':/hört/.test(text)?'listening':/spricht/.test(text)?'speaking':/fehl|Fehler|Pause|warten/i.test(text)?'attention':'ready';}
   if(mode&&typeof MutationObserver!=='undefined')new MutationObserver(paintPhase).observe(mode,{childList:true,characterData:true,subtree:true});paintPhase();
-  window.SofiaWorkspace={hiddenMessages:()=>hiddenMessages,acceptHidden,isHidden,filterHistory,taskFromMessage,selectReply,takeReply,decorateReply,replyReference:()=>replyTo,acknowledgeContacts,messages:()=>turnNodes().map(nodeTurn),unreadMessages:()=>[...unread.values()],showMessage:turn=>{window.SofiaChatViewport?.reveal?.();return jump(turn);},motion,clearDraft,beginSubmission,confirmSubmission,failSubmission,reconcileSubmission,pendingSubmission,saveDraft,refresh,reconcile,added,readVisible,notice,failed,settings,search,pinned,normalize,keyFor,safeRetry};
+  window.SofiaWorkspace={hiddenMessages:()=>hiddenMessages,acceptHidden,isHidden,filterHistory,taskFromMessage,selectReply,takeReply,decorateReply,replyReference:()=>replyTo,acknowledgeContacts,messages:()=>turnNodes().map(nodeTurn),unreadMessages:()=>[...unread.values()],showMessage:turn=>{window.SofiaChatViewport?.reveal?.();return jump(turn);},motion,clearDraft,beginSubmission,confirmSubmission,failSubmission,reconcileSubmission,pendingSubmission,saveDraft,hasReceipt,refresh,reconcile,added,readVisible,notice,failed,settings,search,pinned,normalize,keyFor,safeRetry};
   if(pendingDraft)notice('Letzter Versand noch unbestätigt. Du kannst ihn in den Einstellungen prüfen; es erfolgt kein automatisches Senden.');
   mergeDelivery();refresh();
 })();

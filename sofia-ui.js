@@ -4,7 +4,7 @@
     const trigger=document.activeElement,viewport=window.SofiaChatViewport?.capture();
     element.classList.add('sofia-dialog');element.setAttribute('aria-label',label);
     const native=element.tagName==='DIALOG';if(!native){element.setAttribute('role','dialog');element.setAttribute('aria-modal','true');}
-    const restore=()=>{if(element.dataset?.returnToLatest!=='true')window.SofiaChatViewport?.restore(viewport);if(trigger?.isConnected)trigger.focus?.({preventScroll:true});};
+    const restore=()=>{const parent=document.querySelector?.('dialog[open]');if(!parent&&element.dataset?.returnToLatest!=='true')window.SofiaChatViewport?.restore(viewport);if(trigger?.isConnected&&(!parent||parent.contains?.(trigger)))trigger.focus?.({preventScroll:true});};
     if(native)element.addEventListener('close',restore,{once:true});
     else element.onkeydown=event=>{
       if(event.key==='Escape'){event.preventDefault();close?.();}if(event.key!=='Tab')return;
@@ -12,7 +12,7 @@
       if(event.shiftKey&&document.activeElement===items[0]||!event.shiftKey&&document.activeElement===items.at(-1)){event.preventDefault();(event.shiftKey?items.at(-1):items[0])?.focus();}
     };return restore;
   }
-  function resizeComposer(input){if(!input||input.tagName!=='TEXTAREA')return;input.style.height='auto';const available=window.visualViewport?.height||window.innerHeight||800,limit=Math.max(72,Math.min(144,Math.floor(available/3)));input.style.height=Math.min(limit,Math.max(46,input.scrollHeight))+'px';}
+  function resizeComposer(input){if(!input||input.tagName!=='TEXTAREA')return;input.style.height='auto';const available=window.visualViewport?.height||window.innerHeight||800,limit=available<320?Math.max(46,Math.floor(available/4)):Math.max(72,Math.min(144,Math.floor(available/3)));input.style.height=Math.min(limit,Math.max(46,input.scrollHeight))+'px';}
   function refreshDays(root){
     if(!root)return;const viewport=window.SofiaChatViewport?.capture(),top=root.scrollTop;
     root.querySelectorAll('.message-day').forEach(x=>x.remove());let previous='';
@@ -26,6 +26,7 @@
   const input=document.getElementById('input');input?.addEventListener('input',()=>resizeComposer(input));resizeComposer(input);
   const viewport=window.visualViewport;
   function resize(){const focused=document.activeElement===input,height=viewport?.height||window.innerHeight;
+    document.documentElement.dataset.composerFocused=String(focused);document.documentElement.dataset.compactViewport=String(focused&&height<320);
     const inset=focused&&height<window.innerHeight*.8?Math.max(0,window.innerHeight-height-(viewport?.offsetTop||0)):0;
     document.documentElement.style.setProperty('--sofia-keyboard-inset',inset+'px');document.documentElement.style.setProperty('--sofia-visible-height',height+'px');resizeComposer(input);
   }

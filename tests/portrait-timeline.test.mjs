@@ -5,6 +5,9 @@ import {readFile} from 'node:fs/promises';
 const source=await readFile(new URL('../sofia-images.js',import.meta.url),'utf8');
 const id='11111111-1111-4111-8111-111111111111';
 const id2='22222222-2222-4222-8222-222222222222';
+
+test('pinch and initially vertical gestures never become a photo swipe',()=>{const h=harness(async()=>preparedPhoto());const at=new Date().toISOString();h.api.restore([{...image(id),createdAt:at},{...image(id2),createdAt:at}]);h.api.openGallery(id2);const full=h.document.getElementById('sofia-photo-'+id2).all().find(x=>x.tag==='img'),point=(x,y)=>({identifier:1,clientX:x,clientY:y});full.events.touchstart({touches:[point(100,100)]});full.events.touchmove({touches:[point(110,160)]});full.events.touchend({touches:[],changedTouches:[point(10,110)]});assert.equal(h.api.referenceId,id2);full.events.touchstart({touches:[point(100,100)]});full.events.touchmove({touches:[point(80,100),{identifier:2,clientX:200,clientY:100}]});full.events.touchend({touches:[],changedTouches:[point(10,100)]});assert.equal(h.api.referenceId,id2);});
+test('offline restore and explicit generate do not POST a ready photograph',async()=>{let calls=0;const h=harness(async()=>{calls++;return {ok:true,json:async()=>({image:image(id)})};},{navigator:{onLine:false}});h.api.restore([{id,status:'pending',jobStatus:'ready'}]);await h.api.generate({id});assert.equal(calls,0);assert.equal(h.api.isGenerating,true);});
 function harness(fetchImpl,extras={}) {
  class Node {
   constructor(tag){this.tag=tag;this.children=[];this.dataset={};this.style={};this.hidden=false;this.className='';this.ownText='';}
