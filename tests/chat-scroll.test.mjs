@@ -94,3 +94,12 @@ test('local reload preserves unconfirmed delivery markers until a persisted rece
 });
 
 
+
+
+test('deleting the first visible message preserves its surviving neighbour and metadata changes do not break the anchor',()=>{
+ const events={};const make=(content,y)=>({id:'',className:'msg sofia',dataset:{messageText:content,createdAt:'2026-10-10T12:00:00Z'},textContent:content+' Zeitstempel',classList:{contains:()=>false},getBoundingClientRect:()=>({top:y,bottom:y+80})});
+ let nodes=[make('Zu löschen',120),make('Bleibt stehen',220),make('Auch sichtbar',320)];
+ const messages={scrollHeight:2000,clientHeight:500,scrollTop:300,addEventListener:(t,f)=>events[t]=f,getBoundingClientRect:()=>({top:100}),querySelectorAll:()=>nodes};
+ const ctx=vm.createContext({window:{},document:{getElementById:()=>null},messages,requestAnimationFrame(){},cancelAnimationFrame(){}});vm.runInContext(block,ctx);events.scroll();const snapshot=ctx.window.SofiaChatViewport.capture();
+ nodes=[make('Bleibt stehen',120),make('Auch sichtbar',220)];nodes[0].textContent='Bleibt stehen andere Metadaten und aufgeklapptes Zitat';messages.scrollHeight-=100;ctx.window.SofiaChatViewport.restore(snapshot);assert.equal(messages.scrollTop,200);
+});

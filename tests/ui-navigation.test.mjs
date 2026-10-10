@@ -18,3 +18,8 @@ test('native photo dialogs restore chat position and trigger focus without page 
 test('memory dialog traps keyboard focus and Escape closes it',()=>{
  const h=harness();let lastFocus=0,closed=0;const first={getClientRects:()=>[1],focus:()=>lastFocus=1},last={getClientRects:()=>[1],focus:()=>lastFocus=2};const dialog={tagName:'DIV',classList:{add(){}},setAttribute(){},querySelectorAll:()=>[first,last]};h.window.SofiaUI.enhanceDialog(dialog,'Erinnerungen',()=>closed++);h.document.activeElement=first;dialog.onkeydown({key:'Tab',shiftKey:true,preventDefault(){}});assert.equal(lastFocus,2);h.document.activeElement=last;dialog.onkeydown({key:'Tab',shiftKey:false,preventDefault(){}});assert.equal(lastFocus,1);dialog.onkeydown({key:'Escape',preventDefault(){}});assert.equal(closed,1);
 });
+
+
+test('composer shrinks with a narrow keyboard viewport and grows again after it closes',()=>{
+ const h=harness();h.window.visualViewport.height=210;h.events['viewport-resize']();assert.equal(h.input.style.height,'72px');h.window.visualViewport.height=800;h.events['viewport-resize']();assert.equal(h.input.style.height,'144px');
+});
