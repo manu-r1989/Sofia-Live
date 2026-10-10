@@ -146,11 +146,10 @@ function captureChatViewport() {
   if (!messages) return null;
   const top = messages.getBoundingClientRect().top;
   const nodes = [...messages.querySelectorAll('.msg')];
-  const anchor = nodes.find(node => node.getBoundingClientRect().bottom > top);
-  return { pinned:chatPinnedToLatest, top:messages.scrollTop, height:messages.scrollHeight,
-    anchor:anchor ? {id:anchor.id, text:anchor.textContent, className:anchor.className,
-      occurrence:nodes.filter(n=>n.className===anchor.className && n.textContent===anchor.textContent).indexOf(anchor),
-      offset:anchor.getBoundingClientRect().top-top} : null };
+  const visible=nodes.filter(node=>node.getBoundingClientRect().bottom>top).slice(0,3);
+  const anchors=visible.map(node=>({id:node.id,role:node.classList?.contains('user')?'user':'assistant',content:node.dataset?.messageText,createdAt:node.dataset?.createdAt,
+    text:node.textContent,className:node.className,occurrence:nodes.filter(n=>n.className===node.className&&n.textContent===node.textContent).indexOf(node),offset:node.getBoundingClientRect().top-top}));
+  return {pinned:chatPinnedToLatest,top:messages.scrollTop,height:messages.scrollHeight,anchor:anchors[0]||null,anchors};
 }
 
 function restoreChatViewport(snapshot) {
@@ -158,11 +157,12 @@ function restoreChatViewport(snapshot) {
   if (snapshot.pinned) { scrollChatToLatest('auto',true); return; }
   chatAutoScroll=false;
   if (chatScrollFrame !== null) cancelAnimationFrame(chatScrollFrame);
-  const anchor = snapshot.anchor;
-  const node = anchor && (anchor.id ? document.getElementById(anchor.id) :
-    [...messages.querySelectorAll('.msg')].filter(n=>n.className===anchor.className && n.textContent===anchor.text)[anchor.occurrence]);
+  const nodes=[...messages.querySelectorAll('.msg')];
+  let node=null,anchor=null;for(const candidate of snapshot.anchors||[snapshot.anchor]){if(!candidate)continue;node=candidate.id?document.getElementById(candidate.id):candidate.content&&candidate.createdAt?
+    nodes.find(n=>n.dataset.messageText===candidate.content&&n.dataset.createdAt===candidate.createdAt&&(n.classList.contains('user')?'user':'assistant')===candidate.role):
+    nodes.filter(n=>n.className===candidate.className&&n.textContent===candidate.text)[candidate.occurrence];if(node){anchor=candidate;break;}}
   messages.scrollTop = node ? messages.scrollTop + node.getBoundingClientRect().top - messages.getBoundingClientRect().top - anchor.offset :
-    Math.max(0, snapshot.top + messages.scrollHeight - snapshot.height);
+    Math.max(0,snapshot.top+messages.scrollHeight-snapshot.height);
   chatPinnedToLatest = false;updateLatestButton();
   chatScrollFrame = null;
 }

@@ -1096,3 +1096,53 @@ html[data-chat-font="large"] .photo-follow-ups{grid-template-columns:repeat(2,mi
 .today-draft{border-left:3px solid var(--ui-muted);padding:10px;margin:10px 0;background:#ffffff08;border-radius:8px}
 
 .message-quote img{display:block;width:56px;height:72px;object-fit:cover;border-radius:5px;margin-top:6px}
+
+/* V4.79: consistent chat, quote, dialog and gallery controls. */
+#messages .msg{min-width:0;max-width:94%;overflow-wrap:anywhere;word-break:normal;box-sizing:border-box;line-height:1.5}
+#messages .msg pre{max-width:100%;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}
+#messages .msg a{overflow-wrap:anywhere}
+.message-meta{gap:4px;min-height:26px}
+.message-meta .message-menu{flex:none;touch-action:manipulation}
+@media(pointer:coarse){.message-meta .message-menu{width:44px;height:44px;min-height:44px}.message-meta{min-height:44px}}
+.message-quote-block{min-width:0;margin:0 0 9px;border-left:3px solid currentColor;border-radius:7px;background:#ffffff0a;overflow:hidden}
+.msg.user .message-quote-block{background:#00000008}
+.message-quote-block .message-quote{margin:0;border:0;border-radius:0;background:transparent;max-height:none;overflow:visible;padding:8px 10px;box-sizing:border-box;font:inherit;font-size:.82em;line-height:1.45;opacity:.85}
+.message-quote-toggle{display:block;margin:0;padding:6px 10px;min-height:32px;border:0;background:transparent;color:inherit;font-size:11px;text-align:left;cursor:pointer;opacity:.8}
+.composer-reply{grid-column:1/-1;max-height:80px;box-sizing:border-box;margin:0 0 4px}
+.composer-reply span{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;white-space:normal;overflow-wrap:anywhere;line-height:1.4}
+#form{flex:none;align-items:end;min-width:0;gap:8px}
+#form #input{box-sizing:border-box;overflow-y:auto;resize:none;padding:10px 12px;line-height:1.45}
+#form .send{flex:none;align-self:end;min-height:46px}
+.dialog-header{position:sticky;top:-20px;z-index:3;display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--ui-surface);padding:10px 0;margin:0 0 14px;border-bottom:1px solid var(--ui-border)}
+.dialog-header h2{margin:0;font-size:20px;min-width:0;overflow-wrap:anywhere}
+.dialog-header>button{flex:none;margin:0!important;min-height:44px}
+.sofia-photo-view .dialog-header{top:-16px}
+.workspace-dialog{box-sizing:border-box;overflow-y:auto;overflow-x:hidden}
+.workspace-dialog input:not([type=checkbox]),.workspace-dialog textarea,.workspace-dialog select{box-sizing:border-box;width:100%}
+.workspace-dialog>button{max-width:100%;box-sizing:border-box}
+.photo-follow-ups{display:block;margin:14px 0}
+.photo-source-choice{display:grid;grid-template-columns:minmax(0,1fr) 76px;gap:8px;padding:12px;border:1px solid var(--ui-border);border-radius:12px;box-sizing:border-box}
+.photo-source-label{grid-column:1;font-size:13px;color:var(--ui-muted)}
+.photo-source-choice .photo-source-action{grid-column:1/-1;width:100%;min-height:44px;margin:0!important}
+.photo-source-choice select{grid-column:1;grid-row:2}
+.photo-source-preview{grid-column:2;grid-row:1/3;align-self:start}
+.photo-source-stamp,.photo-variant-info{grid-column:1/-1;margin:0;font-size:12px;line-height:1.5}
+.photo-series-nav{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:10px 0}
+.photo-action-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:12px 0;align-items:stretch}
+.sofia-photo-view .photo-action-grid>.photo-action{display:flex;align-items:center;justify-content:center;width:100%;min-width:0;min-height:52px;margin:0!important;padding:10px 12px;font:inherit;font-size:14px;line-height:1.4;text-align:center;border-radius:12px!important;box-sizing:border-box;hyphens:auto}
+.sofia-photo-view .photo-action[aria-expanded=true]{border-color:var(--ui-accent)!important;background:#d7c4a922!important}
+.sofia-photo-view [hidden]{display:none!important}
+.photo-detail-controls,.photo-change-options{box-sizing:border-box;min-width:0;margin-top:10px}
+.photo-detail-selector{flex-basis:100%;min-width:0}
+.photo-detail-controls input{min-width:0;flex:1 1 160px;width:auto;box-sizing:border-box}
+.photo-toolbar{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:stretch}
+.photo-toolbar button,.photo-series-nav button{margin:0!important;min-width:0;font:inherit;font-size:13px}
+.gallery-filters input,.gallery-filters select{box-sizing:border-box;flex:1 1 140px}
+.gallery-grid h3{margin:12px 0 0}
+.today-dialog section,.workspace-result{min-width:0}
+.today-dialog section button{width:100%;box-sizing:border-box;line-height:1.5}
+.actions{box-sizing:border-box;grid-template-columns:repeat(7,minmax(0,1fr))!important;gap:2px!important;max-width:calc(100vw - 24px)}
+.actions button{min-width:0!important;min-height:44px;box-sizing:border-box;padding:6px 2px!important}
+@media(max-width:420px){.dialog-header{top:-16px}.dialog-header h2{font-size:18px}.sofia-photo-view .photo-action-grid>.photo-action{font-size:13px;padding:9px 7px}.photo-source-choice{padding:10px}.gallery-filters>*{flex-basis:100%}.composer-reply{padding:6px 8px}}
+@media(max-width:340px){.photo-action-grid,.photo-series-nav{grid-template-columns:minmax(0,1fr)}}
+@media(prefers-reduced-motion:reduce){.message-found{transition:none}}

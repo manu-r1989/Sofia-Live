@@ -12,7 +12,7 @@
       if(event.shiftKey&&document.activeElement===items[0]||!event.shiftKey&&document.activeElement===items.at(-1)){event.preventDefault();(event.shiftKey?items.at(-1):items[0])?.focus();}
     };return restore;
   }
-  function resizeComposer(input){if(!input||input.tagName!=='TEXTAREA')return;input.style.height='auto';input.style.height=Math.min(144,Math.max(46,input.scrollHeight))+'px';}
+  function resizeComposer(input){if(!input||input.tagName!=='TEXTAREA')return;input.style.height='auto';const available=window.visualViewport?.height||window.innerHeight||800,limit=Math.max(72,Math.min(144,Math.floor(available/3)));input.style.height=Math.min(limit,Math.max(46,input.scrollHeight))+'px';}
   function refreshDays(root){
     if(!root)return;const viewport=window.SofiaChatViewport?.capture(),top=root.scrollTop;
     root.querySelectorAll('.message-day').forEach(x=>x.remove());let previous='';
@@ -27,7 +27,8 @@
   const viewport=window.visualViewport;
   function resize(){const focused=document.activeElement===input,height=viewport?.height||window.innerHeight;
     const inset=focused&&height<window.innerHeight*.8?Math.max(0,window.innerHeight-height-(viewport?.offsetTop||0)):0;
-    document.documentElement.style.setProperty('--sofia-keyboard-inset',inset+'px');document.documentElement.style.setProperty('--sofia-visible-height',height+'px');
+    document.documentElement.style.setProperty('--sofia-keyboard-inset',inset+'px');document.documentElement.style.setProperty('--sofia-visible-height',height+'px');resizeComposer(input);
   }
   viewport?.addEventListener('resize',resize);viewport?.addEventListener('scroll',resize);window.addEventListener('resize',resize);input?.addEventListener('focus',resize);input?.addEventListener('blur',resize);resize();
 })();
+
