@@ -77,7 +77,7 @@ function loadMemory() {
   }
 }
 
-let conversationHistory = loadMemory();
+let conversationHistory = typeof window!=='undefined'&&window.SofiaWorkspace?.filterHistory(loadMemory()) || loadMemory();
 
 function saveMemory() {
   try {
@@ -169,7 +169,7 @@ function restoreChatViewport(snapshot) {
 window.SofiaChatViewport = { capture:captureChatViewport, restore:restoreChatViewport, latest:()=>scrollChatToLatest('smooth',true), reveal:()=>applyChatState('full') };
 
 function addMessage(text, who = 'sofia', imageRequestId = null, contactId = null, createdAt = new Date().toISOString(), replyTo = null) {
-  if (!messages) return;
+  if (!messages || window.SofiaWorkspace?.isHidden({role:who==='user'?'user':'assistant',content:text,createdAt})) return;
 
   const div = document.createElement('div');
 
@@ -378,6 +378,17 @@ window.SofiaTasks = { checkReminders: checkTaskReminders, offerNotifications: ad
 
 
 
+
+window.SofiaChatDelete=async (turn,restore=false)=>{
+ if(isResponding||window.SofiaImages?.isGenerating)throw Error('Bitte zuerst die laufende Antwort abwarten.');
+ const operation=restore?'restore_message':turn.imageId?'hide_photo_chat':'delete_message';
+ const response=await fetch('/api/chat',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({operation,...(turn.imageId?{imageId:turn.imageId}:{messageReference:turn})}),signal:AbortSignal.timeout(15000)});
+ const data=await response.json();if(!response.ok||!data.ok)throw Error(data.error||'Löschen konnte nicht bestätigt werden.');
+ const source=data.reference||turn;
+ if(!turn.imageId){const list=window.SofiaWorkspace?.hiddenMessages?.()||[];window.SofiaWorkspace?.acceptHidden(restore?list.filter(x=>!(x.role===source.role&&x.content===source.content&&x.createdAt===source.createdAt)):[...list,source]);conversationHistory=window.SofiaWorkspace?.filterHistory(conversationHistory)||conversationHistory;saveMemory();if(!restore)for(const node of [...messages.querySelectorAll('.msg[data-created-at]')]){if(node.dataset.messageText===turn.content&&node.dataset.createdAt===turn.createdAt&&node.classList.contains(turn.role==='user'?'user':'sofia'))node.remove();}window.SofiaUI?.refreshDays(messages);}
+ else if(!restore){document.getElementById('portrait-slot-'+turn.imageId)?.remove();document.getElementById('portrait-'+turn.imageId)?.remove();}
+ lastServerHistorySignature='';await syncConversationFromServer({silent:true});
+};
 let lastServerHistorySignature = '';
 let historySyncTimer = null;
 let historySyncInFlight = false;
@@ -411,6 +422,7 @@ async function syncConversationFromServer({ silent = false } = {}) {
     updateSofiaLocation(data.life);
     if (!Array.isArray(data.history)) return false;
 
+    window.SofiaWorkspace?.acceptHidden(data.hiddenMessages||[]);
     const serverHistory = data.history.filter(item =>
       item &&
       (item.role === 'user' || item.role === 'assistant') &&
@@ -426,7 +438,7 @@ async function syncConversationFromServer({ silent = false } = {}) {
 
     window.SofiaWorkspace?.reconcile(serverHistory,conversationHistory);
     lastServerHistorySignature = signature;
-    conversationHistory = serverHistory;
+    conversationHistory = window.SofiaWorkspace?.filterHistory(serverHistory)||serverHistory;
     saveMemory();
 
     if (messages) {
@@ -724,6 +736,7 @@ async function askSofia(userMessage, imageDataUrl = null, options = {}) {
       role: 'assistant',
       createdAt: data.createdAt || new Date().toISOString(),
       content: reply,
+      ...(data.replyTo?{replyTo:data.replyTo}:{}),
       ...(data.imageRequest ? { imageRequestId:data.imageRequest.id } : {})
     });
 
@@ -734,7 +747,7 @@ async function askSofia(userMessage, imageDataUrl = null, options = {}) {
     addMessage(
       reply,
       'sofia',
-      data.imageRequest?.id,null,data.createdAt || new Date().toISOString()
+      data.imageRequest?.id,null,data.createdAt || new Date().toISOString(),data.replyTo||null
     );
     if (data.imageRequest) void window.SofiaImages?.generate({...data.imageRequest,...(options.referenceImageId?{expectedSourceId:referenceImageId}:{})});
 

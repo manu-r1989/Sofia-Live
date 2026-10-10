@@ -20,7 +20,7 @@ const response=data=>({ok:true,json:async()=>data});
 globalThis.fetch=async(endpoint,options)=>{
  const body=JSON.parse(options.body);
  if(String(endpoint).endsWith('/api/sofia-identity'))return response({ok:true});
- if(endpoint==='https://redis.test/pipeline'){for(const [op,key,value] of body){assert.equal(op,'SET');db.set(key,value);}return response(body.map(()=>({result:'OK'})));}
+ if(endpoint==='https://redis.test/pipeline'){for(const command of body){const [op,key,value]=command;if(op==='EVAL'&&key.includes('sofia-save-visible-history')){const hidden=JSON.parse(db.get(command[4])||'[]'),h=JSON.parse(command[5]);db.set(command[3],JSON.stringify(h.filter(t=>!hidden.some(x=>x.role===t.role&&x.content===t.content&&x.createdAt===t.createdAt))));}else{assert.equal(op,'SET');db.set(key,value);}}return response(body.map(()=>({result:'OK'})));}
  if(endpoint==='https://redis.test') {
   const [op,key,value,...args]=body;
   if(op==='GET')return response({result:db.get(key)||null});
