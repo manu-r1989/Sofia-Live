@@ -13,22 +13,30 @@
   function applyPreferences(){document.documentElement.dataset.chatFont=prefs.font;document.documentElement.dataset.chatDensity=prefs.density;document.documentElement.dataset.uiMotion=prefs.motion;}
   applyPreferences();
   function motion(){return prefs.motion!=='auto'||window.matchMedia?.('(prefers-reduced-motion: reduce)').matches?'auto':'smooth';}
-  function saveDraft(){return put(KEYS.draft,{text:input?.value||'',at:Date.now(),...(pendingDraft?{pending:pendingDraft}:{})});}
+  let settled=[],draftRevision=null,lastSavedInput='';
+  const newIdentity=()=>globalThis.crypto?.randomUUID?.()||Date.now().toString(36)+'-'+Math.random().toString(36).slice(2);
+  const pendingKey=value=>value?(value.id||JSON.stringify([value.text,value.at])):'';
+  function mergeDelivery(){const disk=get(KEYS.draft,{});settled=[...settled,...(Array.isArray(disk.settled)?disk.settled:[])].filter(x=>typeof x?.text==='string'&&Number.isFinite(x.at)&&Date.now()-x.at<2*86400000);settled=[...new Map(settled.map(x=>[pendingKey(x),x])).values()].slice(-20);if(pendingDraft&&settled.some(x=>pendingKey(x)===pendingKey(pendingDraft)))pendingDraft=null;const other=disk.pending;if(typeof other?.text==='string'&&Number.isFinite(other.at)&&!settled.some(x=>pendingKey(x)===pendingKey(other))&&(!pendingDraft||other.at>pendingDraft.at))pendingDraft=other;}
+  function saveDraft(){const disk=get(KEYS.draft,{});if(input&&(disk.rev||null)!==draftRevision&&input.value===lastSavedInput&&typeof disk.text==='string'){input.value=disk.text.slice(0,20000);window.SofiaUI?.resizeComposer(input);}mergeDelivery();const rev=newIdentity(),text=input?.value||'';const saved=put(KEYS.draft,{text,at:Date.now(),rev,settled,...(pendingDraft?{pending:pendingDraft}:{})});if(saved){draftRevision=rev;lastSavedInput=text;}return saved;}
+  function settlePending(){if(pendingDraft)settled.push({...pendingDraft});pendingDraft=null;}
+
   const draft=get(KEYS.draft,null);
-  if(typeof draft?.pending?.text==='string'&&Number.isFinite(draft.pending.at))pendingDraft={text:draft.pending.text.slice(0,20000),at:draft.pending.at};
+  if(typeof draft?.pending?.text==='string'&&Number.isFinite(draft.pending.at))pendingDraft={...draft.pending,text:draft.pending.text.slice(0,20000),at:draft.pending.at};
   if(input&&typeof draft?.text==='string'&&!input.value){input.value=draft.text.slice(0,20000);window.SofiaUI?.resizeComposer(input);}
+  draftRevision=draft?.rev||null;lastSavedInput=input?.value||'';
   input?.addEventListener('input',saveDraft);window.addEventListener('pagehide',saveDraft);
-  function clearDraft(){pendingDraft=null;saveDraft();}
-  function beginSubmission(text){pendingDraft={text,at:Date.now()};saveDraft();}
-  function confirmSubmission(text){if(pendingDraft?.text===text)clearDraft();}
-  function failSubmission(text,{uncertain=false}={}){if(pendingDraft?.text!==text)return;if(uncertain){saveDraft();notice('Versand noch unbestätigt. Bitte zuerst den Verlauf prüfen; der Text ist unter Einstellungen → Letzten Versand prüfen gesichert.');return;}if(input&&!input.value){input.value=pendingDraft.text;window.SofiaUI?.resizeComposer(input);}pendingDraft=null;saveDraft();}
+  window.addEventListener('storage',event=>{if(event.key===KEYS.draft)mergeDelivery();});
+  function clearDraft(){settlePending();saveDraft();}
+  function beginSubmission(text){pendingDraft={text,at:Date.now(),id:newIdentity()};saveDraft();}
+  function confirmSubmission(text){if(pendingDraft?.text===text){clearDraft();notice('Nachricht gesendet.');}}
+  function failSubmission(text,{uncertain=false}={}){if(pendingDraft?.text!==text)return;if(uncertain){saveDraft();notice('Versand noch unbestätigt. Bitte zuerst den Verlauf prüfen; der Text ist unter Einstellungen → Letzten Versand prüfen gesichert.');return;}if(input&&!input.value){input.value=pendingDraft.text;window.SofiaUI?.resizeComposer(input);}settlePending();saveDraft();}
   function reconcileSubmission(history){
     if(!pendingDraft||!Array.isArray(history))return false;
     const delivered=history.some((turn,i)=>turn.role==='user'&&turn.content===pendingDraft.text&&Date.parse(turn.createdAt)>=pendingDraft.at-3000&&Date.parse(turn.createdAt)<=pendingDraft.at+90000&&history[i+1]?.role==='assistant');
     if(!delivered)return false;
     clearDraft();notice('Die zuletzt gesendete Nachricht ist im Gespräch bestätigt.');return true;
   }
-  function pendingSubmission(){if(!pendingDraft)return;const d=panel('Letzter Versand'),text=document.createElement('p');text.textContent=pendingDraft.text;const hint=document.createElement('p');hint.textContent='Die Antwort wurde auf diesem Gerät noch nicht bestätigt. Prüfe zuerst den Chatverlauf. Es wird nichts automatisch erneut gesendet.';const status=statusNode(d);d.append(hint,text,button('Als Entwurf übernehmen',()=>{if(input?.value.trim()){status.textContent='Es ist bereits ein Entwurf vorhanden.';return;}if(!pendingDraft){status.textContent='Der Versand ist inzwischen bestätigt.';return;}input.value=pendingDraft.text;window.SofiaUI?.resizeComposer(input);pendingDraft=null;saveDraft();d.close();input.focus();}));}
+  function pendingSubmission(){if(!pendingDraft)return;const d=panel('Letzter Versand'),text=document.createElement('p');text.textContent=pendingDraft.text;const hint=document.createElement('p');hint.textContent='Die Antwort wurde auf diesem Gerät noch nicht bestätigt. Prüfe zuerst den Chatverlauf. Es wird nichts automatisch erneut gesendet.';const status=statusNode(d);d.append(hint,text,button('Als Entwurf übernehmen',()=>{if(input?.value.trim()){status.textContent='Es ist bereits ein Entwurf vorhanden.';return;}if(!pendingDraft){status.textContent='Der Versand ist inzwischen bestätigt.';return;}input.value=pendingDraft.text;window.SofiaUI?.resizeComposer(input);settlePending();saveDraft();d.close();input.focus();}));}
   function nodeTurn(node){return {role:node.classList.contains('user')?'user':'assistant',content:node.dataset.messageText||node.textContent,createdAt:node.dataset.createdAt||'',...(node.dataset.contactId?{contactId:node.dataset.contactId}:{})};}
   function turnNodes(){return root?[...root.querySelectorAll('.msg[data-created-at]')].filter(n=>!n.dataset.portraitStatus&&n.dataset.messageText):[];}
   function viewportAtLatest(){return !!root&&root.scrollHeight-root.clientHeight-root.scrollTop<=64;}
@@ -55,7 +63,7 @@
   }
   function refresh(){turnNodes().forEach(decorate);paintUnread();}
   function added(node,restoring){decorate(node);if(!restoring&&node.classList.contains('sofia')){const turn=nodeTurn(node);if(Date.parse(turn.createdAt)>lastRead)unread.set(keyFor(turn),turn);}paintUnread();}
-  root?.addEventListener('scroll',readVisible,{passive:true});document.addEventListener('visibilitychange',readVisible);
+  root?.addEventListener('scroll',readVisible,{passive:true});document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')saveDraft();else readVisible();});
   document.addEventListener('close',()=>requestAnimationFrame(readVisible),true);
   function button(label,action){const b=document.createElement('button');b.type='button';b.textContent=label;b.onclick=action;return b;}
   function panel(title){const d=document.createElement('dialog');d.className='workspace-dialog';const h=document.createElement('h2');h.textContent=title;const close=button('Schließen',()=>d.close());d.append(h,close);document.body.append(d);window.SofiaUI?.enhanceDialog(d,title);d.addEventListener('close',()=>d.remove(),{once:true});d.showModal();close.focus();return d;}
@@ -94,13 +102,13 @@
   function connection(){const offline=navigator.onLine===false,node=document.getElementById('connectionStatus');if(node){node.hidden=!offline;node.textContent=offline?'Offline · Dein Entwurf bleibt erhalten. Nachrichten werden nicht automatisch gesendet.':'';}document.getElementById('mode')?.setAttribute('data-connection',offline?'offline':'online');}
   window.addEventListener('offline',connection);window.addEventListener('online',()=>{connection();const mode=document.getElementById('mode');if(mode?.textContent.trim()==='Verbindungsfehler')mode.textContent='bereit';notice('Wieder verbunden. Ausstehende Nachrichten werden nicht automatisch erneut gesendet.');});connection();
   function notice(text){const node=document.getElementById('connectionStatus');if(node){node.hidden=false;node.textContent=text;}}
-  function failed(node,text,{uncertain=false,image=false,knownRejected=false}={}){if(!node)return;const retry=safeRetry(text,uncertain,image)&&knownRejected;const action=button(retry?'Nachricht erneut senden':'Entwurf wiederherstellen',()=>{if(retry){if(window.SofiaChatSend?.(text)){action.disabled=true;}}else if(input){if(input.value.trim()){notice('Es ist bereits ein Entwurf vorhanden. Kopiere bei Bedarf die frühere Nachricht.');return;}input.value=text;saveDraft();window.SofiaUI?.resizeComposer(input);input.focus();notice(uncertain?'Ausgang unbestätigt. Aufgabenstand vor einer Wiederholung prüfen.':'Entwurf wiederhergestellt. Prüfe vor dem Senden den bisherigen Gesprächsstand.');}});action.className='message-retry';node.append(action);}
+  function failed(node,text,{uncertain=false,image=false,knownRejected=false}={}){if(!node)return;const retry=safeRetry(text,uncertain,image)&&knownRejected;const action=button(retry?'Nachricht erneut senden':'Entwurf wiederherstellen',()=>{if(retry){if(window.SofiaChatSend?.(text)){action.disabled=true;}}else if(input){if(input.value.trim()){notice('Es ist bereits ein Entwurf vorhanden. Kopiere bei Bedarf die frühere Nachricht.');return;}input.value=text;if(pendingDraft?.text===text)settlePending();saveDraft();window.SofiaUI?.resizeComposer(input);input.focus();notice(uncertain?'Ausgang unbestätigt. Aufgabenstand vor einer Wiederholung prüfen.':'Entwurf wiederhergestellt. Prüfe vor dem Senden den bisherigen Gesprächsstand.');}});action.className='message-retry';node.append(action);}
   const menuButton=document.getElementById('workspaceAction');menuButton?.addEventListener('click',()=>{const d=panel('Chatwerkzeuge');d.append(button('Heute',()=>{d.close();window.SofiaToday?.open();}),button('Einstellungen',()=>{d.close();settings();}),button('Im Chat suchen',()=>{d.close();search();}),button('Angeheftete Nachrichten',()=>{d.close();pinned();}));});
   const mode=document.getElementById('mode');
   function paintPhase(){if(!mode)return;const text=mode.textContent.trim();mode.dataset.phase=/Foto/.test(text)?'photo':/denkt/.test(text)?'thinking':/hört/.test(text)?'listening':/spricht/.test(text)?'speaking':/fehl|Fehler|Pause|warten/i.test(text)?'attention':'ready';}
   if(mode&&typeof MutationObserver!=='undefined')new MutationObserver(paintPhase).observe(mode,{childList:true,characterData:true,subtree:true});paintPhase();
   window.SofiaWorkspace={acknowledgeContacts,messages:()=>turnNodes().map(nodeTurn),unreadMessages:()=>[...unread.values()],showMessage:turn=>{window.SofiaChatViewport?.reveal?.();return jump(turn);},motion,clearDraft,beginSubmission,confirmSubmission,failSubmission,reconcileSubmission,pendingSubmission,saveDraft,refresh,reconcile,added,readVisible,notice,failed,settings,search,pinned,normalize,keyFor,safeRetry};
   if(pendingDraft)notice('Letzter Versand noch unbestätigt. Du kannst ihn in den Einstellungen prüfen; es erfolgt kein automatisches Senden.');
-  refresh();
+  mergeDelivery();refresh();
 })();
 

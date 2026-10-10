@@ -222,7 +222,7 @@ test('image delivery is private JPEG with download attachment and validated IDs'
 });
 test('UI integration loads shared renderer before app and does not alter avatar assets',async()=>{
  const root=new URL('../',import.meta.url);const index=await readFile(new URL('index.html',root),'utf8');
- assert.ok(index.indexOf('sofia-images.js?v=4717v2')<index.indexOf('app.js?v=4717v2'));
+ assert.ok(index.indexOf('sofia-images.js?v=4747v1')<index.indexOf('app.js?v=4747v1'));
  const chat=await readFile(new URL('api/chat.js',root),'utf8');
  assert.ok(chat.indexOf('!safeEqual(')<chat.indexOf('await servePortrait'));
  const ui=await readFile(new URL('sofia-images.js',root),'utf8');assert.match(ui,/dialog.showModal/);assert.match(ui,/link.download=/);assert.doesNotMatch(ui,/spinner|generating-status/);
@@ -632,3 +632,7 @@ test('photo clarification freezes the current photo even when no explicit source
  reset();const now=new Date(),source=previousPhotograph(now);db.set(prefix+'state',JSON.stringify({lastImageId:source}));await assert.rejects(api.preparePortrait('Dieses Foto von hinten, Gesicht frontal sichtbar lassen.',null,now),/Rückansicht/);assert.equal(JSON.parse(db.get(prefix+'photo-clarification')).sourceId,source);
  db.set(prefix+'state',JSON.stringify({lastImageId:'11111111-1111-4111-8111-111111111111'}));const job=await api.preparePortrait('Rückansicht',null,new Date(+now+1000));assert.equal(job.sourceId,source);
 });
+
+test('current station survives pause while stale transitions and yesterday dialogue expire',()=>{const now=new Date('2026-10-10T12:00:00Z'),life={location:'Café',activity:'Kaffee trinken',outfit:'graues Oberteil',activityState:{location:'Café',activity:'Kaffee trinken'},dialogue:{at:'2026-10-10T08:00:00Z'},transition:{from:'Universität',to:'Café',at:'2026-10-10T07:00:00Z',expiresAt:'2026-10-10T07:30:00Z'}};const state=api.roleContinuity(life,now);assert.equal(state.sameStation,true);assert.equal(state.resume,'pause');assert.equal(state.transition,null);assert.equal(state.current.location,'Café');assert.equal(api.roleContinuity({...life,dialogue:{at:'2026-10-09T21:00:00Z'}},now).resume,'new-day');assert.equal(api.roleContinuity({},now).sameStation,false);});
+test('observed transition requires its current destination and validity window',()=>{const now=new Date('2026-10-10T12:00:00Z'),transition={from:'Universität',to:'Café',at:'2026-10-10T11:55:00Z',expiresAt:'2026-10-10T12:15:00Z'};assert.equal(api.roleContinuity({location:'Café',transition},now).transition.from,'Universität');assert.equal(api.roleContinuity({location:'zu Hause',transition},now).transition,null);assert.match(api.roleContinuityContext({location:'Café',transition},now),/Keine Tätigkeit, Reise oder Leistung/);});
+test('variant description never imports the current scene from a planner caption',async()=>{reset();const old='11111111-1111-4111-8111-111111111111';db.set(prefix+'image:'+old,JSON.stringify({id:old,createdAt:new Date().toISOString(),outfit:'Gray shirt',base64:'/9j/AA==',scene:'Sofa at night'}));plan.action='variant';plan.caption='Stadtbummel in der Schanze';const request=await api.preparePortrait('Dieses Foto in anderem Licht',old);assert.equal(request.sourceId,old);assert.equal(JSON.parse(db.get(prefix+'request:'+request.id)).caption,'Variante des ausgewählten Fotos.');});
