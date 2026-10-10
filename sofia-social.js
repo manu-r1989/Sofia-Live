@@ -18,7 +18,8 @@
   const d=await r.json();if(!r.ok)throw Error(d.error||'Nicht erreichbar.');return acceptState({...d,requestSequence:sequence});
  }
  function badgeCount(){return (state?.unread||0)+(window.SofiaWorkspace?.unreadMessages?.()||[]).filter(x=>!x.contactId).length;}
- async function badge(count){count=badgeCount();try{if(count>0)await navigator.setAppBadge?.(count);else await navigator.clearAppBadge?.();}catch{}}
+ let badgeQueue=Promise.resolve();
+ async function badge(){badgeQueue=badgeQueue.then(async()=>{const count=badgeCount();try{if(count>0)await navigator.setAppBadge?.(count);else await navigator.clearAppBadge?.();}catch{}});await badgeQueue;}
  async function markRead(){
   if(!state?.unread||reading||!chatVisible())return;
   const messages=document.getElementById('messages');if(!messages||(messages.getClientRects&&messages.getClientRects().length===0)||messages.scrollHeight-messages.scrollTop-messages.clientHeight>100)return;

@@ -137,6 +137,7 @@ export default async function handler(req, res) {
   const sofiaLife = await getSofiaLife(now, req.body?.mood);
   const sharedProjects=await projectState(),projectTask=projectBinding(message,sharedProjects);
   let taskAction = { ok: true, action: "none" };
+  let sharedReferenceContext=participantLocationContext()+'\n'+conversationReferenceContext([],message);
   try {
     try {
       taskAction = projectTask?.missing ? {ok:false,action:"none",status:"project_missing",error:"Dieses aktive Vorhaben wurde nicht gefunden. Keine Aufgabe erstellt."} : await linkProjectResult(projectTask,(await executeUnifiedAction(projectTask?.taskMessage || message, hamburgNow, { mode: "live" })).taskAction);
@@ -145,12 +146,16 @@ export default async function handler(req, res) {
       console.warn("Live task action:", taskError?.message || taskError);
     }
 
-    const [raw, rawTasks, actionState, researchState] = await Promise.all([
+    const [raw, rawTasks, actionState, researchState, sharedHistory, hiddenHistory] = await Promise.all([
       redisGet(MEMORY_KEY, []),
       redisGet(TASKS_KEY, []),
       getActionState(),
-      getResearchState()
+      getResearchState(),
+      redisGet(dataPrefix()+'history',[]),
+      redisGet(dataPrefix()+'chat-hidden-messages',[])
     ]);
+    const referenceHistory=visibleConversation(sharedHistory,hiddenHistory);
+    sharedReferenceContext=participantLocationContext(referenceHistory)+'\n'+conversationReferenceContext(referenceHistory,message);
     const memories = Array.isArray(raw) ? raw.filter(x => textOf(x)).slice(-80) : [];
     const catalog = memories.map((m, i) => `${i}: [${m?.category || "Sonstiges"}] ${textOf(m)}`).join("\n");
     const taskContext = Array.isArray(rawTasks)
@@ -231,7 +236,7 @@ export default async function handler(req, res) {
     const photoContext=await selectedPhotoContext(req.body?.referenceImageId,message,new Date(),sofiaLife);
     const context = [
       lifeContext(sofiaLife,message),
-      participantLocationContext()+'\n'+conversationReferenceContext([],message),
+      sharedReferenceContext,
       photoContext,
       projectContext(sharedProjects),
       imageRequest ? `BILDANFRAGE ANGENOMMEN: Ein spontanes Foto passend zum obigen Alltag wird erstellt. Bleibe bei dieser Situation und kündige zum Schluss an: „${PROACTIVE_PHOTO_ANNOUNCEMENT}“. Noch keinen Bilderfolg behaupten.` : "",
@@ -247,7 +252,7 @@ export default async function handler(req, res) {
   } catch (error) {
     console.error("Live context:", error);
     return res.status(200).json({
-      context: lifeContext(sofiaLife,message) + '\n' + participantLocationContext()+'\n'+conversationReferenceContext([],message) + "\n" + taskContextOf(taskAction),
+      context: lifeContext(sofiaLife,message) + '\n' + sharedReferenceContext + "\n" + taskContextOf(taskAction),
       calendarAction: taskAction?.ok ? taskAction.calendarAction || null : null,
       taskAction
     });

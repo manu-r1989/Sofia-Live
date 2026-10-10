@@ -122,9 +122,10 @@
       previous.onclick=()=>changePhoto(-1);next.onclick=()=>changePhoto(1);navigation.append(previous,counter,next);
       if(gallerySequence){
         full.style.touchAction='pan-y pinch-zoom';let touch=null;
-        full.addEventListener('touchstart',event=>{touch=event.touches?.length===1?{x:event.touches[0].clientX,y:event.touches[0].clientY,id:event.touches[0].identifier}:null;},{passive:true});
+        full.addEventListener('touchstart',event=>{touch=event.touches?.length===1?{x:event.touches[0].clientX,y:event.touches[0].clientY,id:event.touches[0].identifier,at:Date.now()}:null;},{passive:true});
+        full.addEventListener('touchmove',event=>{if(!touch)return;const point=[...(event.touches||[])].find(x=>x.identifier===touch.id);if(event.touches?.length!==1||!point||Math.abs(point.clientY-touch.y)>32&&Math.abs(point.clientY-touch.y)>Math.abs(point.clientX-touch.x)){touch=null;}},{passive:true});
         full.addEventListener('touchcancel',()=>{touch=null;},{passive:true});
-        full.addEventListener('touchend',event=>{const start=touch;touch=null;const end=[...(event.changedTouches||[])].find(x=>x.identifier===start?.id);if(!start||!end||event.touches?.length)return;const dx=end.clientX-start.x,dy=end.clientY-start.y;if(Math.abs(dx)>=50 && Math.abs(dx)>Math.abs(dy)*1.4)changePhoto(dx<0?1:-1);},{passive:true});
+        full.addEventListener('touchend',event=>{const start=touch;touch=null;const end=[...(event.changedTouches||[])].find(x=>x.identifier===start?.id);if(!start||!end||event.touches?.length||Date.now()-start.at>900)return;const dx=end.clientX-start.x,dy=end.clientY-start.y;if(Math.abs(dx)>=50 && Math.abs(dx)>Math.abs(dy)*1.4)changePhoto(dx<0?1:-1);},{passive:true});
         dialog.addEventListener('keydown',event=>{if(['INPUT','TEXTAREA','SELECT'].includes(event.target?.tagName))return;if(event.key==='ArrowLeft'||event.key==='ArrowRight'){event.preventDefault();changePhoto(event.key==='ArrowLeft'?-1:1);}});
       }
       const toolbar=document.createElement('div');toolbar.className='photo-toolbar';remove.className='photo-delete';toolbar.append(download,remove);
@@ -285,7 +286,7 @@
     dialog.append(title,close,note,filterSection,feedback,grid,weatherCredit,closeBottom);document.body.append(dialog);dialog.addEventListener('close',()=>dialog.remove(),{once:true});dialog.showModal();render();dialog.scrollTop=galleryView.scroll;close.focus();
     let openedSelection=false;
     if(selectedId){const selected=galleryItems.get(selectedId);if(selected&&!['expired','failed','pending'].includes(selected.status)){openPhoto(selected,()=>visibleItems);openedSelection=true;}}
-    void (async()=>{try{const r=await fetch('/api/chat',{credentials:'same-origin',cache:'no-store'});if(!r.ok)throw Error();const d=await r.json();if(!Array.isArray(d.images))throw Error();for(const image of d.images){if(valid(image.id)&&!['pending','failed'].includes(image.status)){observeTime(image);galleryItems.set(image.id,image);}}if(!dialog.isConnected)return;render();if(selectedId&&!openedSelection&&!document.getElementById('sofia-photo-'+selectedId)){const image=galleryItems.get(selectedId);if(image&&retained(image)&&!['failed','pending'].includes(image.status))openPhoto(image,()=>visibleItems);}}catch{if(dialog.isConnected)feedback.textContent='Galerie konnte nicht aktualisiert werden. Bereits geladene Fotos bleiben verfügbar.';}})();
+    void (async()=>{try{const r=await fetch('/api/chat',{credentials:'same-origin',cache:'no-store'});if(!r.ok)throw Error();const d=await r.json();if(!Array.isArray(d.images))throw Error();for(const image of d.images){if(valid(image.id)&&!['pending','failed'].includes(image.status)){observeTime(image);galleryItems.set(image.id,image);}}if(!dialog.isConnected)return;render();if(selectedId&&!openedSelection&&!document.getElementById('sofia-photo-'+selectedId)){const image=galleryItems.get(selectedId);if(image&&retained(image)&&!['failed','pending','expired'].includes(image.status))openPhoto(image,()=>visibleItems);else feedback.textContent='Dieses Foto ist nicht mehr verfügbar. Andere Fotos bleiben in der Galerie erreichbar.';}}catch{if(dialog.isConnected)feedback.textContent='Galerie konnte nicht aktualisiert werden. Bereits geladene Fotos bleiben verfügbar.';}})();
   }
   function show(image) {
     if (!image || !valid(image.id)) return;
@@ -316,8 +317,8 @@
     }
     if(mode==='archived'||mode==='expired') {
       const marker=document.createElement(mode==='archived'?'button':'div');marker.id='portrait-'+image.id;marker.className='msg sofia';marker.dataset.presentation=mode;marker.dataset.portraitStatus='done';marker.textContent=mode==='archived'?'Bild in der Galerie':'Bild nicht mehr verfügbar';
-      if(mode==='archived'){marker.type='button';marker.onclick=()=>openGallery(image.id);}
-      slot.append(marker);slot.hidden=false;window.SofiaChatViewport?.restore(viewport);return;
+      if(mode==='archived'){marker.type='button';marker.setAttribute('aria-label','Bild in der Galerie');marker.onclick=()=>openGallery(image.id);}
+      const stamp=image.sentAt||image.createdAt;if(mode==='archived'&&Number.isFinite(Date.parse(stamp))){marker.dataset.createdAt=stamp;const time=document.createElement('time');time.className='message-time';time.dateTime=stamp;time.textContent=new Date(stamp).toLocaleTimeString('de-DE',{timeZone:'Europe/Berlin',hour:'2-digit',minute:'2-digit'});marker.append(time);}slot.append(marker);slot.hidden=false;window.SofiaUI?.refreshDays(messages);window.SofiaChatViewport?.restore(viewport);return;
     }
     const figure = document.createElement('figure');
     figure.className = 'msg sofia'; figure.dataset.portraitStatus='done';figure.dataset.presentation=mode; figure.id = 'portrait-' + image.id;
@@ -342,7 +343,7 @@
   let reconciling=false;
   if(typeof setInterval==='function')setInterval(async()=>{
     refreshExpiry();
-    if(!remotePending.size || pending.size || reconciling)return;
+    if(!remotePending.size || pending.size || reconciling||typeof navigator!=='undefined'&&navigator.onLine===false)return;
     reconciling=true;
     try {
       const state=await fetch('/api/chat',{method:'GET',credentials:'same-origin',cache:'no-store',signal:typeof AbortSignal!=='undefined'&&typeof AbortSignal.timeout==='function'?AbortSignal.timeout(15000):undefined});
@@ -370,7 +371,7 @@
       if (!referenceId && successful.length) rememberReference(successful.at(-1).id);
     },
     generate(request) {
-      if (!valid(request?.id)) return Promise.resolve();
+      if (!valid(request?.id)||typeof navigator!=='undefined'&&navigator.onLine===false) return Promise.resolve();
       if (active.has(request.id)) return active.get(request.id);
       if(completed.has(request.id))return Promise.resolve();
       const selectionAtStart=selectionVersion;

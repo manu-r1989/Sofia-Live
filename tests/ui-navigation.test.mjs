@@ -5,7 +5,7 @@ import {readFile} from 'node:fs/promises';
 const source=await readFile(new URL('../sofia-ui.js',import.meta.url),'utf8');
 function harness(){
  const events={},variables={},input={tagName:'TEXTAREA',style:{},scrollHeight:210,addEventListener:(t,f)=>events[t]=f};
- const document={activeElement:input,documentElement:{style:{setProperty:(k,v)=>variables[k]=v}},getElementById:()=>input};
+ const document={activeElement:input,documentElement:{dataset:{},style:{setProperty:(k,v)=>variables[k]=v}},getElementById:()=>input};
  const window={innerHeight:800,addEventListener(){},visualViewport:{height:470,offsetTop:0,addEventListener:(t,f)=>events['viewport-'+t]=f},SofiaChatViewport:{capture:()=>({reading:true}),restore:v=>events.restore=v}};
  vm.runInNewContext(source,{window,document,Intl,Date});return {window,document,input,events,variables};
 }
@@ -21,5 +21,10 @@ test('memory dialog traps keyboard focus and Escape closes it',()=>{
 
 
 test('composer shrinks with a narrow keyboard viewport and grows again after it closes',()=>{
- const h=harness();h.window.visualViewport.height=210;h.events['viewport-resize']();assert.equal(h.input.style.height,'72px');h.window.visualViewport.height=800;h.events['viewport-resize']();assert.equal(h.input.style.height,'144px');
+ const h=harness();h.window.visualViewport.height=210;h.events['viewport-resize']();assert.equal(h.input.style.height,'52px');h.window.visualViewport.height=800;h.events['viewport-resize']();assert.equal(h.input.style.height,'144px');
 });
+
+test('closing a nested viewer preserves parent dialog position and avoids background focus',()=>{
+ const h=harness();let focused=false;h.document.activeElement={isConnected:true,focus:()=>focused=true};h.document.querySelector=()=>({contains:()=>false});const listeners={};const d={tagName:'DIALOG',dataset:{},classList:{add(){}},setAttribute(){},addEventListener:(t,f)=>listeners[t]=f};h.window.SofiaUI.enhanceDialog(d,'Foto');listeners.close();assert.equal(focused,false);assert.equal(h.events.restore,undefined);
+});
+test('keyboard focus state follows composer focus and blur for responsive layout',()=>{const h=harness();assert.equal(h.document.documentElement.dataset.composerFocused,'true');h.document.activeElement=null;h.events.blur();assert.equal(h.document.documentElement.dataset.composerFocused,'false');});

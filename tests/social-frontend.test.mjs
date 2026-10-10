@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {readFile} from 'node:fs/promises';
 const source=await readFile(new URL('../sofia-social.js',import.meta.url),'utf8');
+
+test('badge updates finish in order even when an older badge write is slow',async()=>{const block=source.slice(source.indexOf('let badgeQueue='),source.indexOf('async function markRead'));const calls=[];let count=2,release;const ctx=vm.createContext({Promise,badgeCount:()=>count,navigator:{setAppBadge:n=>{calls.push(n);return new Promise(resolve=>release=resolve);},clearAppBadge:async()=>calls.push(0)}});vm.runInContext(block,ctx);const first=ctx.badge();await new Promise(r=>setImmediate(r));assert.deepEqual(calls,[2]);count=0;const second=ctx.badge();assert.deepEqual(calls,[2]);release();await Promise.all([first,second]);assert.deepEqual(calls,[2,0]);});
 function harness(){
  const nodes=[],events={},calls=[],photos=[];let messagesVisible=true;
  class Node{constructor(tag){this.tag=tag;this.children=[];this.style={};this.events={};this.attrs={};nodes.push(this);}append(...n){this.children.push(...n);}setAttribute(k,v){this.attrs[k]=v;}addEventListener(k,v){this.events[k]=v;}replaceChildren(){this.children=[];}showModal(){this.open=true;}close(){this.open=false;this.events.close?.();}remove(){this.removed=true;}focus(){}querySelector(){return null;}}
@@ -60,3 +62,4 @@ test('late state reads cannot roll back read cursor, badge count or newer settin
 });
 
 test('Today and app badge share contact counts and exclude duplicated contact turns',async()=>{const h=harness();h.window.SofiaWorkspace={unreadMessages:()=>[{content:'normal'},{content:'contact',contactId:'11111111-1111-4111-8111-111111111111'}]};h.messages.scrollTop=-200;await h.api.sync();assert.equal(h.api.unreadCount(),2);assert.equal(h.api.unreadMessages().length,1);h.messages.scrollTop=0;await h.api.sync();assert.equal(h.api.unreadCount(),1);assert.equal(h.api.unreadMessages().length,0);});
+
