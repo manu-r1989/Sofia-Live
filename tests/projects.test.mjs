@@ -4,10 +4,11 @@ import {readFile} from 'node:fs/promises';
 import crypto from 'node:crypto';
 const url=s=>'data:text/javascript;base64,'+Buffer.from(s).toString('base64');
 const environment=url(await readFile(new URL('../lib/environment.js',import.meta.url),'utf8'));
+const messageContext=url(await readFile(new URL('../lib/message-context.js',import.meta.url),'utf8'));
 const character=url((await readFile(new URL('../lib/character-image.js',import.meta.url),'utf8')).replaceAll('../lib/environment.js',environment));
 const api=await import(character);
 const engine=url('export async function executeUnifiedAction(){throw Error("Unexpected task execution")} export async function getActionState(){return {}} export async function getResearchState(){return {}}');
-async function handler(file){return (await import(url((await readFile(new URL('../api/'+file,import.meta.url),'utf8')).replaceAll('../lib/environment.js',environment).replaceAll('../lib/character-image.js',character).replaceAll('./action-engine.js',engine)))).default;}
+async function handler(file){return (await import(url((await readFile(new URL('../api/'+file,import.meta.url),'utf8')).replaceAll('../lib/environment.js',environment).replaceAll('../lib/message-context.js',messageContext).replaceAll('../lib/character-image.js',character).replaceAll('./action-engine.js',engine)))).default;}
 const chat=await handler('chat.js'),live=await handler('live-context.js'),memory=await handler('memory.js');
 const prefix='sofia:main:portrait:',savedFetch=globalThis.fetch,keys=['KV_REST_API_URL','KV_REST_API_TOKEN','OPENAI_API_KEY','SOFIA_PASSWORD','SOFIA_TEST_MODE'],env=Object.fromEntries(keys.map(k=>[k,process.env[k]]));
 let db,commands;
@@ -48,3 +49,4 @@ test('stale normal Text or Live memory snapshot cannot restore a forgotten entry
 test('named missing overview never substitutes a different selected project',async()=>{reset();await create();const result=await api.executeProjectCommand('Zeige das Vorhaben „Nicht vorhanden“.');assert.match(result.reply,/nicht finden/);assert.ok(!result.reply.includes('Testumzug'));});
 
 test('spoken project commands work without typographic quotes',async()=>{reset();await api.executeProjectCommand('Erstelle ein Vorhaben Testumzug');await api.executeProjectCommand('Zum Vorhaben Testumzug: Ziel: Kartons kaufen');let state=await api.projectState();assert.deepEqual(state.items[0].goals,['Kartons kaufen']);assert.equal(api.projectBinding('Erstelle für das Vorhaben Testumzug eine Aufgabe: Kartons kaufen',state).projectId,state.selectedId);await api.executeProjectCommand('Pausiere das Vorhaben Testumzug');assert.equal((await api.projectState()).items[0].status,'paused');await api.executeProjectCommand('Nimm das Vorhaben Testumzug wieder auf');assert.equal((await api.projectState()).items[0].status,'active');});
+

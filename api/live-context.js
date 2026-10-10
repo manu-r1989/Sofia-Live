@@ -1,4 +1,5 @@
 import { dataPrefix, testModeRequested, publicTestMode, guardTestRequest } from "../lib/environment.js";
+import { participantLocationContext } from '../lib/message-context.js';
 import { executeProjectCommand, executeMemoryCommand, projectState, projectContext, projectBinding, linkProjectResult, appearanceChoice, taskReceipt, hamburgReferenceTime, portraitPreparationReply, preparePortrait, getSofiaLife, currentSituationCorrection, synchronizeSituation, lifeContext, selectedPhotoContext, prepareProactivePortrait, PROACTIVE_PHOTO_ANNOUNCEMENT } from '../lib/character-image.js';
 import crypto from "node:crypto";
 import { executeUnifiedAction, getActionState, getResearchState } from "./action-engine.js";
@@ -230,6 +231,7 @@ export default async function handler(req, res) {
     const photoContext=await selectedPhotoContext(req.body?.referenceImageId,message,new Date(),sofiaLife);
     const context = [
       lifeContext(sofiaLife,message),
+      participantLocationContext(),
       photoContext,
       projectContext(sharedProjects),
       imageRequest ? `BILDANFRAGE ANGENOMMEN: Ein spontanes Foto passend zum obigen Alltag wird erstellt. Bleibe bei dieser Situation und kündige zum Schluss an: „${PROACTIVE_PHOTO_ANNOUNCEMENT}“. Noch keinen Bilderfolg behaupten.` : "",
@@ -245,10 +247,11 @@ export default async function handler(req, res) {
   } catch (error) {
     console.error("Live context:", error);
     return res.status(200).json({
-      context: lifeContext(sofiaLife,message) + "\n" + taskContextOf(taskAction),
+      context: lifeContext(sofiaLife,message) + '\n' + participantLocationContext() + "\n" + taskContextOf(taskAction),
       calendarAction: taskAction?.ok ? taskAction.calendarAction || null : null,
       taskAction
     });
   }
 }
+
 

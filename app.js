@@ -168,7 +168,7 @@ function restoreChatViewport(snapshot) {
 }
 window.SofiaChatViewport = { capture:captureChatViewport, restore:restoreChatViewport, latest:()=>scrollChatToLatest('smooth',true), reveal:()=>applyChatState('full') };
 
-function addMessage(text, who = 'sofia', imageRequestId = null, contactId = null, createdAt = new Date().toISOString()) {
+function addMessage(text, who = 'sofia', imageRequestId = null, contactId = null, createdAt = new Date().toISOString(), replyTo = null) {
   if (!messages) return;
 
   const div = document.createElement('div');
@@ -184,6 +184,7 @@ function addMessage(text, who = 'sofia', imageRequestId = null, contactId = null
     window.SofiaImages?.anchor(imageRequestId, div);
   }
   window.SofiaTimeline?.decorate(div,createdAt);
+  window.SofiaWorkspace?.decorateReply(div,replyTo);
   window.SofiaUI?.refreshDays(messages);
   window.SofiaWorkspace?.added(div,restoringChat);
   scrollChatToLatest('smooth');
@@ -434,7 +435,7 @@ async function syncConversationFromServer({ silent = false } = {}) {
       try {
       messages.innerHTML = '';
       conversationHistory.forEach(item =>
-        addMessage(item.content, item.role === 'user' ? 'user' : 'sofia', item.imageRequestId, item.contactId,item.createdAt||null)
+        addMessage(item.content, item.role === 'user' ? 'user' : 'sofia', item.imageRequestId, item.contactId,item.createdAt||null,item.replyTo)
       );
       if (pendingCalendarAction) addCalendarDownload(pendingCalendarAction);
       window.SofiaImages?.restore(data.images);
@@ -650,7 +651,8 @@ async function askSofia(userMessage, imageDataUrl = null, options = {}) {
   conversationHistory.push({
     role: 'user',
     createdAt: new Date().toISOString(),
-    content: userMessage
+    content: userMessage,
+    ...(options.replyTo?{replyTo:options.replyTo}:{})
   });
 
   saveMemory();
@@ -681,6 +683,7 @@ async function askSofia(userMessage, imageDataUrl = null, options = {}) {
         signal:typeof AbortSignal!=='undefined' && typeof AbortSignal.timeout==='function'?AbortSignal.timeout(90000):undefined,
         body: JSON.stringify({
           message: userMessage,
+          replyTo: options.replyTo || null,
           history: historyForAPI,
           image: imageDataUrl,
           referenceImageId,
@@ -825,15 +828,16 @@ function submitChatMessage(event) {
   const imageForRequest = pendingCameraImage;
   chatPinnedToLatest=true;updateLatestButton();
 
-  addMessage(imageForRequest ? `📷 ${messageText}` : messageText, 'user');
+  const replyTo=window.SofiaWorkspace?.takeReply() || null;
+  addMessage(imageForRequest ? `📷 ${messageText}` : messageText, 'user',null,null,new Date().toISOString(),replyTo);
   input.value = '';
-  window.SofiaWorkspace?.beginSubmission(messageText);
+  window.SofiaWorkspace?.beginSubmission(messageText,replyTo);
   window.SofiaUI?.resizeComposer(input);
   pendingCameraImage = null;
   document.querySelector('#cameraAttachment')?.remove();
   camera?.classList.remove('on');
 
-  Promise.resolve(askSofia(messageText, imageForRequest))
+  Promise.resolve(askSofia(messageText, imageForRequest,{replyTo}))
     .finally(() => window.SofiaLive?.clearImageContext?.());
   return false;
 }

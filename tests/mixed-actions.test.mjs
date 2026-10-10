@@ -4,7 +4,9 @@ import crypto from 'node:crypto';
 import {readFile as nativeReadFile} from 'node:fs/promises';
 const environmentSource=await nativeReadFile(new URL('../lib/environment.js',import.meta.url),'utf8');
 const environmentUrl='data:text/javascript;base64,'+Buffer.from(environmentSource).toString('base64');
-async function readFile(...args){const value=await nativeReadFile(...args);return typeof value==='string'?value.replaceAll('../lib/environment.js',environmentUrl):value;}
+const messageContextSource=await nativeReadFile(new URL('../lib/message-context.js',import.meta.url),'utf8');
+const messageContextUrl='data:text/javascript;base64,'+Buffer.from(messageContextSource).toString('base64');
+async function readFile(...args){const value=await nativeReadFile(...args);return typeof value==='string'?value.replaceAll('../lib/environment.js',environmentUrl).replaceAll('../lib/message-context.js',messageContextUrl):value;}
 const root=new URL('../',import.meta.url),url=s=>'data:text/javascript;base64,'+Buffer.from(s).toString('base64');
 const portrait=url(await readFile(new URL('lib/character-image.js',root),'utf8'));
 const engine=url(`export async function executeUnifiedAction(message,time,options){globalThis.__mixedCalls.push({message,time,options});return {taskAction:globalThis.__mixedResult};}export async function getActionState(){return {};}export async function getResearchState(){return null;}`);
@@ -32,3 +34,4 @@ for(const mode of ['chat','live-context']) {
  test(mode+' runs exact task clause before returning photo acknowledgment',async()=>{reset();const result=await run(mode);assert.equal(result.taskAction.action,'create');assert.ok(result.imageRequest.id);assert.match(result.reply||result.context,/Als Aufgabe gespeichert/);assert.equal(globalThis.__mixedCalls[0].message,plan.taskMessage);assert.match(globalThis.__mixedCalls[0].time,/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/);assert.equal(globalThis.__mixedCalls[0].options.mode,mode==='chat'?'text':'live');});
  test(mode+' keeps photo job independent and never confirms failed task',async()=>{reset();globalThis.__mixedResult={ok:false,status:'execution_failed',action:'none'};const result=await run(mode);assert.ok(result.imageRequest.id);assert.match(result.reply||result.context,/unbestätigt/);assert.doesNotMatch(result.reply||result.context,/Als Aufgabe gespeichert/);});
 }
+
