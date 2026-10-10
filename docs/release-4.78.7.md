@@ -9,3 +9,13 @@
 
 ## Grenzen und Abnahme
 Keine Änderungen an stabiler Voice-/WebRTC-/Lipsync-/Avatar-Pipeline. Kein Reset/Anheben von Tageslimits. Am 10.10.2026 bereits zwei Foto-Provider-Versuche aus 4.74.7 verbraucht: neue Fotofunktionen können heute strukturell und ohne Generierung geprüft werden; reale neue Generierung bleibt für verfügbare Nutzung offen. Kein automatischer Neuversand aus GET. Geräteaudio und Mehrtagesbeobachtung erfolgen im laufenden Betrieb.
+
+## Finale Prüfung am 10.10.2026
+
+- 584 automatisierte Tests bestanden; JavaScript- und Inline-Syntaxchecks bestanden. Finale Assetkennung: 4787v2.
+- Browser auf Test: Antwortbezug und Textentwurf bleiben nach Reload erhalten; Zitate erscheinen in Nutzer- und Sofia-Nachrichten auch nach erneutem Laden. Die konkrete Nutzerort-Frage zum zitierten Lübeck-Bezug wurde richtig beantwortet.
+- Einzelne Testnachricht verschwand ohne Platzhalter und blieb nach Reload ausgeblendet. Wiederherstellung über die Einstellungen funktionierte. Fensterübergreifende Sichtbarkeit ist zusätzlich automatisiert geprüft.
+- Aus einer Nachricht wurde nach ausdrücklichem Speichern eine Testaufgabe für 10.10.2026, 17:00 Hamburg angelegt und aus Heute das richtige Aufgabendetail geöffnet.
+- Foto-Detailauswahl Oberteil füllt den Änderungswunsch ohne Generierung; direktes Antworten auf das konkret geöffnete Galeriefoto öffnet den richtigen Antwortbezug.
+- Keine kostenpflichtige neue Bildgenerierung: Das bestehende Test-Tagesbudget vom 10.10.2026 war bereits verbraucht. Die neue Generierungsqualität wird daher nicht als visuell abgenommen behauptet. Geräte-Audio und Mehrtagesbeobachtung verbleiben bei der Abnahme im laufenden Betrieb.
+- Test/Produktiv bleiben getrennt: der Stimmenvergleich-Link ist ausschließlich in der Testversion vorhanden.
