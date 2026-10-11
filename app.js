@@ -759,14 +759,15 @@ async function askSofia(userMessage, imageDataUrl = null, options = {}) {
       'sofia',
       data.imageRequest?.id,null,data.createdAt || new Date().toISOString(),data.replyTo||null
     );
-    if (data.imageRequest) void window.SofiaImages?.generate({...data.imageRequest,...(options.referenceImageId?{expectedSourceId:referenceImageId}:{})});
+    if (data.imageRequest) void window.SofiaImages?.generate(window.SofiaImages.bindRequest(data.imageRequest,referenceImageId,options.referenceLocked===true));
 
     if (thought) {
       thought.textContent = data.imageRequest && /^Gib mir einen kleinen Moment[.!]?$/i.test(reply.trim()) ? '' : reply;
     }
 
     if (mode) {
-      mode.textContent = window.SofiaImages?.isGenerating ? 'nimmt ein Foto auf' : 'bereit';
+      mode.textContent = 'bereit';
+      window.SofiaImages?.updateStatus?.();
     }
 
     if (data.taskAction?.action === 'create' && (data.taskAction.task?.remindAt || data.taskAction.task?.dueAt)) {
@@ -893,12 +894,10 @@ if (sendButton) {
     if(referenceImageId!==undefined&&!/^[a-f0-9-]{36}$/.test(referenceImageId))return false;
     if(isResponding||window.SofiaImages?.isGenerating||!String(message||'').trim())return false;
     if(typeof navigator!=='undefined'&&navigator.onLine===false)return false;
-    window.SofiaWorkspace?.beginSubmission(message,null,referenceImageId);chatPinnedToLatest=true;addMessage(message,'user');void askSofia(message,null,{referenceImageId});return true;
+    window.SofiaWorkspace?.beginSubmission(message,null,referenceImageId);chatPinnedToLatest=true;addMessage(message,'user');void askSofia(message,null,{referenceImageId,referenceLocked:referenceImageId!==undefined});return true;
   };
-  sendButton.addEventListener('click', event => {
-    event.preventDefault();
-    submitChatMessage(event);
-  });
+  if(window.SofiaUI?.bindSendButton)window.SofiaUI.bindSendButton(sendButton,submitChatMessage,input);
+  else sendButton.addEventListener('click',event=>{event.preventDefault();submitChatMessage(event);});
 }
 
 /* =========================

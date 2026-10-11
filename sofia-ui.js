@@ -30,7 +30,30 @@
       const label=document.createElement('div');label.className='message-day';label.textContent=new Intl.DateTimeFormat('de-DE',{timeZone:'Europe/Berlin',dateStyle:'medium'}).format(new Date(stamp));root.insertBefore(label,child);
     }if(viewport)window.SofiaChatViewport.restore(viewport);else root.scrollTop=top;
   }
-  window.SofiaUI={enhanceDialog,resizeComposer,refreshDays,motion};
+  function bindSendButton(button,submit,input){
+    let pressed=null,suppressClickUntil=0;
+    const touch=event=>event.pointerType==='touch'||event.pointerType==='pen';
+    button.addEventListener('pointerdown',event=>{
+      if(!touch(event)||event.isPrimary===false||event.button>0||button.disabled||document.activeElement!==input)return;
+      // Keep the textarea focused until the tap is complete: blur would move the
+      // keyboard-anchored panel out from underneath the finger before click.
+      event.preventDefault();pressed={id:event.pointerId,x:event.clientX,y:event.clientY};
+    });
+    button.addEventListener('pointercancel',()=>{pressed=null;});
+    button.addEventListener('pointerup',event=>{
+      if(!pressed||event.pointerId!==pressed.id)return;
+      const start=pressed;pressed=null;event.preventDefault();suppressClickUntil=Date.now()+750;
+      const rect=button.getBoundingClientRect?.();
+      if(Math.hypot(event.clientX-start.x,event.clientY-start.y)>20||rect&&(event.clientX<rect.left||event.clientX>rect.right||event.clientY<rect.top||event.clientY>rect.bottom))return;
+      submit(event);
+    });
+    button.addEventListener('click',event=>{
+      event.preventDefault();
+      if(Date.now()<suppressClickUntil&&(touch(event)||!event.pointerType&&event.detail>0))return;
+      submit(event);
+    });
+  }
+  window.SofiaUI={enhanceDialog,resizeComposer,refreshDays,motion,bindSendButton};
   const input=document.getElementById('input');input?.addEventListener('input',()=>resizeComposer(input));resizeComposer(input);
   const viewport=window.visualViewport;
   let layoutHeight=Math.max(window.innerHeight||0,document.documentElement.clientHeight||0,viewport?.height||0);
