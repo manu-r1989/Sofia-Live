@@ -3,11 +3,14 @@
   const pending = new Set();
   const completed = new Set();
   const remotePending = new Set();
+  const uncertain = new Set();
+  const rejected = new Map();
   function updatePhotoStatus() {
     const mode=document.getElementById('mode');
     if(!mode)return;
-    if(pending.size || remotePending.size)mode.textContent='nimmt ein Foto auf';
-    else if(mode.textContent==='nimmt ein Foto auf')mode.textContent='bereit';
+    if(pending.size)mode.textContent='nimmt ein Foto auf';
+    else if(remotePending.size)mode.textContent=[...remotePending].some(id=>uncertain.has(id))?'Fotoausgang wird geprüft':'nimmt ein Foto auf';
+    else if(['nimmt ein Foto auf','Fotoausgang wird geprüft'].includes(mode.textContent))mode.textContent='bereit';
   }
   let preferredPhotos={};
   try{const saved=JSON.parse(localStorage.getItem('sofia-photo-preferred-v495')||'{}');if(saved&&typeof saved==='object'&&!Array.isArray(saved))preferredPhotos=saved;}catch{}
@@ -26,6 +29,13 @@
     else if(/\s+Gib mir einen kleinen Moment[.!]?$/i.test(text)){node.textContent=text.replace(/\s+Gib mir einen kleinen Moment[.!]?$/i,'');node.dataset.messageText=node.textContent;window.SofiaTimeline?.decorate(node,node.dataset.createdAt);}
   }
   const valid = id => typeof id === 'string' && /^[a-f0-9-]{36}$/.test(id);
+  try{for(const [id,at]of JSON.parse(localStorage.getItem('sofia-photo-rejected-v49914')||'[]'))if(valid(id)&&Number.isFinite(at)&&Date.now()-at>=0&&Date.now()-at<86400000)rejected.set(id,at);}catch{}
+  function rejectRequest(id){rejected.set(id,Date.now());while(rejected.size>100)rejected.delete(rejected.keys().next().value);try{localStorage.setItem('sofia-photo-rejected-v49914',JSON.stringify([...rejected]));}catch{}}
+  function bindRequest(request,sourceId,locked=false){
+    // A selected gallery photograph is context, not an edit contract for a new
+    // capture. Exact-source validation stays mandatory for actual variants.
+    return {...request,...(valid(sourceId)&&(locked||valid(request?.sourceId))?{expectedSourceId:sourceId}:{})};
+  }
   function slotFor(id) {
     if (!valid(id)) return null;
     let slot = document.getElementById('portrait-slot-' + id);
@@ -326,6 +336,7 @@
     hideAcknowledgment(image);
     if(image.status==='pending')return;
     remotePending.delete(image.id);
+    uncertain.delete(image.id);
     galleryItems.set(image.id,image);
     const mode=presentation(image);
     const existing=document.getElementById('portrait-' + image.id);
@@ -337,7 +348,7 @@
       notice.className='msg sofia'; notice.dataset.portraitStatus='failed';notice.dataset.presentation=mode; notice.textContent=image.failureCode==='test_image_limit'?'Das Foto-Limit der Testversion ist für heute erreicht. Morgen kann ich wieder ein Foto schicken.':typeof image.message==='string'&&image.message.trim()?image.message.trim().slice(0,500):failureReply;
       if(image.failureCode==='portrait_source_unavailable')notice.textContent='Das Ausgangsfoto ist nicht mehr verfügbar. Bitte wähle ein anderes Foto in der Galerie.';
       if(image.failureCode==='portrait_context_mismatch')notice.textContent='Die gewünschte Änderung wurde im Foto nicht zuverlässig umgesetzt. Du kannst einen neuen Versuch mit diesem Ausgangsfoto starten.';
-      if(image.failureCode==='portrait_reference_mismatch')notice.textContent='Die Bildreferenz passt nicht zum ausgewählten Foto. Bitte öffne das gewünschte Foto erneut und wähle dort die Perspektive.';
+      if(image.failureCode==='portrait_reference_mismatch')notice.textContent='Die Änderung passt nicht zu dem Foto, das du ausgewählt hast. Bitte öffne es erneut in der Galerie.';
       const retryTime=Date.parse(image.retryAt);if(Number.isFinite(retryTime)&&retryTime>serverNow()){const wait=document.createElement('p');wait.className='photo-retry-time';wait.textContent='Erneut möglich ab '+new Date(retryTime).toLocaleString('de-DE',{timeZone:'Europe/Berlin',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})+' (Hamburg). Kein automatischer neuer Versuch.';notice.append(wait);}
       const retry=document.createElement('button');retry.type='button';retry.className='photo-retry';retry.textContent='Erneut versuchen';retry.disabled=['test_image_limit','portrait_reference_mismatch','portrait_source_unavailable'].includes(image.failureCode);retry.onclick=()=>{if(Number.isFinite(Date.parse(image.retryAt))&&Date.parse(image.retryAt)>Date.now()){window.SofiaWorkspace?.notice?.('Die Wartezeit des Bildgenerators läuft noch. Es wird kein neuer Auftrag gestartet.');return;}if(window.SofiaPhotoAction?.(image.requestMessage||'nochmal',image.expectedSourceId||image.sourceId||undefined))retry.disabled=true;};notice.append(retry);
       window.SofiaTimeline?.decorate(notice,image.createdAt||new Date().toISOString());slot.append(notice); slot.hidden=false; window.SofiaChatViewport?.restore(viewport); return;
@@ -379,14 +390,17 @@
   },10000);
   document.addEventListener?.('visibilitychange',()=>{if(document.visibilityState==='visible')refreshExpiry();});
   window.SofiaImages = {
-    anchor, openGallery, photoArchive,
+    anchor, openGallery, photoArchive, bindRequest, updateStatus:updatePhotoStatus,
     items:()=>[...galleryItems.values()].filter(x=>!['pending','failed','expired'].includes(x.status)&&retained(x)).map(x=>({...x})),
     get isGenerating() { return pending.size>0 || remotePending.size>0; },
     get referenceId() { return referenceId; },
     restore(events) {
       if (!Array.isArray(events)) return;
+      events=events.map(x=>rejected.has(x?.id)?{...x,status:'failed',failureCode:'portrait_reference_mismatch'}:x);
       remotePending.clear();
       events.filter(x=>x.status==='pending' && valid(x.id)).forEach(x=>remotePending.add(x.id));
+      for(const id of uncertain)if(!remotePending.has(id))uncertain.delete(id);
+      for(const event of events)if(event.status==='pending'&&event.jobStatus==='processing')uncertain.delete(event.id);
       // Associate legacy photographs with their old acknowledgments where possible.
       const old=events.filter(x=>!x.anchorId && valid(x.id));
       old.forEach(image=>{const node=legacyPhotoAnchor(image);if(node&&!node.dataset.portraitRequestId)node.dataset.portraitRequestId=image.id;});
@@ -399,6 +413,7 @@
     },
     generate(request) {
       if (!valid(request?.id)||typeof navigator!=='undefined'&&navigator.onLine===false) return Promise.resolve();
+      if(rejected.has(request.id)){show({...request,status:'failed',failureCode:'portrait_reference_mismatch'});updatePhotoStatus();return Promise.resolve();}
       if (active.has(request.id)) return active.get(request.id);
       if(completed.has(request.id))return Promise.resolve();
       const selectionAtStart=selectionVersion;
@@ -413,13 +428,14 @@
           if (!response.ok || !valid(data.image?.id) || data.image.id!==request.id || request.expectedSourceId && data.image.sourceId!==request.expectedSourceId) {const error=new Error('portrait_failed');error.code=data.image?.id===request.id && request.expectedSourceId && data.image.sourceId!==request.expectedSourceId?'portrait_reference_mismatch':data.code;throw error;}
           show(data.image); if(selectionVersion===selectionAtStart)rememberReference(data.image.id);
         } catch (error) {
+          if(error?.code==='portrait_reference_mismatch')rejectRequest(request.id);
           // A lost response may follow a successful write: reconcile by GET only.
           let recovered=null;
           try {
             const state=await fetch('/api/chat',{method:'GET',credentials:'same-origin',cache:'no-store',signal:typeof AbortSignal!=='undefined'&&typeof AbortSignal.timeout==='function'?AbortSignal.timeout(15000):undefined});
             if(state.ok){const data=await state.json();recovered=data.images?.find(x=>x.id===request.id && (!request.expectedSourceId || x.sourceId===request.expectedSourceId));}
           }catch{}
-          if(recovered){show({...recovered,failureCode:recovered.failureCode||error?.code});if(recovered.status==='pending')remotePending.add(request.id);else if(recovered.status!=='failed' && selectionVersion===selectionAtStart)rememberReference(recovered.id);}
+          if(recovered){show({...recovered,failureCode:recovered.failureCode||error?.code});if(recovered.status==='pending'){remotePending.add(request.id);if(recovered.jobStatus!=='processing')uncertain.add(request.id);}else if(recovered.status!=='failed' && selectionVersion===selectionAtStart)rememberReference(recovered.id);}
           else show({...request,anchorId:request.id,status:'failed',failureCode:error?.code});
         } finally {
           pending.delete(request.id);

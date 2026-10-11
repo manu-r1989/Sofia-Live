@@ -292,7 +292,7 @@ test('failure notices display supplied safe server feedback as text rather than 
 test('wrong source receipt stops a selected-photo job before any paid generation request',async()=>{
  const calls=[],h=harness(async(url,options)=>{calls.push({url,options});return{ok:true,json:async()=>({images:[]})};});
  await h.api.generate({id:id2,sourceId:id2,expectedSourceId:id,requestMessage:'Andere Perspektive'});
- assert.equal(calls.filter(x=>x.options.method==='POST').length,0);const notice=h.document.getElementById('portrait-'+id2);assert.match(notice.textContent,/Bildreferenz passt nicht/);assert.equal(notice.all().find(n=>n.textContent==='Erneut versuchen').disabled,true);
+ assert.equal(calls.filter(x=>x.options.method==='POST').length,0);const notice=h.document.getElementById('portrait-'+id2);assert.match(notice.textContent,/Änderung passt nicht/);assert.equal(notice.all().find(n=>n.textContent==='Erneut versuchen').disabled,true);
 });
 test('a failed photo variant retries with its selected source id',()=>{
  const h=harness(),sent=[];h.window.SofiaPhotoAction=(message,reference)=>{sent.push({message,reference});return true;};h.api.restore([{...image(id2),status:'failed',sourceId:id,requestMessage:'Andere Perspektive'}]);h.document.getElementById('portrait-'+id2).all().find(n=>n.textContent==='Erneut versuchen').onclick();assert.equal(sent[0].reference,id);
@@ -378,3 +378,25 @@ test('series navigation excludes unrelated photos and leaves gallery filters unc
 });
 test('opening a predecessor reuses the viewer and keeps the original chat return target',()=>{const h=harness(async()=>({ok:true,blob:async()=>new Blob()}));const at=new Date().toISOString();h.api.restore([{...image(id),status:'done',createdAt:at},{...image(id2),sourceId:id,status:'done',createdAt:at}]);h.api.openGallery(id2);const viewer=h.document.getElementById('sofia-photo-'+id2);viewer.all().find(n=>n.textContent==='Vorgänger öffnen').onclick();assert.equal(h.document.getElementById('sofia-photo-'+id),viewer);assert.notEqual(viewer.dataset.returnToLatest,'true');assert.equal(h.api.referenceId,id);assert.equal(h.body.all().filter(n=>n.tag==='dialog').length,2);});
 test('uncertain variant review is visible without automatic regeneration',()=>{let calls=0;const h=harness(async()=>{calls++;return preparedPhoto();});const at=new Date().toISOString();h.api.restore([{...image(id),status:'done',createdAt:at},{...image(id2),sourceId:id,status:'done',createdAt:at,review:{status:'uncertain'},dimensions:['camera-angle']}]);h.api.openGallery(id2);const viewer=h.document.getElementById('sofia-photo-'+id2);assert.match(viewer.textContent,/Änderung ist visuell nicht sicher bestätigt/);assert.doesNotMatch(viewer.textContent,/Änderung erfolgreich/);});
+
+test('a newly planned photograph does not inherit the old gallery edit contract and reaches generation',async()=>{
+ const calls=[],h=harness(async(url,options)=>{calls.push({url,options});return {ok:true,json:async()=>({image:{...image(id2),sourceId:null}})};});
+ const request=h.api.bindRequest({id:id2,sourceId:null,requestMessage:'Schick mir gern ein Bild von dir'},id);
+ assert.equal(request.expectedSourceId,undefined);await h.api.generate(request);assert.equal(calls.filter(x=>x.options.method==='POST').length,1);assert.equal(h.api.isGenerating,false);assert.ok(h.document.getElementById('portrait-'+id2));assert.equal(h.document.getElementById('mode').textContent,'bereit');
+});
+test('actual variants and explicit gallery commands retain their exact selected source',()=>{
+ const h=harness(async()=>({ok:true,json:async()=>({images:[]})}));assert.equal(h.api.bindRequest({id:id2,sourceId:id},id).expectedSourceId,id);assert.equal(h.api.bindRequest({id:id2,sourceId:null},id,true).expectedSourceId,id);
+});
+test('a rejected source contract clears photo status and never resumes from a pending GET or reload',async()=>{
+ const disk=new Map(),localStorage={getItem:k=>disk.get(k)||null,setItem:(k,v)=>disk.set(k,v)},calls=[];
+ const h=harness(async(url,options)=>{calls.push(options.method);return {ok:true,json:async()=>({images:[]})};},{localStorage});
+ await h.api.generate({id:id2,sourceId:id2,expectedSourceId:id});h.api.restore([{id:id2,status:'pending',jobStatus:'ready'}]);await new Promise(r=>setImmediate(r));assert.equal(calls.includes('POST'),false);assert.equal(h.api.isGenerating,false);assert.equal(h.document.getElementById('mode').textContent,'bereit');
+ const next=harness(async()=>{throw Error('No generation after reload');},{localStorage});next.api.restore([{id:id2,status:'pending',jobStatus:'ready'}]);assert.equal(next.api.isGenerating,false);assert.equal(next.document.getElementById('mode').textContent,'bereit');assert.match(next.document.getElementById('portrait-'+id2).textContent,/Änderung passt nicht/);
+});
+test('a lost generation response checks the existing job without repeated provider requests and clears on terminal failure',async()=>{
+ let posts=0;const pending={id,status:'pending',jobStatus:'ready'};
+ const h=harness(async(url,options)=>{if(options.method==='POST'){posts++;throw Error('Response lost');}return {ok:true,json:async()=>({images:[pending]})};});
+ await h.api.generate({id});assert.equal(h.document.getElementById('mode').textContent,'Fotoausgang wird geprüft');assert.equal(h.api.isGenerating,true);
+ h.api.restore([pending]);await new Promise(r=>setImmediate(r));assert.equal(posts,1);
+ h.api.restore([{id,status:'failed',message:'Dieses Foto konnte nicht erzeugt werden.'}]);assert.equal(h.api.isGenerating,false);assert.equal(h.document.getElementById('mode').textContent,'bereit');
+});
