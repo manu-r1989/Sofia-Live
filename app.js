@@ -111,9 +111,15 @@ let chatScrollFrame = null;
 let chatPinnedToLatest = true;
 let restoringChat = false;
 let chatAutoScroll = false;
+let savedChatPosition=null,chatPositionRestored=false;
+try{const value=JSON.parse(localStorage.getItem('sofia-chat-position-v496')||'null');if(value&&Number.isFinite(value.at)&&Date.now()-value.at>=0&&Date.now()-value.at<86400000&&Array.isArray(value.anchors))savedChatPosition=value;}catch{}
+function saveChatPosition(){if(!messages||!messages.querySelectorAll?.('.msg')?.length)return;const captured=captureChatViewport();const anchors=captured.anchors.filter(x=>x.id||x.createdAt).map(x=>({id:x.id,role:x.role,createdAt:x.createdAt,offset:x.offset}));try{localStorage.setItem('sofia-chat-position-v496',JSON.stringify({...captured,anchors,anchor:null,at:Date.now()}));}catch{}}
+function restoreSavedChatPosition(){if(chatPositionRestored||!savedChatPosition)return false;const nodes=[...messages.querySelectorAll('.msg')];if(!savedChatPosition.pinned&&!savedChatPosition.anchors.some(a=>nodes.some(n=>a.id&&n.id===a.id||a.createdAt&&n.dataset.createdAt===a.createdAt&&(n.classList.contains('user')?'user':'assistant')===a.role)))return false;restoreChatViewport(savedChatPosition);chatPositionRestored=true;return true;}
+window.addEventListener?.('pagehide',saveChatPosition);
+typeof document!=='undefined'&&document.addEventListener?.('visibilitychange',()=>{if(document.visibilityState==='hidden')saveChatPosition();});
 function updateLatestButton(){if(typeof document==='undefined')return;const button=document.getElementById('chatLatest');if(button)button.hidden=chatPinnedToLatest;}
 
-function stopAutoChatScroll(){chatAutoScroll=false;if(chatScrollFrame!==null){cancelAnimationFrame(chatScrollFrame);chatScrollFrame=null;}}
+function stopAutoChatScroll(){chatPositionRestored=true;chatAutoScroll=false;if(chatScrollFrame!==null){cancelAnimationFrame(chatScrollFrame);chatScrollFrame=null;}}
 for(const event of ['wheel','touchstart','pointerdown'])messages?.addEventListener(event,stopAutoChatScroll,{passive:true});
 messages?.addEventListener('scroll', () => {
   if(chatAutoScroll){if(messages.scrollHeight-messages.clientHeight-messages.scrollTop<=64){chatAutoScroll=false;chatPinnedToLatest=true;}updateLatestButton();return;}
@@ -158,8 +164,8 @@ function restoreChatViewport(snapshot) {
   chatAutoScroll=false;
   if (chatScrollFrame !== null) cancelAnimationFrame(chatScrollFrame);
   const nodes=[...messages.querySelectorAll('.msg')];
-  let node=null,anchor=null;for(const candidate of snapshot.anchors||[snapshot.anchor]){if(!candidate)continue;node=candidate.id?document.getElementById(candidate.id):candidate.content&&candidate.createdAt?
-    nodes.find(n=>n.dataset.messageText===candidate.content&&n.dataset.createdAt===candidate.createdAt&&(n.classList.contains('user')?'user':'assistant')===candidate.role):
+  let node=null,anchor=null;for(const candidate of snapshot.anchors||[snapshot.anchor]){if(!candidate)continue;node=candidate.id?document.getElementById(candidate.id):candidate.createdAt?
+    nodes.find(n=>(!candidate.content||n.dataset.messageText===candidate.content)&&n.dataset.createdAt===candidate.createdAt&&(n.classList.contains('user')?'user':'assistant')===candidate.role):
     nodes.filter(n=>n.className===candidate.className&&n.textContent===candidate.text)[candidate.occurrence];if(node){anchor=candidate;break;}}
   messages.scrollTop = node ? messages.scrollTop + node.getBoundingClientRect().top - messages.getBoundingClientRect().top - anchor.offset :
     Math.max(0,snapshot.top+messages.scrollHeight-snapshot.height);
@@ -453,6 +459,7 @@ async function syncConversationFromServer({ silent = false } = {}) {
       window.SofiaImages?.restore(data.images);
       } finally { restoringChat = false; }
       restoreChatViewport(viewport);
+      restoreSavedChatPosition();
       window.SofiaWorkspace?.refresh();
       void window.SofiaSocial?.sync();
     }
@@ -541,14 +548,14 @@ function restoreConversation() {
       item.role === 'user'
         ? 'user'
         : 'sofia',
-      item.imageRequestId,item.contactId,item.createdAt||null
+      item.imageRequestId,item.contactId,item.createdAt||null,item.replyTo
     );
   });
 
-  scrollChatToLatest('auto');
+  if(!restoreSavedChatPosition())scrollChatToLatest('auto');
 
   window.addEventListener('load', () => {
-    scrollChatToLatest('auto');
+    if(!restoreSavedChatPosition())scrollChatToLatest('auto');
   }, { once: true });
 
   console.log(

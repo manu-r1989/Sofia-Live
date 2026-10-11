@@ -1182,3 +1182,17 @@ html[data-chat-font="large"] .photo-follow-ups{grid-template-columns:repeat(2,mi
 .message-quote-block {min-width:0;max-width:100%;}
 .message-quote {overflow-wrap:anywhere;word-break:normal;}
 @media (max-width:480px){.message-quote{font-size:12px;line-height:1.45;}.photo-source-choice{gap:8px;}.photo-source-stamp{overflow-wrap:anywhere;}}
+
+/* V4.96 — source review and selectable photo comparison. */
+.photo-edit-preview{width:min(560px,92vw);max-height:90dvh;overflow:auto;}
+.photo-edit-preview>img{display:block;max-width:100%;max-height:38dvh;object-fit:contain;margin:12px auto;border-radius:12px;}
+.photo-edit-preview p{overflow-wrap:anywhere;line-height:1.5;}
+.photo-edit-preview button,.photo-comparison-selection select{min-height:44px;}
+.photo-edit-preview button{margin:8px 8px 0 0;}
+.photo-edit-request{padding:12px;border:1px solid rgba(255,255,255,.12);border-radius:12px;}
+.photo-comparison-selection{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:12px 0;}
+.photo-comparison-selection label{display:flex;flex-direction:column;gap:6px;min-width:0;font-size:12px;}
+.photo-comparison-selection select{width:100%;min-width:0;max-width:100%;} 
+.photo-toolbar .photo-preferred{grid-column:1/-1;min-height:44px;margin:0;}
+.photo-retry-time{font-size:12px;opacity:.8;}
+@media(max-width:480px){.photo-comparison-selection{grid-template-columns:1fr;}}
