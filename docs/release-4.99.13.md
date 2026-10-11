@@ -13,8 +13,8 @@ Ausgangspunkt: iPhone-PWA-Screenshot mit Abstand zwischen Chatfenster und Tastat
 
 ## Prüfung
 
-697 automatisierte Tests bestanden, darunter vier neue Regressionen zu innerHeight-Schrumpfung, Viewport-Panning ohne Textarea-Kollaps, Zoom und Wiederherstellung nach Tastaturschluss ohne Entwurfs-/Fokusänderung. JS-/Inline-Syntaxchecks bestanden.
+698 automatisierte Tests bestanden, darunter fünf neue Regressionen zu innerHeight-Schrumpfung, Viewport-Panning ohne Textarea-Kollaps, Zoom und Wiederherstellung nach Tastaturschluss ohne Entwurfs-/Fokusänderung. JS-/Inline-Syntaxchecks bestanden.
 
-Testdeploy und Browserprüfung vor Produktivpromotion. Eine echte iPhone-PWA-Tastatur ist im verfügbaren Desktopbrowser nicht vorhanden. Native Cursorposition und Abstand zur iPhone-Tastatur können daher nicht als real auf iOS abgenommen ausgegeben werden.
+Testdeploy 3cecf23b9fd2fde4a4a68787f463c0a8508aca95 READY und aliasiert. Browser lädt 4.99.13, Schreibfeld ist tatsächlich document.activeElement, Nachrichten nicht editierbar. Mehrzeiliger ungesendeter Entwurf und Schreibfokus nach Reload geprüft; eigener Testentwurf danach entfernt. Zusatzprüfung: rascher Fokuswechsel während der Tastaturanimation verliert die ursprüngliche Layout-Höhe nicht. Finaler Folgekandidat wird vor Produktivpromotion auf READY/Alias/Assets geprüft. Eine echte iPhone-PWA-Tastatur ist im verfügbaren Desktopbrowser nicht vorhanden. Native Cursorposition und Abstand zur iPhone-Tastatur können daher nicht als real auf iOS abgenommen ausgegeben werden.
 
-Version 4.99.13; Asset-/Cachekennung 49913v1. Test-only Stimmenvergleich bleibt nur auf test-web. Bestehenden PWA-Updatemechanismus verwenden („Neue Version laden“ in Einstellungen), Entwurf bleibt gesichert. Kein Datenreset.
+Version 4.99.13; Asset-/Cachekennung 49913v2. Test-only Stimmenvergleich bleibt nur auf test-web. Bestehenden PWA-Updatemechanismus verwenden („Neue Version laden“ in Einstellungen), Entwurf bleibt gesichert. Kein Datenreset.

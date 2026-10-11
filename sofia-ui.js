@@ -35,7 +35,7 @@
   const viewport=window.visualViewport;
   let layoutHeight=Math.max(window.innerHeight||0,document.documentElement.clientHeight||0,viewport?.height||0);
   function resize(){const focused=document.activeElement===input,height=viewport?.height||window.innerHeight;
-    if(!focused)layoutHeight=Math.max(window.innerHeight||0,document.documentElement.clientHeight||0,height||0);
+    if(!focused)layoutHeight=Math.max(layoutHeight,window.innerHeight||0,document.documentElement.clientHeight||0,height||0);
     const top=Math.max(0,viewport?.offsetTop||0),bottom=top+height;
     const keyboardOpen=focused&&(viewport?.scale||1)<=1.01&&Math.max(layoutHeight,document.documentElement.clientHeight||0,window.innerHeight||0)-height>96;
     document.documentElement.dataset.composerFocused=String(focused);document.documentElement.dataset.compactViewport=String(focused&&height<320);

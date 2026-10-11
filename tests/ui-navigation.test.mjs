@@ -47,3 +47,5 @@ test('pinch zoom is not mistaken for a software keyboard',()=>{
 test('keyboard closing restores full composer bounds without forcing focus or altering a draft',()=>{
  const h=harness();h.input.value='Ein ungesendeter Entwurf';h.window.visualViewport.height=210;h.events['viewport-resize']();assert.equal(h.input.style.height,'52px');h.window.visualViewport.height=800;h.events['viewport-resize']();assert.equal(h.input.style.height,'144px');assert.equal(h.document.documentElement.dataset.keyboardOpen,'false');assert.equal(h.input.value,'Ein ungesendeter Entwurf');assert.equal(h.document.activeElement,h.input);
 });
+
+test('rapid blur and refocus during keyboard closing retains the full layout baseline',()=>{const h=harness();h.window.innerHeight=470;h.document.activeElement=null;h.events.blur();h.document.activeElement=h.input;h.events.focus();assert.equal(h.document.documentElement.dataset.keyboardOpen,'true');assert.equal(h.variables['--sofia-keyboard-inset'],'330px');assert.equal(h.document.activeElement,h.input);});
