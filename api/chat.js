@@ -352,6 +352,7 @@ function applyMemoryAction(
     if (!alreadyExists && similarIndex === -1) {
       memories.push({
         text: newMemory,
+        source:{kind:"conversation",at:new Date().toISOString()},
         category: memoryAction.category || "Sonstiges",
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
@@ -379,6 +380,7 @@ function applyMemoryAction(
 
       memories[index] = {
         text: newMemory,
+        source:{kind:"conversation",at:new Date().toISOString()},
         category: memoryAction.category || memories[index]?.category || "Sonstiges",
         createdAt: memories[index]?.createdAt || new Date().toISOString(),
         updatedAt: new Date().toISOString()
@@ -407,6 +409,7 @@ function applyMemoryAction(
       if (!alreadyExists && similarIndex === -1) {
         memories.push({
           text: newMemory,
+        source:{kind:"conversation",at:new Date().toISOString()},
           category: memoryAction.category || "Sonstiges",
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()

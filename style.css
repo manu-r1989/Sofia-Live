@@ -1196,3 +1196,11 @@ html[data-chat-font="large"] .photo-follow-ups{grid-template-columns:repeat(2,mi
 .photo-toolbar .photo-preferred{grid-column:1/-1;min-height:44px;margin:0;}
 .photo-retry-time{font-size:12px;opacity:.8;}
 @media(max-width:480px){.photo-comparison-selection{grid-template-columns:1fr;}}
+
+/* 4.99 main navigation stays in the chat column, including split layouts. */
+.sofia-main-nav{display:flex;gap:6px;padding:8px 12px;flex-shrink:0;border-bottom:1px solid rgba(255,255,255,.08)}
+.sofia-main-nav button{flex:1;min-width:0;min-height:36px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid transparent;color:inherit;font:inherit;font-size:.85rem}
+.sofia-main-nav button.active{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.15)}
+.sofia-main-nav button:focus-visible{outline:2px solid currentColor;outline-offset:2px}
+.today-scene{padding:12px;border-radius:12px;background:rgba(255,255,255,.05)}
+.today-scene small{opacity:.65}.today-dialog section p{overflow-wrap:anywhere}

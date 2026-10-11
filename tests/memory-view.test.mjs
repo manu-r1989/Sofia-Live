@@ -28,3 +28,8 @@ test('duplicate review does not create a residence correction',()=>{
  assert.ok(result.every(x=>x.review.length===1&&x.review[0].includes('mehrfach')));
 });
 test('unmatched selection cannot mutate an unrelated memory',()=>assert.equal(selectMemory([a],'Ich mag Kaffee.',memoryIdentity(a)),null));
+
+test('provenance is explicit for new rows and remains unknown for legacy facts',()=>{
+ const at='2026-10-11T12:00:00Z',items=memoryReview([a,{...a,text:'Ich mag Kaffee.',source:{kind:'manual',at}},{...a,text:'Ich mag Tee.',source:{kind:'conversation',at}}]);
+ assert.equal(items[0].provenance.kind,'legacy');assert.equal(items[0].provenance.at,null);assert.equal(items[1].provenance.label,'Manuell bearbeitet');assert.equal(items[2].provenance.label,'Gespräch');assert.equal(items[2].provenance.at,at);assert.equal(items[2].owner,'user');assert.equal(a.source,undefined);
+});
