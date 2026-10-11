@@ -110,6 +110,7 @@ function normalizeMemoryItem(item) {
     text: item.text.trim().slice(0, 500),
     category: typeof item.category === "string" && item.category.trim() ? item.category.trim() : memoryCategory(item.text),
     createdAt: typeof item.createdAt === "string" ? item.createdAt : null,
+    ...(item.source&&['conversation','manual'].includes(item.source.kind)?{source:{kind:item.source.kind,at:item.source.at||null}}:{}),
     updatedAt: typeof item.updatedAt === "string" ? item.updatedAt : null
   };
 }
@@ -229,6 +230,7 @@ export default async function handler(req, res) {
       memories[index] = {
         ...memories[index],
         text: new_memory.trim(),
+        source:{kind:'manual',at:new Date().toISOString()},
         category: nextCategory,
         updatedAt: new Date().toISOString()
       };

@@ -281,7 +281,7 @@ test('settings persist across dates, disable only proactive photos, and validate
  reset();const now=new Date('2026-10-06T12:15Z'),first=await api.getSofiaLife(now);
  const settings={initiative:'quiet',photos:false,replyLength:'short'};
  const life=await api.editCharacterState({field:'settings',value:settings,revision:first.revision},now);
- assert.deepEqual((await api.getSofiaLife(new Date('2026-10-07T12:15Z'))).settings,settings);
+ assert.deepEqual((await api.getSofiaLife(new Date('2026-10-07T12:15Z'))).settings,{...settings,questionFrequency:'balanced',topicInitiative:'balanced'});
  assert.equal(await api.prepareProactivePortrait('Wo bist du?',life,'',now),null);
  assert.match(api.initiativeContext(life,'Wie geht es dir?',now),/Zurückhaltend/);
  assert.ok(await api.preparePortrait('Ein Selfie bitte',null,now));
@@ -631,3 +631,22 @@ test('photographic camera and gaze vary independently and retained variants rema
  assert.deepEqual(api.photoPose({photoPose:first},true,'ernst',[{photoPose:next}]),first);
 });
 
+
+test('shared situation separates Sofia from user locations and captured photo scenes',()=>{
+ const life={location:'im Café',activity:'Kaffee trinken',mood:'entspannt',revision:8,updatedAt:'2026-10-11T12:00:00Z',situation:{sources:{location:{source:'conversation',at:'2026-10-11T12:00:00Z'}}},weather:{condition:'Regen',at:'2026-10-11T11:50:00Z'},lastPhoto:{location:'im Bett'},dialogue:{lastUser:'Ich bin in Bremen',intent:'normal'}};
+ const view=api.situationView(life,new Date('2026-10-11T12:00Z'));
+ assert.equal(view.owner,'sofia');assert.equal(view.location,'im Café');assert.equal(view.weather.description,'Regen');assert.equal(view.weather.observedAt,life.weather.at);assert.match(view.clock,/14:00/);assert.equal(JSON.stringify(view).includes('Bremen'),false);assert.equal(JSON.stringify(view).includes('im Bett'),false);assert.equal(view.fieldSources.location.source,'conversation');
+});
+test('shared situation remains bounded and does not fabricate a weather observation',()=>{
+ const view=api.situationView({location:'a'.repeat(400),revision:'8'},new Date('2026-10-11T23:00Z'));
+ assert.equal(view.location.length,240);assert.equal(view.weather.observedAt,null);assert.equal(view.weather.description,null);assert.equal(view.revision,null);assert.match(view.clock,/12\.10\.26/);
+});
+test('rhythm settings survive day changes and older clients retain new settings',async()=>{
+ reset();const now=new Date('2026-10-11T12:15Z'),first=await api.getSofiaLife(now);
+ const settings={initiative:'balanced',replyLength:'auto',photos:false,questionFrequency:'rare',topicInitiative:'follow'};
+ const next=await api.editCharacterState({field:'settings',value:settings,revision:first.revision},now);
+ const old=await api.editCharacterState({field:'settings',value:{initiative:'active',replyLength:'short',photos:false},revision:next.revision},now);
+ assert.equal(old.settings.questionFrequency,'rare');assert.equal(old.settings.topicInitiative,'follow');
+ const later=await api.getSofiaLife(new Date('2026-10-12T12:15Z'));assert.equal(later.settings.questionFrequency,'rare');assert.equal(later.settings.topicInitiative,'follow');assert.match(api.conversationStyleContext(later,'Hallo'),/keine ungefragten Themenwechsel/);assert.match(api.conversationStyleContext(later,'Gute Nacht'),/Abschied.*Vorrang/);
+ await assert.rejects(api.editCharacterState({field:'settings',value:{...settings,questionFrequency:'always'},revision:later.revision},new Date('2026-10-12T12:15Z')),/character_invalid/);
+});

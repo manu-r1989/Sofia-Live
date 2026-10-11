@@ -245,7 +245,7 @@ function applyMemoryAction(
       );
 
     if (!duplicate && similarIndex === -1) {
-      result.push({ text: newMemory, category: memoryAction.category || "Sonstiges", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+      result.push({ text: newMemory, source:{kind:"conversation",at:new Date().toISOString()}, category: memoryAction.category || "Sonstiges", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
     }
   }
 
@@ -262,7 +262,7 @@ function applyMemoryAction(
       );
 
     if (index !== -1) {
-      result[index] = { text: newMemory, category: memoryAction.category || result[index]?.category || "Sonstiges", createdAt: result[index]?.createdAt || new Date().toISOString(), updatedAt: new Date().toISOString() };
+      result[index] = { text: newMemory, source:{kind:"conversation",at:new Date().toISOString()}, category: memoryAction.category || result[index]?.category || "Sonstiges", createdAt: result[index]?.createdAt || new Date().toISOString(), updatedAt: new Date().toISOString() };
     } else {
       const similarIndex = findSimilarMemoryIndex(result, newMemory);
       const duplicate =
@@ -273,7 +273,7 @@ function applyMemoryAction(
         );
 
       if (!duplicate && similarIndex === -1) {
-        result.push({ text: newMemory, category: memoryAction.category || "Sonstiges", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+        result.push({ text: newMemory, source:{kind:"conversation",at:new Date().toISOString()}, category: memoryAction.category || "Sonstiges", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
       }
     }
   }
@@ -882,5 +882,6 @@ async function redisPipeline(
 
   return data;
 }
+
 
 

@@ -31,7 +31,7 @@ test('conversation settings use revision guarded character API and habits can be
  const selects=controls.children.flatMap(n=>n.children).filter(n=>n.tag==='select');selects[0].value='quiet';selects[1].value='short';
  const photos=controls.children.flatMap(n=>n.children).find(n=>n.type==='checkbox');photos.checked=false;
  await controls.children.find(n=>n.textContent==='Gesprächseinstellungen speichern').onclick();
- assert.deepEqual(h.requests[0].value,{initiative:'quiet',replyLength:'short',photos:false,photoKinds:['selfie','environment']});assert.equal(h.requests[0].revision,7);
+ assert.deepEqual(h.requests[0].value,{initiative:'quiet',replyLength:'short',questionFrequency:'balanced',topicInitiative:'balanced',photos:false,photoKinds:['selfie','environment']});assert.equal(h.requests[0].revision,7);
  assert.equal(all(h.root).find(n=>n.textContent==='Gespräch und Fotos').tag,'summary');
 });
 
@@ -128,12 +128,19 @@ test('revision retry merges just the changed setting into newer server choices',
 
 test('remote settings update untouched controls without writing or losing local changes',async()=>{
  const h=harness(false),selects=all(h.root).filter(n=>n.tag==='select');selects[0].value='active';await selects[0].onchange();const writes=h.requests.length;
- h.context.window.SofiaCharacterSettings.sync({revision:8,settings:{initiative:'quiet',replyLength:'short',photos:false,photoKinds:['portrait']}});
+ h.context.window.SofiaCharacterSettings.sync({revision:8,settings:{initiative:'quiet',replyLength:'short',questionFrequency:'balanced',topicInitiative:'balanced',photos:false,photoKinds:['portrait']}});
  assert.equal(selects[0].value,'active');assert.equal(selects[1].value,'short');assert.equal(h.requests.length,writes);
  const draft=JSON.parse(h.storage.get('sofia_character_settings_pending_v1'));assert.equal(draft.base.initiative,'quiet');assert.equal(draft.value.initiative,'active');
 });
 test('pristine controls adopt newer server state but ignore delayed old settings',()=>{
- const h=harness();h.context.window.SofiaCharacterSettings.sync({revision:9,settings:{initiative:'quiet',replyLength:'short',photos:false,photoKinds:['full_portrait']}});
+ const h=harness();h.context.window.SofiaCharacterSettings.sync({revision:9,settings:{initiative:'quiet',replyLength:'short',questionFrequency:'balanced',topicInitiative:'balanced',photos:false,photoKinds:['full_portrait']}});
  const selects=all(h.root).filter(n=>n.tag==='select');assert.equal(selects[0].value,'quiet');assert.equal(selects[1].value,'short');
  h.context.window.SofiaCharacterSettings.sync({revision:8,settings:{initiative:'active'}});assert.equal(selects[0].value,'quiet');assert.equal(h.requests.length,0);
+});
+
+
+test('separate question and topic preferences are saved with the exact displayed revision',async()=>{
+ const h=harness(),controls=all(h.root).find(n=>n.children.some(x=>x.textContent==='Gesprächseinstellungen speichern'));
+ const selects=controls.children.flatMap(n=>n.children).filter(n=>n.tag==='select');selects[2].value='rare';selects[3].value='follow';
+ await controls.children.find(n=>n.textContent==='Gesprächseinstellungen speichern').onclick();assert.equal(h.requests[0].value.questionFrequency,'rare');assert.equal(h.requests[0].value.topicInitiative,'follow');assert.equal(h.requests[0].revision,7);assert.deepEqual(h.requests[0].value.photoKinds,['selfie','environment']);
 });

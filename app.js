@@ -1442,6 +1442,8 @@ function renderCharacterMemories(character) {
   const select=(label,choices,value)=>{const wrapper=document.createElement('label');wrapper.textContent=label+' ';const input=document.createElement('select');for(const [key,text]of choices){const option=document.createElement('option');option.value=key;option.textContent=text;input.append(option);}input.value=value;wrapper.append(input);controls.append(wrapper);return input;};
   const initiative=select('Gesprächsinitiative',[['quiet','Zurückhaltend'],['balanced','Ausgewogen'],['active','Aktiv']],settings.initiative||'balanced');
   const length=select('Antwortlänge',[['auto','Nach Bedarf'],['short','Kurz'],['detailed','Ausführlich']],settings.replyLength||'auto');
+  const questions=select('Häufigkeit eigener Rückfragen',[['rare','Selten'],['balanced','Gelegentlich'],['frequent','Öfter, wenn es passt']],settings.questionFrequency||'balanced');
+  const topics=select('Neue Gesprächsthemen',[['follow','Bei meinem Thema bleiben'],['balanced','Nach Gesprächsanlass'],['suggest','Gelegentlich etwas vorschlagen']],settings.topicInitiative||'balanced');
   const motifs=document.createElement('fieldset');motifs.style.cssText='border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:12px;display:grid;gap:10px';
   const legend=document.createElement('legend');legend.textContent='Eigene Fototypen · Mehrfachauswahl';motifs.append(legend);
   const selected=Array.isArray(settings.photoKinds)?settings.photoKinds:settings.photoMix==='selfies'?['selfie']:settings.photoMix==='moments'?['environment']:['selfie','environment'];
@@ -1451,7 +1453,7 @@ function renderCharacterMemories(character) {
   const summarizePhotos=()=>{photoSummary.textContent='Fototypen · '+photoKinds.filter(x=>x.checked).length+' ausgewählt';};summarizePhotos();photoSection.append(photoSummary,motifs);controls.append(photoSection);
   const photoLabel=document.createElement('label'),photos=document.createElement('input');photos.type='checkbox';photos.checked=settings.photos!==false;photoLabel.textContent='Gelegentliche eigene Fotos (max. 2 pro Stunde) ';photoLabel.append(photos);controls.append(photoLabel);
   const help=document.createElement('small');help.textContent='Die Motivauswahl gilt für selbst angebotene Fotos. Ausdrücklich angefragte Bilder bleiben möglich. Nachrichtenhäufigkeit und Ruhezeiten findest du unter Mitteilungen.';help.style.opacity='.65';controls.append(help);
-  const values=()=>({initiative:initiative.value,replyLength:length.value,photos:photos.checked,photoKinds:photoKinds.filter(x=>x.checked).map(x=>x.value)});
+  const values=()=>({initiative:initiative.value,replyLength:length.value,questionFrequency:questions.value,topicInitiative:topics.value,photos:photos.checked,photoKinds:photoKinds.filter(x=>x.checked).map(x=>x.value)});
   let serverValues=values();
   let settingsRevision=character.revision;
   let committed=JSON.stringify(serverValues),saving=null;
@@ -1460,6 +1462,8 @@ function renderCharacterMemories(character) {
     const changed=key=>JSON.stringify(draft.value[key])!==JSON.stringify(draft.base[key]);
     if(changed('initiative')&&['quiet','balanced','active'].includes(draft.value.initiative))initiative.value=draft.value.initiative;
     if(changed('replyLength')&&['auto','short','detailed'].includes(draft.value.replyLength))length.value=draft.value.replyLength;
+    if(changed('questionFrequency')&&['rare','balanced','frequent'].includes(draft.value.questionFrequency))questions.value=draft.value.questionFrequency;
+    if(changed('topicInitiative')&&['follow','balanced','suggest'].includes(draft.value.topicInitiative))topics.value=draft.value.topicInitiative;
     if(changed('photos')&&typeof draft.value.photos==='boolean')photos.checked=draft.value.photos;
     if(changed('photoKinds')&&Array.isArray(draft.value.photoKinds))for(const input of photoKinds)input.checked=draft.value.photoKinds.includes(input.value);
   }
@@ -1471,6 +1475,8 @@ function renderCharacterMemories(character) {
   function applySettings(value){
     if(['quiet','balanced','active'].includes(value.initiative))initiative.value=value.initiative;
     if(['auto','short','detailed'].includes(value.replyLength))length.value=value.replyLength;
+    if(['rare','balanced','frequent'].includes(value.questionFrequency))questions.value=value.questionFrequency;
+    if(['follow','balanced','suggest'].includes(value.topicInitiative))topics.value=value.topicInitiative;
     if(typeof value.photos==='boolean')photos.checked=value.photos;
     if(Array.isArray(value.photoKinds))for(const input of photoKinds)input.checked=value.photoKinds.includes(input.value);
     summarizePhotos();
@@ -1479,7 +1485,7 @@ function renderCharacterMemories(character) {
     if(saving||!life?.settings||!Number.isInteger(life.revision)||life.revision<=settingsRevision)return;
     const local=values(),base=JSON.parse(committed),fresh={...serverValues,...life.settings};
     const merged={...fresh,...Object.fromEntries(Object.entries(local).filter(([key,value])=>JSON.stringify(value)!==JSON.stringify(base[key])))};
-    serverValues={initiative:fresh.initiative,replyLength:fresh.replyLength,photos:fresh.photos,photoKinds:fresh.photoKinds};
+    serverValues={initiative:fresh.initiative,replyLength:fresh.replyLength,questionFrequency:fresh.questionFrequency||'balanced',topicInitiative:fresh.topicInitiative||'balanced',photos:fresh.photos,photoKinds:fresh.photoKinds};
     committed=JSON.stringify(serverValues);settingsRevision=life.revision;applySettings(merged);
     if(JSON.stringify(values())===committed){clearCharacterSettingsDraft(JSON.stringify(values()));feedback.textContent='Gespeicherte Einstellungen aktualisiert.';}
     else {storeCharacterSettingsDraft(values(),serverValues);feedback.textContent=characterSettingsError?'Noch nicht gespeichert. '+characterSettingsError+' Deine Auswahl bleibt auf diesem Gerät erhalten.':'Serverstand aktualisiert. Deine ungespeicherte Auswahl bleibt erhalten.';}
@@ -1502,7 +1508,7 @@ function renderCharacterMemories(character) {
     return ok&&JSON.stringify(values())!==committed?flushSettings():ok;
   }
   flushCharacterSettings=flushSettings;
-  for(const input of [initiative,length,photos,...photoKinds])input.onchange=()=>{summarizePhotos();storeCharacterSettingsDraft(values(),JSON.parse(committed));return flushSettings();};
+  for(const input of [initiative,length,questions,topics,photos,...photoKinds])input.onchange=()=>{summarizePhotos();storeCharacterSettingsDraft(values(),JSON.parse(committed));return flushSettings();};
   save.onclick=()=>flushSettings(true);controls.append(save,feedback);
   groups.settings.append(controls);
 
@@ -1706,6 +1712,7 @@ function renderMemoryItem(
   textWrap.appendChild(categoryLabel);
   textWrap.appendChild(text);
   const details=document.createElement('small');details.className='memory-provenance';const stamp=metadata.updatedAt||metadata.createdAt;details.textContent='Über dich · '+(Number.isFinite(Date.parse(stamp))?(metadata.updatedAt?'Zuletzt geändert: ':'Gespeichert: ')+new Date(stamp).toLocaleString('de-DE',{timeZone:'Europe/Berlin',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}):'Zeitpunkt nicht hinterlegt');textWrap.append(details);
+  const origin=document.createElement('small');origin.className='memory-provenance';origin.textContent='Quelle: '+(metadata.provenance?.label||'Bei älteren Einträgen nicht hinterlegt')+' · Dauerhafte Nutzererinnerung';textWrap.append(origin);
   for(const hint of metadata.review||[]){const note=document.createElement('p');note.className='memory-review-note';note.textContent=hint;note.setAttribute('role','note');textWrap.append(note);}item.dataset.memoryReview=String(!!metadata.review?.length);item.dataset.memoryId=metadata.id||'';
 
   item.dataset.memoryText=memory.toLowerCase();
