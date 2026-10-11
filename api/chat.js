@@ -1,5 +1,5 @@
 import { dataPrefix, testModeRequested, publicTestMode, guardTestRequest, providerFailure } from "../lib/environment.js";
-import { resolveReplyReference, replyReferenceContext, participantLocationContext, visibleConversation, DELETE_MESSAGE_SCRIPT, RESTORE_MESSAGE_SCRIPT, SAVE_VISIBLE_HISTORY_SCRIPT, conversationReferenceContext, replyPhotoReference } from '../lib/message-context.js';
+import { resolveReplyReference, replyReferenceContext, participantLocationContext, visibleConversation, DELETE_MESSAGE_SCRIPT, RESTORE_MESSAGE_SCRIPT, SAVE_VISIBLE_HISTORY_SCRIPT, conversationReferenceContext, conversationReferenceClarification, replyPhotoReference } from '../lib/message-context.js';
 import { persistMemorySnapshot, executeProjectCommand, executeMemoryCommand, projectState, projectContext, projectBinding, linkProjectResult, appearanceChoice, conversationClarification, guardPermanentMemory, compactConversationHistory, safeDiagnostic, taskReceipt, hamburgReferenceTime, portraitPreparationReply, preparePortrait, generatePortrait, servePortrait, portraitGallery, appendPortraitAcknowledgment, PORTRAIT_FAILURE_REPLY, getSofiaLife, currentSituationCorrection, synchronizeSituation, learnSofiaLife, lifeContext, selectedPhotoContext, prepareProactivePortrait, PROACTIVE_PHOTO_ANNOUNCEMENT } from '../lib/character-image.js';
 import crypto from "node:crypto";
 import { executeUnifiedAction, getActionState, getResearchState } from "./action-engine.js";
@@ -629,6 +629,9 @@ export default async function handler(req, res) {
 
     const directCommand=await executeMemoryCommand(message) || await executeProjectCommand(message);
     if(directCommand){const createdAt=await appendPortraitAcknowledgment(message,directCommand.reply);const life=await getSofiaLife();return res.status(200).json({reply:directCommand.reply,createdAt,life,mood:life.mood,taskAction:{ok:true,action:'none'}});}
+
+    const agendaClarification=conversationReferenceClarification(quoteHistory,message,quoteReference);
+    if(agendaClarification){const createdAt=await appendPortraitAcknowledgment(message,agendaClarification,'',quoteReference);const life=await getSofiaLife();return res.status(200).json({reply:agendaClarification,createdAt,life,mood:life.mood,taskAction:{ok:true,action:'none'}});}
 
     try {
       const appearance=await appearanceChoice(message,new Date(),req.body?.mood);

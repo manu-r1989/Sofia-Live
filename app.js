@@ -845,16 +845,17 @@ function submitChatMessage(event) {
   const imageForRequest = pendingCameraImage;
   chatPinnedToLatest=true;updateLatestButton();
 
+  const referenceImageId=window.SofiaWorkspace?.draftReferenceId ?? window.SofiaImages?.referenceId;
   const replyTo=window.SofiaWorkspace?.takeReply() || null;
   addMessage(imageForRequest ? `📷 ${messageText}` : messageText, 'user',null,null,new Date().toISOString(),replyTo);
   input.value = '';
-  window.SofiaWorkspace?.beginSubmission(messageText,replyTo);
+  window.SofiaWorkspace?.beginSubmission(messageText,replyTo,referenceImageId);
   window.SofiaUI?.resizeComposer(input);
   pendingCameraImage = null;
   document.querySelector('#cameraAttachment')?.remove();
   camera?.classList.remove('on');
 
-  Promise.resolve(askSofia(messageText, imageForRequest,{replyTo}))
+  Promise.resolve(askSofia(messageText, imageForRequest,{replyTo,referenceImageId}))
     .finally(() => window.SofiaLive?.clearImageContext?.());
   return false;
 }
@@ -879,13 +880,13 @@ if (sendButton) {
   document.getElementById('chatLatest')?.addEventListener('click',()=>scrollChatToLatest('smooth',true));
   window.SofiaChatSend=(message,options={})=>{
     if(isResponding||window.SofiaImages?.isGenerating||navigator.onLine===false||!String(message||'').trim())return false;
-    window.SofiaWorkspace?.beginSubmission(message,options.replyTo||null);if(input?.value===message)input.value='';window.SofiaWorkspace?.saveDraft();chatPinnedToLatest=true;addMessage(message,'user',null,null,undefined,options.replyTo||null);void askSofia(message,null,options);return true;
+    window.SofiaWorkspace?.beginSubmission(message,options.replyTo||null,options.referenceImageId);if(input?.value===message)input.value='';window.SofiaWorkspace?.saveDraft();chatPinnedToLatest=true;addMessage(message,'user',null,null,undefined,options.replyTo||null);void askSofia(message,null,options);return true;
   };
   window.SofiaPhotoAction=(message,referenceImageId)=>{
     if(referenceImageId!==undefined&&!/^[a-f0-9-]{36}$/.test(referenceImageId))return false;
     if(isResponding||window.SofiaImages?.isGenerating||!String(message||'').trim())return false;
     if(typeof navigator!=='undefined'&&navigator.onLine===false)return false;
-    chatPinnedToLatest=true;addMessage(message,'user');void askSofia(message,null,{referenceImageId});return true;
+    window.SofiaWorkspace?.beginSubmission(message,null,referenceImageId);chatPinnedToLatest=true;addMessage(message,'user');void askSofia(message,null,{referenceImageId});return true;
   };
   sendButton.addEventListener('click', event => {
     event.preventDefault();
