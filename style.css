@@ -1204,3 +1204,18 @@ html[data-chat-font="large"] .photo-follow-ups{grid-template-columns:repeat(2,mi
 .sofia-main-nav button:focus-visible{outline:2px solid currentColor;outline-offset:2px}
 .today-scene{padding:12px;border-radius:12px;background:rgba(255,255,255,.05)}
 .today-scene small{opacity:.65}.today-dialog section p{overflow-wrap:anywhere}
+
+/* 4.99.13: use the visible viewport directly while the phone keyboard is open.
+   Fixed-bottom + keyboard inset + home-indicator padding double-counted space
+   on iOS. Keep the avatar layout independent and anchor only the chat panel. */
+@media(max-width:850px) and (orientation:portrait){
+ :root[data-composer-focused="true"] .chatPanel{backdrop-filter:none!important;-webkit-backdrop-filter:none!important;transition:none!important;transform:none!important}
+ :root[data-keyboard-open="true"] .chatPanel:not(.chat-hidden){
+  --sofia-writing-height:min(600px,calc(var(--sofia-visible-height) - 16px));
+  top:calc(var(--sofia-visible-top,0px) + var(--sofia-visible-height) - var(--sofia-writing-height) - 4px)!important;
+  bottom:auto!important;height:var(--sofia-writing-height)!important;max-height:var(--sofia-writing-height)!important;min-height:0!important;padding:10px!important;
+ }
+ :root[data-keyboard-open="true"] .chatPanel .messages{min-height:0!important}
+ :root[data-keyboard-open="true"] .chatPanel~.actions{visibility:hidden!important;pointer-events:none!important;opacity:0!important}
+ :root[data-composer-focused="true"] #form #input{caret-color:#e2c39e;-webkit-user-select:text;user-select:text}
+}
