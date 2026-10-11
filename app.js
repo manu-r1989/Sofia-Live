@@ -621,10 +621,13 @@ function confirmLocalHistory(history,data) {
   return history.map(({delivery,...turn})=>turn);
 }
 
-function chatFailureFeedback(status,code,actionPossible,resultReceived) {
-  const busy=status===429 && code==='test_busy';
-  const uncertainAction=!busy && actionPossible && !resultReceived;
-  return {uncertainAction,statusLabel:status===429?(busy?'Bitte kurz warten':'Nutzungspause'):'Verbindungsfehler',message:busy?'Einen kleinen Moment, es läuft noch eine Anfrage. Bitte warte kurz.':status===429?'Ich brauche gerade eine kurze Pause. Bitte versuche es später noch einmal.':uncertainAction?'Die Verbindung ist gerade unterbrochen. Bitte prüfe zuerst den Aufgabenstand, bevor du die Aktion wiederholst.':'Meine Verbindung ist gerade unterbrochen. Sobald sie wieder da ist, können wir weiterreden.'};
+function chatFailureFeedback(status,code,actionPossible,resultReceived,retryAt=null) {
+ const busy=status===429&&code==='test_busy',knownRejected=status===429;
+ const uncertainAction=!busy&&actionPossible&&!resultReceived&&!knownRejected;
+ const descriptions={test_busy:['Bitte kurz warten','Es läuft noch eine Anfrage. Bitte warte kurz.'],test_rate_limit:['Anfragegrenze','Es wurden gerade zu viele Anfragen gestellt.'],test_daily_limit:['Test-Tageslimit','Das Tageslimit der Testversion ist erreicht.'],test_limit_unknown:['Testlimit','Die Test-Nutzungsgrenze ist erreicht; die genaue Ursache ist nicht bekannt.'],api_credit_exhausted:['API-Guthaben aufgebraucht','Der KI-Anbieter meldet aufgebrauchtes API-Guthaben. Bitte prüfe die API-Abrechnung.'],api_spend_limit:['API-Ausgabenlimit','Der KI-Anbieter meldet ein erreichtes Ausgabenlimit. Bitte prüfe die API-Limits.'],api_usage_limit:['API-Nutzungslimit','Der KI-Anbieter meldet ein erreichtes Nutzungslimit. Bitte prüfe die API-Limits.'],api_billing_limit:['API-Abrechnung prüfen','Der KI-Anbieter meldet ein Abrechnungs- oder Kontingentproblem. Der genaue Grund ist nicht bestätigt.'],api_rate_limit:['Anfragegrenze','Der KI-Anbieter begrenzt gerade weitere Anfragen.'],api_overloaded:['Dienst ausgelastet','Der KI-Dienst ist gerade ausgelastet.']};
+ const description=descriptions[code]||[status===429?'Anfrage abgewiesen':'Verbindungsfehler',status===429?'Die Anfrage wurde begrenzt. Die genaue Ursache ist nicht bekannt.':uncertainAction?'Die Verbindung ist unterbrochen. Bitte prüfe zuerst den Aufgabenstand, bevor du die Aktion wiederholst.':'Meine Verbindung ist gerade unterbrochen. Bitte prüfe vor einer Wiederholung den Verlauf.'];
+ const at=Date.parse(retryAt),wait=Number.isFinite(at)&&at>Date.now()?' Erneut möglich ab '+new Date(at).toLocaleString('de-DE',{timeZone:'Europe/Berlin',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'})+' (Hamburg).':'';
+ return {uncertainAction,statusLabel:description[0],message:description[1]+wait};
 }
 
 async function askSofia(userMessage, imageDataUrl = null, options = {}) {
@@ -719,7 +722,7 @@ async function askSofia(userMessage, imageDataUrl = null, options = {}) {
 
     if (!response.ok) {
       if(data.taskAction){actionResultReceived=true;window.SofiaActionFeedback?.show(data.taskAction);}
-      const error=new Error('Sofia konnte nicht antworten.');error.status=response.status;error.code=response.status===429 && /^Ein Testaufruf läuft bereits/.test(data.error||'')?'test_busy':data.code;throw error;
+      const error=new Error('Sofia konnte nicht antworten.');error.status=response.status;error.code=data.code||(response.status===429 && /^Ein Testaufruf läuft bereits/.test(data.error||'')?'test_busy':undefined);error.retryAt=data.retryAt;throw error;
     }
 
     window.SofiaWorkspace?.confirmSubmission(userMessage);
@@ -793,14 +796,15 @@ async function askSofia(userMessage, imageDataUrl = null, options = {}) {
     const pendingTurn=conversationHistory.at(-1);
     if(pendingTurn?.role==='user'){pendingTurn.delivery='unconfirmed';saveMemory();}
     const actionPossible = /aufgabe|erinner|termin|kalender|erledig|lösch|verschieb|priorität|\b(?:ändere|änder|mach das|nochmal)\b/i.test(userMessage);
-    const failure=chatFailureFeedback(error?.status,error?.code,actionPossible,actionResultReceived);
+    const failure=chatFailureFeedback(error?.status,error?.code,actionPossible,actionResultReceived,error?.retryAt);
     if (failure.uncertainAction) window.SofiaActionFeedback?.show({ ok: false, status: 'execution_failed' });
 
     const errorMessage = failure.message;
 
     window.SofiaWorkspace?.failSubmission(userMessage,{uncertain:!Number.isInteger(error?.status)||error.status>=500});
     const failureNode=addMessage(errorMessage,'sofia');
-    window.SofiaWorkspace?.failed(failureNode,userMessage,{uncertain:failure.uncertainAction,image:!!imageDataUrl,knownRejected:error?.status===429});
+    window.SofiaDiagnostics={lastError:{at:new Date().toISOString(),status:Number.isInteger(error?.status)?error.status:null,code:/^[a-z_]{1,60}$/.test(error?.code||'')?error.code:'request_failed',label:failure.statusLabel}};
+    window.SofiaWorkspace?.failed(failureNode,userMessage,{uncertain:failure.uncertainAction,image:!!imageDataUrl,knownRejected:error?.status===429,replyTo:options.replyTo||null,referenceImageId,retryAt:error?.retryAt});
 
     if (thought) {
       thought.textContent =
@@ -873,9 +877,9 @@ if (form && input) {
 
 if (sendButton) {
   document.getElementById('chatLatest')?.addEventListener('click',()=>scrollChatToLatest('smooth',true));
-  window.SofiaChatSend=message=>{
+  window.SofiaChatSend=(message,options={})=>{
     if(isResponding||window.SofiaImages?.isGenerating||navigator.onLine===false||!String(message||'').trim())return false;
-    chatPinnedToLatest=true;addMessage(message,'user');void askSofia(message);return true;
+    window.SofiaWorkspace?.beginSubmission(message,options.replyTo||null);if(input?.value===message)input.value='';window.SofiaWorkspace?.saveDraft();chatPinnedToLatest=true;addMessage(message,'user',null,null,undefined,options.replyTo||null);void askSofia(message,null,options);return true;
   };
   window.SofiaPhotoAction=(message,referenceImageId)=>{
     if(referenceImageId!==undefined&&!/^[a-f0-9-]{36}$/.test(referenceImageId))return false;
@@ -1239,6 +1243,7 @@ async function closeMemoryView() {
   return true;
 }
 
+let memoryFilterState={query:'',category:'Alle Kategorien',review:false};
 async function loadLongTermMemories() {
   if (
     !memoryList ||
@@ -1290,9 +1295,10 @@ async function loadLongTermMemories() {
     const search=document.createElement('input');search.type='search';search.placeholder='Erinnerungen durchsuchen';search.setAttribute('aria-label','Erinnerungen durchsuchen');search.style.cssText='flex:1;min-width:150px';
     const categoryFilter=document.createElement('select');categoryFilter.setAttribute('aria-label','Erinnerungen nach Kategorie filtern');
     for(const name of ['Alle Kategorien',...new Set(memoryItems.map(x=>x.category||'Sonstiges'))]){const o=document.createElement('option');o.value=name;o.textContent=name;categoryFilter.append(o);}
-    const reviewLabel=document.createElement('label'),reviewOnly=document.createElement('input');reviewOnly.type='checkbox';reviewOnly.setAttribute('aria-label','Nur Erinnerungen mit Prüfhinweisen');reviewLabel.append(reviewOnly,document.createTextNode(' Nur Prüfhinweise'));const filtered=document.createElement('span');filtered.setAttribute('role','status');
+    const reviewLabel=document.createElement('label'),reviewOnly=document.createElement('input');reviewOnly.type='checkbox';reviewOnly.setAttribute('aria-label','Nur Erinnerungen mit Prüfhinweisen');reviewLabel.append(reviewOnly,document.createTextNode(' Nur Prüfhinweise ('+memoryItems.filter(x=>x.review?.length).length+')'));const filtered=document.createElement('span');filtered.setAttribute('role','status');
     function filterMemories(){let count=0;for(const row of memoryList.querySelectorAll('[data-memory-text]')){row.hidden=!row.dataset.memoryText.includes(search.value.toLowerCase().trim())||(categoryFilter.value!=='Alle Kategorien'&&row.dataset.memoryCategory!==categoryFilter.value)||(reviewOnly.checked&&row.dataset.memoryReview!=='true');if(!row.hidden)count++;}filtered.textContent=count+' passende Erinnerungen';}
-    search.oninput=categoryFilter.onchange=reviewOnly.onchange=filterMemories;tools.append(projects,search,categoryFilter,reviewLabel,filtered);memoryList.append(tools);
+    search.value=memoryFilterState.query;categoryFilter.value=[...categoryFilter.options].some(x=>x.value===memoryFilterState.category)?memoryFilterState.category:'Alle Kategorien';reviewOnly.checked=memoryFilterState.review;
+    search.oninput=categoryFilter.onchange=reviewOnly.onchange=()=>{memoryFilterState={query:search.value,category:categoryFilter.value,review:reviewOnly.checked};filterMemories();};tools.append(projects,search,categoryFilter,reviewLabel,filtered);memoryList.append(tools);
 
 
     memoryCount.textContent =
@@ -1309,7 +1315,7 @@ async function loadLongTermMemories() {
       memories.length === 0
     ) {
       renderEmptyMemory();
-      renderCharacterMemories(data.character);
+      renderCharacterMemories(data.character);filterMemories();
       return;
     }
 

@@ -877,6 +877,10 @@
   ======================================== */
 
   function liveStartFailure(error,stage) {
+    const cause=error?.cause?.code,labels={api_credit_exhausted:'Der Live-Dienst meldet aufgebrauchtes API-Guthaben. Bitte prüfe die API-Abrechnung.',api_spend_limit:'Der Live-Dienst meldet ein erreichtes Ausgabenlimit.',api_usage_limit:'Der Live-Dienst meldet ein erreichtes Nutzungslimit.',api_billing_limit:'Der Live-Dienst meldet ein Abrechnungs- oder Kontingentproblem. Der genaue Grund ist nicht bestätigt.'};if(labels[cause])return labels[cause];
+    if(error?.code==='test_daily_limit')return 'Das Tageslimit der Live-Testversion ist erreicht.';
+    if(error?.code==='test_busy')return 'Es läuft noch eine Testanfrage. Bitte kurz warten.';
+    if(error?.code==='test_rate_limit')return 'Zu viele Testanfragen. Bitte kurz warten.';
     if(error?.code==='realtime_limit')return 'Live ist momentan durch das Nutzungslimit begrenzt. Bitte später erneut versuchen.';
     if(error?.code==='realtime_access')return 'Der Live-Dienst ist momentan nicht freigeschaltet.';
     if(error?.code==='realtime_timeout' || ['TimeoutError','AbortError'].includes(error?.name))return 'Der Live-Start hat zu lange gedauert. Bitte erneut versuchen.';
@@ -1005,7 +1009,7 @@
 
       if (!tokenResponse.ok) {
 
-        throw Object.assign(new Error("Realtime-Session nicht verfügbar."),{code:tokenData.code,status:tokenResponse.status});
+        throw Object.assign(new Error("Realtime-Session nicht verfügbar."),{code:tokenData.code,cause:tokenData.cause,status:tokenResponse.status});
 
       }
 
@@ -1912,4 +1916,5 @@
   );
 
 })();
+
 

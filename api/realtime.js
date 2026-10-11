@@ -1,4 +1,4 @@
-import { dataPrefix, testModeRequested, publicTestMode, guardTestRequest } from "../lib/environment.js";
+import { dataPrefix, testModeRequested, publicTestMode, guardTestRequest, providerFailure } from "../lib/environment.js";
 import crypto from "node:crypto";
 
 const MEMORY_KEY = dataPrefix() + 'longterm';
@@ -674,6 +674,7 @@ ${historyText}
       return res
         .status(openAIResponse.status)
         .json({
+          cause:providerFailure(openAIResponse.status,data,openAIResponse.headers?.get?.('retry-after')),
           code:openAIResponse.status===429?"realtime_limit":openAIResponse.status===401||openAIResponse.status===403?"realtime_access":"realtime_provider",
           error:"Realtime-Session konnte nicht erstellt werden."
         });
@@ -696,5 +697,6 @@ ${historyText}
     });
   }
 }
+
 
 
