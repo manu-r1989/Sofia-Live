@@ -26,7 +26,7 @@
   function moments(history=[],images=[],now=new Date()){
     const cutoff=+now-7*86400000,seen=new Set();
     const valid=at=>Number.isFinite(Date.parse(at))&&Date.parse(at)>=cutoff&&Date.parse(at)<=+now;
-    const messages=history.filter(x=>x&&!x.deleted&&['user','assistant'].includes(x.role)&&typeof x.content==='string'&&x.content.trim()&&valid(x.createdAt)).map(x=>({...x,kind:'message',at:x.createdAt}));
+    const messages=history.filter(x=>x&&!x.deleted&&['user','assistant'].includes(x.role)&&typeof x.content==='string'&&x.content.trim()&&!(x.role==='assistant'&&/^Gib mir einen kleinen Moment[.!]?$/i.test(x.content.trim()))&&valid(x.createdAt)).map(x=>({...x,kind:'message',at:x.createdAt}));
     const photos=images.filter(x=>x?.id&&!x.deleted&&x.published!==false&&!['pending','failed','expired'].includes(x.status)&&valid(x.sentAt||x.createdAt)).map(x=>({...x,kind:'photo',at:x.sentAt||x.createdAt}));
     return [...messages,...photos].sort((a,b)=>Date.parse(b.at)-Date.parse(a.at)).filter(x=>{const key=x.kind+':'+(x.id||x.role+':'+x.at+':'+x.content);if(seen.has(key))return false;seen.add(key);return true;}).slice(0,20);
   }
