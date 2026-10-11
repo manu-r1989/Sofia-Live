@@ -650,3 +650,5 @@ test('rhythm settings survive day changes and older clients retain new settings'
  const later=await api.getSofiaLife(new Date('2026-10-12T12:15Z'));assert.equal(later.settings.questionFrequency,'rare');assert.equal(later.settings.topicInitiative,'follow');assert.match(api.conversationStyleContext(later,'Hallo'),/keine ungefragten Themenwechsel/);assert.match(api.conversationStyleContext(later,'Gute Nacht'),/Abschied.*Vorrang/);
  await assert.rejects(api.editCharacterState({field:'settings',value:{...settings,questionFrequency:'always'},revision:later.revision},new Date('2026-10-12T12:15Z')),/character_invalid/);
 });
+
+test('shared situation reads persisted field provenance after transient change markers are cleared',()=>{const view=api.situationView({location:'im Café',situation:{sources:{location:{source:'correction',at:'2026-10-11T12:00Z'}}}},new Date('2026-10-11T12:00Z'));assert.equal(view.source,'correction');assert.equal(api.situationView({},new Date('2026-10-11T12:00Z')).source,'unrecorded');});

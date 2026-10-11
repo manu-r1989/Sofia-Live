@@ -14,9 +14,9 @@ Version 4.99.12, Assets/Cache 49912v2. Das geplante größere Update wird als 4.
 
 ## Prüfung
 
-- 692 automatisierte Tests bestanden, darunter 11 neue Prüfungen zu Kontexttrennung, Datum/Wetterquelle, Einstellungs-Kompatibilität, Rückblick/Quellöffnung und Navigation/Datenbestand.
+- 693 automatisierte Tests bestanden, darunter 12 neue Prüfungen zu Kontexttrennung, Datum/Wetterquelle, Einstellungs-Kompatibilität, Rückblick/Quellöffnung und Navigation/Datenbestand.
 - Syntax: 9 geänderte JS-Dateien und Inline-Skripte bestanden.
-- Browserabnahme auf Test: PWA-Update erhält ungesendeten Entwurf; Heute-Szene stimmt mit Status überein; bestehende neun Fotos und zwei Aufgaben vorhanden. Rückblick mit Zitaten und exakter Fotoöffnung (d25e580b-5490-46d8-804b-7ffc36f48aee) bestätigt. Kleine Nachbesserung: versteckte Foto-Vorbereitungsnachrichten nicht im Rückblick wieder anzeigen. Neue Rhythmuseinstellungen speichern; abschließende Reloadprüfung am finalen Kandidaten.
+- Browserabnahme auf Test: PWA-Update erhält ungesendeten Entwurf; Heute-Szene stimmt mit Status überein; bestehende neun Fotos und zwei Aufgaben vorhanden. Rückblick mit Zitaten und exakter Fotoöffnung (d25e580b-5490-46d8-804b-7ffc36f48aee) bestätigt. Kleine Nachbesserung: versteckte Foto-Vorbereitungsnachrichten nicht im Rückblick wieder anzeigen. Neue Rhythmuseinstellungen speichern; Reload bestätigt „Selten“ und „Bei meinem Thema bleiben“, danach ursprüngliche Auswahl wiederhergestellt. Herkunft liest auch nach Löschung des flüchtigen Änderungsmarkers die gespeicherte Feldquelle. Abschließende Asset-/Rückblickprüfung folgt am finalen Kandidaten.
 - Neue kostenpflichtige Fotos heute nicht erzeugt: bestehendes Test-Tageslimit bereits verbraucht. Die noch offene reale Fotoqualitätsabnahme aus 4.93 bleibt offen; kein automatisches Review als visuelle Abnahme ausgegeben. Bestehende Foto-/Perspektivlogik unverändert.
 - Reale iPhone-PWA-/Mikrofon-/Audioprüfung und Mehrtagesbeobachtung erfolgen durch Nutzer im laufenden Betrieb. Kein Avatar-/Voice-/WebRTC-/Lipsync-Code verändert.
 
