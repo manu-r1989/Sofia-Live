@@ -4,7 +4,7 @@
     const trigger=document.activeElement,viewport=window.SofiaChatViewport?.capture();
     element.classList.add('sofia-dialog');element.setAttribute('aria-label',label);
     const native=element.tagName==='DIALOG';if(!native){element.setAttribute('role','dialog');element.setAttribute('aria-modal','true');}
-    const restore=()=>{const parent=document.querySelector?.('dialog[open]');if(!parent&&element.dataset?.returnToLatest!=='true')window.SofiaChatViewport?.restore(viewport);if(trigger?.isConnected&&(!parent||parent.contains?.(trigger)))trigger.focus?.({preventScroll:true});};
+    const restore=()=>{const parent=[...(document.querySelectorAll?.('dialog[open]')||[])].at(-1)||document.querySelector?.('dialog[open]');if(!parent&&element.dataset?.returnToLatest!=='true')window.SofiaChatViewport?.restore(viewport);if(trigger?.isConnected&&(!parent||parent.contains?.(trigger)))trigger.focus?.({preventScroll:true});};
     if(native)element.addEventListener('close',restore,{once:true});
     else element.onkeydown=event=>{
       if(event.key==='Escape'){event.preventDefault();close?.();}if(event.key!=='Tab')return;
