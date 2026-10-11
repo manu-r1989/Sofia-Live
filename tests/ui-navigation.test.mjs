@@ -29,3 +29,21 @@ test('closing a nested viewer preserves parent dialog position and avoids backgr
 });
 test('keyboard focus state follows composer focus and blur for responsive layout',()=>{const h=harness();assert.equal(h.document.documentElement.dataset.composerFocused,'true');h.document.activeElement=null;h.events.blur();assert.equal(h.document.documentElement.dataset.composerFocused,'false');});
 test('closing a review returns focus to the topmost viewer rather than the background gallery',()=>{const h=harness();let focused=false;const trigger={isConnected:true,focus:()=>focused=true};h.document.activeElement=trigger;h.document.querySelectorAll=()=>[{contains:()=>false},{contains:x=>x===trigger}];const listeners={},review={tagName:'DIALOG',dataset:{},classList:{add(){}},setAttribute(){},addEventListener:(e,fn)=>listeners[e]=fn};h.window.SofiaUI.enhanceDialog(review,'Fotoänderung prüfen');listeners.close();assert.equal(focused,true);assert.equal(h.events.restore,undefined);});
+
+test('iOS shrinking innerHeight does not erase the keyboard detection baseline',()=>{
+ const h=harness();h.window.innerHeight=470;h.window.visualViewport.offsetTop=28;h.events['viewport-resize']();
+ assert.equal(h.document.documentElement.dataset.keyboardOpen,'true');assert.equal(h.variables['--sofia-visible-top'],'28px');assert.equal(h.variables['--sofia-visible-height'],'470px');assert.equal(h.variables['--sofia-keyboard-inset'],'302px');
+ h.document.activeElement=null;h.events.blur();assert.equal(h.document.documentElement.dataset.keyboardOpen,'false');assert.equal(h.variables['--sofia-keyboard-inset'],'0px');
+});
+test('viewport panning does not collapse or rewrite the active composer height',()=>{
+ const h=harness(),writes=[];let height=h.input.style.height;
+ Object.defineProperty(h.input.style,'height',{get:()=>height,set:v=>{writes.push(v);height=v;},configurable:true});
+ h.window.visualViewport.offsetTop=35;h.events['viewport-scroll']();h.window.visualViewport.offsetTop=65;h.events['viewport-scroll']();
+ assert.deepEqual(writes,[]);assert.equal(height,'144px');assert.equal(h.document.activeElement,h.input);assert.equal(h.variables['--sofia-visible-top'],'65px');
+});
+test('pinch zoom is not mistaken for a software keyboard',()=>{
+ const h=harness();h.window.visualViewport.scale=1.4;h.events['viewport-resize']();assert.equal(h.document.documentElement.dataset.keyboardOpen,'false');assert.equal(h.variables['--sofia-keyboard-inset'],'0px');
+});
+test('keyboard closing restores full composer bounds without forcing focus or altering a draft',()=>{
+ const h=harness();h.input.value='Ein ungesendeter Entwurf';h.window.visualViewport.height=210;h.events['viewport-resize']();assert.equal(h.input.style.height,'52px');h.window.visualViewport.height=800;h.events['viewport-resize']();assert.equal(h.input.style.height,'144px');assert.equal(h.document.documentElement.dataset.keyboardOpen,'false');assert.equal(h.input.value,'Ein ungesendeter Entwurf');assert.equal(h.document.activeElement,h.input);
+});
