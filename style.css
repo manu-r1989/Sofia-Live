@@ -1168,3 +1168,11 @@ html[data-chat-font="large"] .photo-follow-ups{grid-template-columns:repeat(2,mi
 .photo-series-toggle{grid-column:1/-1;min-height:44px}
 .photo-series-toggle[aria-pressed="true"]{border-color:#dec5a3;background:#dec5a31f}
 .contact-plan-note{font-size:13px;line-height:1.5;padding:10px;border:1px solid #ffffff25;border-radius:10px}
+
+/* V4.90: secondary photo controls and clearer contact settings. */
+.photo-advanced{margin:10px 0;border:1px solid var(--ui-border);border-radius:12px;padding:10px}
+.photo-advanced>summary{cursor:pointer;min-height:44px;display:flex;align-items:center;font-size:14px}
+.photo-secondary-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:8px}
+.sofia-photo-view .photo-secondary-grid>.photo-action{width:100%;min-height:52px;min-width:0;margin:0!important;padding:10px 12px;border-radius:12px!important;font:inherit;font-size:14px;line-height:1.4;display:flex;align-items:center;justify-content:center;box-sizing:border-box;hyphens:auto;white-space:normal}
+.contact-settings-note{font-size:12px;line-height:1.5;color:var(--ui-muted)}
+@media(max-width:420px){.photo-secondary-grid{grid-template-columns:minmax(0,1fr)}}

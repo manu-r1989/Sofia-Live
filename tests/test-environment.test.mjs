@@ -26,7 +26,8 @@ function setup(){
    const [script,count,...rest]=args,keys=rest.slice(0,count),a=rest.slice(count),n=k=>Number(store.get(k)||0);
    if(script===env.TEST_BUDGET_SCRIPT){
     if(store.has(keys[3]))result=-2;
-    else if(n(keys[0])+Number(a[0])>100||n(keys[1])>=Number(a[1])||n(keys[2])>=10)result=0;
+    else if(n(keys[0])+Number(a[0])>100||n(keys[1])>=Number(a[1]))result=-4;
+    else if(n(keys[2])>=10)result=-3;
     else{store.set(keys[0],n(keys[0])+Number(a[0]));store.set(keys[1],n(keys[1])+1);store.set(keys[2],n(keys[2])+1);store.set(keys[3],a[2]);result=1;}
    }else if(script===env.TEST_IMAGE_SCRIPT){if(n(keys[0])>=2||n(keys[1])+10>100)result=0;else{store.set(keys[0],n(keys[0])+1);store.set(keys[1],n(keys[1])+10);result=1;}}
    else if(script===env.RESET_TEST_SCRIPT){if(store.get(keys[0])!==a[1])result=-1;else{const matches=[...store.keys()].filter(k=>k.startsWith(a[0]));if(matches.length>500)result=-2;else{result=0;for(const k of matches)if(!k.startsWith(a[0]+'_budget:')){store.delete(k);result++;}}}}
@@ -105,3 +106,9 @@ test('task listing uses only the test namespace even when production keys are pr
  assert.equal(calls.some(c=>c[0]==='GET'&&c[1]==='sofia:main:tasks'),false);
 });
 
+
+
+ test('daily and minute test limits retain budgets and expose different reliable deadlines',async()=>{
+ setup();store.set('sofia:test-web:_budget:chat:'+new Date().toISOString().slice(0,10),50);let r=response();assert.equal(await env.guardTestRequest(req(),r),false);assert.equal(r.body.code,'test_daily_limit');assert.equal(new Date(r.body.retryAt).getUTCHours(),0);
+ setup();for(let i=0;i<10;i++){r=response();assert.equal(await env.guardTestRequest(req(),r),true);await r.json({ok:true});}r=response();assert.equal(await env.guardTestRequest(req(),r),false);assert.equal(r.body.code,'test_rate_limit');assert.equal(r.body.retryAfterSeconds,60);
+ });

@@ -35,3 +35,14 @@ test('session failure stays visible after cleanup instead of returning silently 
 test('microphone permission failure identifies the permission and allows another start',async()=>{
  const h=startHarness('microphone');await h.run();assert.match(h.thoughts.at(-1),/Mikrofonzugriff/);await h.run();assert.equal(h.stops(),2);
 });
+
+test('confirmed credit exhaustion and unknown quota remain distinct in live errors',async()=>{
+ for(const [code,expected] of [['credit_balance_exhausted','api_credit_exhausted'],['insufficient_quota','api_billing_limit']]){
+  const r=await endpoint({ok:false,status:429,json:async()=>({error:{code,message:'private-account-info'}})});
+  assert.equal(r.payload.cause.code,expected);assert.doesNotMatch(JSON.stringify(r.payload),/private-account-info/);
+ }
+ const c=vm.createContext({});const fn=source.slice(source.indexOf('  function liveStartFailure'),source.indexOf('  async function startLive'));
+ vm.runInContext(fn+';globalThis.explain=liveStartFailure;',c);
+ assert.match(c.explain({cause:{code:'api_credit_exhausted'}},'session'),/aufgebrauchtes API-Guthaben/);
+ assert.match(c.explain({cause:{code:'api_billing_limit'}},'session'),/genaue Grund ist nicht bestätigt/);
+});

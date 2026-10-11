@@ -224,7 +224,7 @@ test('image delivery is private JPEG with download attachment and validated IDs'
 });
 test('UI integration loads shared renderer before app and does not alter avatar assets',async()=>{
  const root=new URL('../',import.meta.url);const index=await readFile(new URL('index.html',root),'utf8');
- assert.ok(index.indexOf('sofia-images.js?v=4857v1')<index.indexOf('app.js?v=4857v1'));
+ assert.ok(index.indexOf('sofia-images.js?v=49012v1')<index.indexOf('app.js?v=49012v1'));
  const chat=await readFile(new URL('api/chat.js',root),'utf8');
  assert.ok(chat.indexOf('!safeEqual(')<chat.indexOf('await servePortrait'));
  const ui=await readFile(new URL('sofia-images.js',root),'utf8');assert.match(ui,/dialog.showModal/);assert.match(ui,/link.download=/);assert.doesNotMatch(ui,/spinner|generating-status/);
@@ -641,3 +641,15 @@ test('variant description never imports the current scene from a planner caption
 
 test('selected photo detail keeps exact source and remains a variant',async()=>{reset();const now=new Date(),id=previousPhotograph(now);plan={action:'new',scene:'Nahaufnahme',kind:'detail'};const job=await api.preparePortrait('Zeig mir bitte eine Nahaufnahme dieses Fotos, um das Oberteil genauer zu sehen.',id,now);assert.equal(JSON.parse(db.get(prefix+'request:'+job.id)).sourceId,id);assert.equal(JSON.parse(db.get(prefix+'request:'+job.id)).variant,true);});
 test('variant review checks clear identity, hair and unrequested outfit drift only against source',async()=>{reset();reviewQueue=[{ok:false,confidence:.95,mismatches:['identity','hair-color','outfit']}];const result=await api.reviewPortrait('/9j/BB==',{variant:true,dimensions:['framing'],scene:'Nahaufnahme'},12000,'/9j/AA==');assert.equal(result.status,'mismatch');assert.deepEqual(result.mismatches,['identity','hair-color','outfit']);reviewQueue=[{ok:false,confidence:.95,mismatches:['outfit']}];const changed=await api.reviewPortrait('/9j/BB==',{variant:true,dimensions:['outfit'],scene:'Anderes Oberteil'},12000,'/9j/AA==');assert.deepEqual(changed.mismatches,[]);});
+
+ test('natural photo acceptance requires an actual recent offer and ignores refusals and stale contexts',()=>{const now=new Date('2026-10-11T01:30Z'),life={dialogue:{at:now.toISOString(),lastUser:'Wie siehst du gerade aus?',lastAssistant:'Soll ich es dir zeigen?'}};for(const t of ['ja','ja bitte','gern','Das würde ich gern sehen'])assert.equal(api.contextualPhotoRequest(t,life,now),true,t);for(const t of ['nein','später','ja, aber ohne Foto'])assert.equal(api.contextualPhotoRequest(t,life,now),false,t);assert.equal(api.contextualPhotoRequest('ja',{dialogue:{...life.dialogue,lastAssistant:'Willst du darüber reden?'}},now),false);assert.equal(api.contextualPhotoRequest('ja',life,new Date(+now+600001)),false);});
+test('failed photo variant preserves the exact source and exposes confirmed billing cause only',async()=>{
+ reset();const first=await api.preparePortrait('Selfie');await api.generatePortrait(first.id);plan.action='variant';
+ const variant=await api.preparePortrait('Dasselbe in anderem Licht',first.id),normal=globalThis.fetch;
+ globalThis.fetch=async(url,options)=>String(url).endsWith('/images/edits')?{ok:false,status:429,headers:{get:()=>null},json:async()=>({error:{code:'credit_balance_exhausted',message:'private-billing-data'}})}:normal(url,options);
+ try{
+  await assert.rejects(api.generatePortrait(variant.id));const notice=(await api.portraitGallery()).find(x=>x.id===variant.id);
+  assert.equal(notice.status,'failed');assert.equal(notice.sourceId,first.id);assert.equal(notice.expectedSourceId,first.id);assert.equal(notice.failureCode,'api_credit_exhausted');assert.match(notice.message,/Guthaben/);assert.doesNotMatch(JSON.stringify(notice),/private-billing-data/);
+  assert.equal(JSON.parse(db.get(prefix+'state')).lastImageId,first.id);await assert.rejects(api.generatePortrait(variant.id),/bereits gestartet/);
+ }finally{globalThis.fetch=normal;}
+});

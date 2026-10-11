@@ -1,4 +1,4 @@
-import { dataPrefix, testModeRequested, publicTestMode, guardTestRequest } from "../lib/environment.js";
+import { dataPrefix, testModeRequested, publicTestMode, guardTestRequest, providerFailure } from "../lib/environment.js";
 import { resolveReplyReference, replyReferenceContext, participantLocationContext, visibleConversation, DELETE_MESSAGE_SCRIPT, RESTORE_MESSAGE_SCRIPT, SAVE_VISIBLE_HISTORY_SCRIPT, conversationReferenceContext, replyPhotoReference } from '../lib/message-context.js';
 import { persistMemorySnapshot, executeProjectCommand, executeMemoryCommand, projectState, projectContext, projectBinding, linkProjectResult, appearanceChoice, conversationClarification, guardPermanentMemory, compactConversationHistory, safeDiagnostic, taskReceipt, hamburgReferenceTime, portraitPreparationReply, preparePortrait, generatePortrait, servePortrait, portraitGallery, appendPortraitAcknowledgment, PORTRAIT_FAILURE_REPLY, getSofiaLife, currentSituationCorrection, synchronizeSituation, learnSofiaLife, lifeContext, selectedPhotoContext, prepareProactivePortrait, PROACTIVE_PHOTO_ANNOUNCEMENT } from '../lib/character-image.js';
 import crypto from "node:crypto";
@@ -1727,7 +1727,7 @@ Kein Markdown außerhalb des JSON-Objekts.
     if (!response.ok) {
 
       console.warn("Sofia request",{code:"chat_provider_failed",status:response.status});
-      return res.status(response.status).json({error:"Sofia konnte gerade nicht antworten.",code:"chat_provider_failed",...(completedTaskAction?{taskAction:completedTaskAction}:{})});
+      return res.status(response.status).json({error:"Sofia konnte gerade nicht antworten.",...providerFailure(response.status,data,response.headers?.get?.("retry-after")),...(completedTaskAction?{taskAction:completedTaskAction}:{})});
 
     }
 
