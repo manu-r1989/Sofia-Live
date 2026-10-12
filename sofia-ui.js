@@ -53,19 +53,37 @@
       submit(event);
     });
   }
-  window.SofiaUI={enhanceDialog,resizeComposer,refreshDays,motion,bindSendButton};
+  function focusEditor(editor){
+    if(!editor)return;
+    // Keep this synchronous with the user gesture for the iOS keyboard. A newly
+    // revealed field needs layout/scroll before native focus, not a delayed focus.
+    editor.scrollIntoView?.({block:'nearest',behavior:'auto'});
+    editor.getBoundingClientRect?.();
+    editor.focus?.({preventScroll:true});
+  }
+  window.SofiaUI={enhanceDialog,resizeComposer,refreshDays,motion,bindSendButton,focusEditor};
   const input=document.getElementById('input');input?.addEventListener('input',()=>resizeComposer(input));resizeComposer(input);
   const viewport=window.visualViewport;
   let layoutHeight=Math.max(window.innerHeight||0,document.documentElement.clientHeight||0,viewport?.height||0);
+  let layoutWidth=window.innerWidth||0,lastHeight=null,lastEditor=null;
   function resize(){const focused=document.activeElement===input,height=viewport?.height||window.innerHeight;
+    const width=window.innerWidth||0;
+    if(width&&layoutWidth&&Math.abs(width-layoutWidth)>80)layoutHeight=Math.max(window.innerHeight||0,document.documentElement.clientHeight||0,height||0);
+    if(width)layoutWidth=width;
     if(!focused)layoutHeight=Math.max(layoutHeight,window.innerHeight||0,document.documentElement.clientHeight||0,height||0);
     const top=Math.max(0,viewport?.offsetTop||0),bottom=top+height;
-    const keyboardOpen=focused&&(viewport?.scale||1)<=1.01&&Math.max(layoutHeight,document.documentElement.clientHeight||0,window.innerHeight||0)-height>96;
+    const baseline=Math.max(layoutHeight,document.documentElement.clientHeight||0,window.innerHeight||0);
+    const keyboardOpen=focused&&(viewport?.scale||1)<=1.01&&baseline-height>Math.max(160,baseline*.2);
+    const editor=document.activeElement!==input&&document.activeElement?.tagName==='TEXTAREA'?document.activeElement:null;
+    document.documentElement.dataset.editorFocused=String(!!editor);
     document.documentElement.dataset.composerFocused=String(focused);document.documentElement.dataset.compactViewport=String(focused&&height<320);
     document.documentElement.dataset.keyboardOpen=String(keyboardOpen);
     const inset=keyboardOpen?Math.max(0,layoutHeight-bottom):0;
     document.documentElement.style.setProperty('--sofia-keyboard-inset',inset+'px');document.documentElement.style.setProperty('--sofia-visible-height',height+'px');document.documentElement.style.setProperty('--sofia-visible-top',top+'px');resizeComposer(input,false);
+    if(editor&&(lastHeight!==height||lastEditor!==editor))editor.scrollIntoView?.({block:'nearest',behavior:'auto'});
+    lastHeight=height;lastEditor=editor;
   }
+  document.addEventListener?.('focusin',resize);document.addEventListener?.('focusout',()=>{if(window.requestAnimationFrame)window.requestAnimationFrame(resize);else resize();});
   viewport?.addEventListener('resize',resize);viewport?.addEventListener('scroll',resize);window.addEventListener('resize',resize);input?.addEventListener('focus',resize);input?.addEventListener('blur',resize);resize();
 })();
 
