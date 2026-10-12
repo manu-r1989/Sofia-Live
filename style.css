@@ -1152,7 +1152,7 @@ html[data-chat-font="large"] .photo-follow-ups{grid-template-columns:repeat(2,mi
 .sofia-photo-view .photo-action,.gallery-filters button,.gallery-filter-section summary{min-height:44px}
 .message-quote-toggle:focus-visible,.photo-action:focus-visible,#sendButton:focus-visible{outline:2px solid #e2c39e;outline-offset:3px}
 @media(max-width:760px){
- :root[data-composer-focused="true"] .app{--sofia-chat-height:min(80dvh,calc(var(--sofia-visible-height,100dvh) - 32px))}
+ :root[data-composer-focused="true"][data-keyboard-open="true"] .app{--sofia-chat-height:min(80dvh,calc(var(--sofia-visible-height,100dvh) - 32px))}
  :root[data-composer-focused="true"] .chatHead{min-height:32px}
  :root[data-composer-focused="true"] #form{padding-top:4px;gap:6px}
  :root[data-composer-focused="true"] #replyPreview{max-height:52px}
@@ -1218,4 +1218,16 @@ html[data-chat-font="large"] .photo-follow-ups{grid-template-columns:repeat(2,mi
  :root[data-keyboard-open="true"] .chatPanel .messages{min-height:0!important}
  :root[data-keyboard-open="true"] .chatPanel~.actions{visibility:hidden!important;pointer-events:none!important;opacity:0!important}
  :root[data-composer-focused="true"] #form #input{caret-color:#e2c39e;-webkit-user-select:text;user-select:text}
+}
+
+/* 4.99.15: full PWA canvas, bottom docking and aligned gallery rows. */
+.gallery-grid>.gallery-card{display:flex;flex-direction:column;align-self:stretch;min-width:0}
+.gallery-grid>.gallery-card>.gallery-photo-button{margin-top:auto!important;flex:0 0 auto}
+.gallery-grid>.gallery-card>button:last-of-type{flex:0 0 auto;min-height:44px;margin-bottom:0}
+.gallery-grid>.gallery-card>.gallery-photo-button img{aspect-ratio:2/3;object-fit:cover}
+@media(max-width:850px) and (orientation:portrait){
+ .app{position:fixed;inset:0;height:auto;min-height:0}
+ :root:not([data-keyboard-open="true"]) .chatPanel:not(.chat-hidden){bottom:6px!important;padding-bottom:max(10px,env(safe-area-inset-bottom))!important}
+ dialog#sofia-gallery{position:fixed;inset:auto 12px max(6px,env(safe-area-inset-bottom));top:max(12px,env(safe-area-inset-top));margin:0!important;width:auto!important;height:auto;max-height:none!important;box-sizing:border-box}
+ :root[data-editor-focused="true"] dialog[open]{--sofia-editor-top:max(calc(var(--sofia-visible-top,0px) + 8px),env(safe-area-inset-top));top:var(--sofia-editor-top)!important;bottom:auto!important;margin:0 12px!important;max-height:calc(var(--sofia-visible-top,0px) + var(--sofia-visible-height,100dvh) - var(--sofia-editor-top) - 8px)!important;scroll-padding-bottom:16px}
 }
