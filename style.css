@@ -1246,3 +1246,37 @@ html[data-chat-font="large"] .photo-follow-ups{grid-template-columns:repeat(2,mi
 #form .composer-camera{grid-column:1!important;grid-row:auto}
 #form #input{grid-column:2!important}
 #form .send{grid-column:3!important}
+
+/* V4.100.1 — one icon row, real half/full sizes, compact photo controls. */
+.sofia-main-nav{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;padding:0 0 8px;margin:0;flex:none;align-items:center}
+.sofia-main-nav>button{display:inline-flex!important;align-items:center;justify-content:center;min-width:0!important;width:100%!important;height:44px!important;min-height:44px!important;margin:0!important;padding:8px!important;border-radius:11px!important;box-sizing:border-box;position:relative;font-size:0!important}
+.sofia-main-nav svg{display:block;width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.sofia-main-nav #voiceToggle{color:inherit;background:rgba(255,255,255,.04)}
+.sofia-main-nav #voiceToggle.live-active{color:#a7c8b1;background:#a7c8b11a}
+.sofia-main-nav #voiceToggle.live-connecting{color:var(--ui-accent)}
+.chatHeadActions{display:none!important}
+.chatHead{padding:0 0 8px!important;min-height:0!important;height:auto!important}
+.chatHead>div:first-child{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;min-width:0}
+.chatHead strong{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chatHead #mode{flex:none;margin:0}
+:root:not([data-keyboard-open="true"]) .app .chatPanel[data-chat-size="full"]{top:max(12px,env(safe-area-inset-top))!important;bottom:6px!important;height:auto!important;max-height:none!important;min-height:0!important;box-sizing:border-box!important}
+:root:not([data-keyboard-open="true"]) .app .chatPanel[data-chat-size="compact"]{top:auto!important;bottom:6px!important;height:calc((100dvh - max(12px,env(safe-area-inset-top)) - 6px)/2)!important;max-height:calc((100dvh - max(12px,env(safe-area-inset-top)) - 6px)/2)!important;min-height:0!important;box-sizing:border-box!important}
+.app .chatPanel[data-chat-size="compact"] .messages{display:flex!important;min-height:0!important}
+.app .chatPanel[data-chat-size="compact"] #form{display:grid!important}
+.app .chatPanel[data-chat-size="compact"] .chatHead small{display:inline-flex!important}
+.app .chatPanel[data-chat-size="hidden"]{display:none!important}
+.app.chat-is-hidden .chatRestore{display:flex!important;align-items:center;justify-content:center}
+.sofia-photo-view .photo-action-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin:8px 0}
+.sofia-photo-view .photo-action-grid>.photo-action{min-height:40px!important;padding:6px!important;font-size:12px!important;line-height:1.2!important;border-radius:10px!important}
+.sofia-photo-view .photo-series-nav{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.sofia-photo-view .photo-series-nav button{flex:1 1 100px;width:auto!important;min-height:36px!important;padding:6px 8px!important;font-size:12px!important;line-height:1.2!important}
+.sofia-photo-view .photo-more>summary{min-height:40px;padding:8px 10px;font-size:13px}
+.sofia-photo-view .photo-secondary-grid{gap:6px}
+.sofia-photo-view .photo-secondary-grid button{min-height:38px!important;padding:7px 8px!important;font-size:12px!important;line-height:1.2!important}
+.sofia-photo-view .photo-count{font-size:13px;align-self:center}
+.sofia-photo-view .photo-source-choice{padding:8px;font-size:12px}
+@media(min-width:851px){:root:not([data-keyboard-open="true"]) .app .chatPanel[data-chat-size="full"]{bottom:22px!important;top:18px!important}:root:not([data-keyboard-open="true"]) .app .chatPanel[data-chat-size="compact"]{bottom:22px!important;height:calc((100dvh - 40px)/2)!important;max-height:calc((100dvh - 40px)/2)!important}}
+@media(max-width:360px){.sofia-main-nav{gap:2px}.sofia-main-nav>button{padding:5px!important}.sofia-main-nav svg{width:19px;height:19px}}
+body:has(#sofia-test-banner) .app .chatPanel[data-chat-size="full"]{top:44px!important}
+body:has(#sofia-test-banner) .app .chatPanel[data-chat-size="compact"]{top:auto!important}
+.sofia-photo-view [aria-label="Vorheriges Foto"],.sofia-photo-view [aria-label="Nächstes Foto"]{min-height:36px!important;padding:6px 10px!important;font-size:12px!important;line-height:1.2!important}
