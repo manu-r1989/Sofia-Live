@@ -1336,3 +1336,8 @@ body:has(#sofia-test-banner) .app .chatPanel[data-chat-size="compact"]{top:auto!
 .chatPanel .chatHead{display:flex!important;align-items:center!important;min-height:44px!important;padding:8px 0!important;flex-shrink:0}
 .chatPanel .chatHead>div:first-child{align-items:center!important;min-height:28px}
 @media(min-width:850px){#sofia-gallery .gallery-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important}}
+
+#sofia-gallery .gallery-card-date{margin:0!important;font-size:11px!important;line-height:1.3}
+#sofia-gallery .gallery-card>.gallery-favorite{min-width:36px!important}
+#sofia-gallery .gallery-filters label{margin:0!important;gap:5px!important}
+#sofia-gallery .gallery-filters select{margin:0!important}
