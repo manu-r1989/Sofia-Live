@@ -36,3 +36,4 @@ test('recurring task uses real next due time formatted in Berlin',()=>{
   const h=setup();h.api.show({ok:true,action:'complete_recurring',nextDueAt:'2026-10-07T09:00:00',task:{title:'Test'}});
   assert.match(h.panel().textContent,/07\.10\.2026/);assert.match(h.panel().textContent,/09:00/);assert.match(h.panel().textContent,/Berlin/);
 });
+

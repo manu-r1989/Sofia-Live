@@ -60,7 +60,7 @@
 
   <link
     rel="stylesheet"
-    href="./style.css?v=49915v1"
+    href="./style.css?v=41000v2"
   >
 </head>
 
@@ -348,8 +348,8 @@
 
 
         <div class="chatHeadActions">
-          <button id="workspaceAction" type="button" aria-label="Chatwerkzeuge und Einstellungen" title="Chatwerkzeuge und Einstellungen">⋯</button>
-          <button id="toolsToggle" type="button" aria-label="Werkzeugleiste ein-/ausblenden" aria-expanded="false" title="Werkzeuge">☷</button>
+          <button id="workspaceAction" type="button" aria-label="Einstellungen" title="Einstellungen">⚙</button>
+          <button id="chatToolsAction" type="button" aria-label="Chat durchsuchen" title="Chat durchsuchen">⌕</button>
 <button
             type="button"
             id="voiceToggle"
@@ -399,6 +399,7 @@
       <div id="replyPreview" class="composer-reply" aria-label="Antwortbezug" hidden></div>
 
       <form id="form">
+        <button id="camera" type="button" class="composer-camera" aria-label="Foto aufnehmen und anhängen" title="Foto aufnehmen und anhängen">◉</button>
 
         <textarea
           id="input"
@@ -429,25 +430,14 @@
          ACTIONS
     ====================================== -->
 
-    <div class="actions" role="group" aria-label="Werkzeuge">
-
-      <button id="camera">
-
-        ◉
-
-        <span>
-          Kamera
-        </span>
-
-      </button>
-
+    <div class="actions" hidden aria-hidden="true">
 
       <button id="focus">
 
         ⌁
 
         <span>
-          Fokus
+          Sofia groß anzeigen
         </span>
 
       </button>
@@ -551,7 +541,7 @@
             window.SofiaTestMode=true;
             const banner=document.createElement('div');banner.id='sofia-test-banner';banner.setAttribute('role','status');
             banner.style.cssText='position:fixed;top:0;left:0;right:0;z-index:99999;padding:8px 12px;background:#694510;color:white;font-size:12px;display:flex;gap:12px;align-items:center;justify-content:center';
-            const label=document.createElement('span');label.textContent='TESTVERSION 4.99.15 · Nur Testdaten · '+(session.paidEnabled?'Begrenzte KI-Nutzung':'KI-Aufrufe deaktiviert');
+            const label=document.createElement('span');label.textContent='TESTVERSION 4.100.0 · Nur Testdaten · '+(session.paidEnabled?'Begrenzte KI-Nutzung':'KI-Aufrufe deaktiviert');
             const reset=document.createElement('button');reset.type='button';reset.textContent='Testdaten zurücksetzen';reset.onclick=async()=>{
               if(!window.confirm('Alle Chats, Fotos, Aufgaben und Erinnerungen dieser Testversion zurücksetzen? Nutzungsgrenzen bleiben erhalten.'))return;
               reset.disabled=true;
@@ -738,26 +728,26 @@
     window.SofiaAvatar verwenden.
   -->
 
-  <script src="./sofia-ui.js?v=49915v1"></script>
-  <script src="./sofia-workspace.js?v=49915v1"></script>
-  <script src="./action-feedback.js?v=49915v1"></script>
-  <script src="./sofia-timeline.js?v=49915v1"></script>
-  <script src="./sofia-projects.js?v=49915v1"></script>
-  <script src="./sofia-images.js?v=49915v1"></script>
-  <script src="./sofia-today.js?v=49915v1"></script>
-  <script src="./sofia-social.js?v=49915v1"></script>
-  <script src="./sofia-navigation.js?v=49915v1"></script>
-  <script src="./app.js?v=49915v1"></script>
+  <script src="./sofia-ui.js?v=41000v2"></script>
+  <script src="./sofia-workspace.js?v=41000v2"></script>
+  <script src="./action-feedback.js?v=41000v2"></script>
+  <script src="./sofia-timeline.js?v=41000v2"></script>
+  <script src="./sofia-projects.js?v=41000v2"></script>
+  <script src="./sofia-images.js?v=41000v2"></script>
+  <script src="./sofia-today.js?v=41000v2"></script>
+  <script src="./sofia-social.js?v=41000v2"></script>
+  <script src="./sofia-navigation.js?v=41000v2"></script>
+  <script src="./app.js?v=41000v2"></script>
 
   <script src="./sofia-avatar.js?v=4192c1"></script>
 
   <script src="./avatar-presence.js?v=4193p3"></script>
 
   <script src="./avatar-gesture.js?v=4197m1"></script>
-  <script src="./avatar-expression.js?v=49915v1"></script>
-  <script src="./avatar-gaze.js?v=49915v1"></script>
+  <script src="./avatar-expression.js?v=41000v2"></script>
+  <script src="./avatar-gaze.js?v=41000v2"></script>
 
-  <script src="./live.js?v=49915v1"></script>
+  <script src="./live.js?v=41000v2"></script>
 
 
   <!-- Service Worker for offline assets and opt-in Web Push. -->

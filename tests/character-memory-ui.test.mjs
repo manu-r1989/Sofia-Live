@@ -3,16 +3,18 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {readFile} from 'node:fs/promises';
 const source=await readFile(new URL('../app.js',import.meta.url),'utf8');
-const block=source.slice(source.indexOf('let flushCharacterSettings'),source.indexOf('function renderEmptyMemory'));
-function harness(responseOk=true){
- class Node{constructor(tag){this.tag=tag;this.children=[];this.style={};this.textContent='';}append(...nodes){this.children.push(...nodes);}setAttribute(key,value){this[key]=value;}}
+const block=source.slice(source.indexOf("let memorySection='memory'"),source.indexOf('function renderEmptyMemory'));
+function harness(responseOk=true,section='memory'){
+ class Node{constructor(tag){this.tag=tag;this.children=[];this.style={};this.textContent='';}append(...nodes){for(const n of nodes)n.parentElement=this;this.children.push(...nodes);}querySelector(selector){return selector==='summary'?this.children.find(n=>n.tag==='summary'):null;}setAttribute(key,value){this[key]=value;}}
  const root=new Node('div'),requests=[],status=[],storage=new Map();let reloads=0;
  const state={revision:7,location:'zu Hause',activity:'lesen',outfit:'Pullover',hairstyle:'Haare offen',mood:'entspannt',moodMode:'auto',preferences:[{topic:'buch',value:'<img src=x onerror=bad>'}],threads:[{topic:'arbeit',text:'Ein schwieriger Arbeitstag',status:'open'}]};
  const context=vm.createContext({memoryList:root,latestSofiaLife:state,localStorage:{getItem:key=>storage.get(key)||null,setItem:(key,value)=>storage.set(key,value),removeItem:key=>storage.delete(key)},document:{createElement:tag=>new Node(tag),getElementById:()=>null},window:{prompt:()=>null,location:{reload(){throw Error('unexpected reload');}}},updateSofiaLocation(){},setMemoryStatus:text=>status.push(text),loadLongTermMemories:async()=>reloads++,fetch:async(url,opts)=>{if(!opts?.method)return {ok:true,json:async()=>({character:state})};requests.push({url,...JSON.parse(opts.body)});return {status:responseOk?200:409,ok:responseOk,json:async()=>responseOk?{character:state}:{error:'Zustand geändert'}};}});
- vm.runInContext(block,context);context.renderCharacterMemories(state);
+ vm.runInContext(block,context);vm.runInContext('memorySection='+JSON.stringify(section),context);context.renderCharacterMemories(state);
  return {root,requests,status,state,storage,context,reloads:()=>reloads};
 }
 const all=root=>root.children.flatMap(n=>[n,...all(n)]);
+test('conversation settings preserve photo choices and hide their controls',async()=>{const h=harness(true,'conversation'),fields=all(h.root),kind=fields.find(x=>x.type==='checkbox'&&x.value==='portrait');assert.equal(kind.parentElement.parentElement.parentElement.hidden,true);const initiative=fields.find(x=>x.textContent==='Gesprächsinitiative ').children[0];initiative.value='quiet';await initiative.onchange();assert.equal(h.requests[0].value.initiative,'quiet');assert.deepEqual(h.requests[0].value.photoKinds,['selfie','environment']);});
+test('photo settings preserve conversation preferences while changing a photo kind',async()=>{const h=harness(true,'photos'),fields=all(h.root);assert.equal(fields.find(x=>x.textContent==='Gesprächsinitiative ').hidden,true);const kind=fields.find(x=>x.type==='checkbox'&&x.value==='portrait');kind.checked=true;await kind.onchange();assert.equal(h.requests[0].value.initiative,'balanced');assert.equal(h.requests[0].value.questionFrequency,'balanced');assert.ok(h.requests[0].value.photoKinds.includes('portrait'));});
 test('character memory UI labels owners, renders strings safely and sends versioned removal separately',async()=>{
  const h=harness();assert.equal(h.root.children[0].textContent,'Über Sofia');
  const row=all(h.root).find(n=>n.children[0]?.textContent.startsWith('Vorliebe: buch'));

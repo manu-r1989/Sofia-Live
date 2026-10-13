@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {readFile} from 'node:fs/promises';
 const source=await readFile(new URL('../sofia-workspace.js',import.meta.url),'utf8');
+test('settings gear exposes seven destinations without submitting a draft',()=>{const h=harness();h.input.value='Mein Entwurf';h.api.settings();const entries=h.document.body.all().filter(n=>n.className==='settings-entry');assert.equal(entries.length,7);assert.deepEqual(entries.map(x=>x.text),['Gespräch','Eigeninitiative','Fotos','Mitteilungen','Erinnerungen und Vorhaben','Darstellung und Ton','App und Hilfe']);let destination;h.window.SofiaCharacterSettings={open:section=>destination=section};entries[2].onclick();assert.equal(destination,'photos');assert.equal(h.input.value,'Mein Entwurf');});
+test('chat tools keep search and pins separate from settings',()=>{const h=harness();h.api.chatTools();assert.match(h.document.body.textContent,/Im Chat suchen/);assert.match(h.document.body.textContent,/Angeheftete Nachrichten/);assert.ok(!h.document.body.textContent.includes('Kontaktpause'));});
 function harness(saved={}){
  class Node{
   constructor(tag){this.tagName=tag.toUpperCase();this.children=[];this.dataset={};this.style={};this.className='';this.hidden=false;this.value='';this.text='';this.listeners={};this.scrollTop=100;this.scrollHeight=200;this.clientHeight=100;}
@@ -51,7 +53,7 @@ test('explicit rejection of a plain text request allows retry only when sender a
 });
 
 test('PWA update waits for idle state, saves draft and never resends a message',async()=>{
- const h=harness();h.events.controllerchange();h.input.value='Noch nicht gesendet';h.api.settings();
+ const h=harness();h.events.controllerchange();h.input.value='Noch nicht gesendet';h.api.appHelp();
  const action=h.document.body.all().find(n=>n.textContent==='Neue Version laden');assert.ok(action);
  h.document.getElementById('mode').dataset.phase='photo';await action.onclick();assert.equal(h.window.reloaded,undefined);
  h.document.getElementById('mode').dataset.phase='ready';h.window.SofiaCharacterSettings={flush:async()=>false};await action.onclick();assert.equal(h.window.reloaded,undefined);

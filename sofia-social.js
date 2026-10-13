@@ -30,9 +30,9 @@
  }
  function renderBadge(){window.SofiaWorkspace?.acknowledgeContacts?.((state?.contacts||[]).filter(x=>x.sequence<=state.read).map(x=>x.id));if(typeof Event!=='undefined')window.dispatchEvent?.(new Event('sofia-social-state-changed'));const node=document.getElementById('socialAction')?.querySelector('span');if(node)node.textContent=state?.unread?'Nachrichten ('+state.unread+')':'Nachrichten';}
  async function sync(){if(syncing)return;syncing=true;try{state=await request();await badge(state.unread);renderBadge();await markRead();}catch{}finally{syncing=false;}}
- async function preferences({focus=null}={}){
+ async function preferences({focus=null,section='all'}={}){
   const dialog=document.createElement('dialog');dialog.style.cssText='max-width:90vw;width:400px;max-height:85dvh;overflow:auto;background:#171722;color:white;border:0;border-radius:16px;padding:20px';
-  const title=document.createElement('h2');title.textContent='Sofias Eigeninitiative';
+  const title=document.createElement('h2');title.textContent={initiative:'Eigeninitiative',notifications:'Mitteilungen',photos:'Fotos in eigenständigen Kontakten'}[section]||'Sofias Eigeninitiative';
   const activityStatus=document.createElement('p');activityStatus.setAttribute('aria-label','Aktueller Status der Eigeninitiative');activityStatus.setAttribute('role','status');
   function paintActivity(){activityStatus.textContent=state?.contactStatus?.text||'Sofia meldet sich passend zum Alltag und innerhalb deiner Einstellungen.';}
   const inbox=document.createElement('section');inbox.setAttribute('aria-label','Neue Nachrichten von Sofia');
@@ -58,7 +58,7 @@
   function paintPause(){const until=Date.parse(state?.preferences.pausedUntil);pauseStatus.textContent=until>Date.now()?'Pausiert bis '+new Date(until).toLocaleString('de-DE',{timeZone:'Europe/Berlin'})+' (Hamburg).':'Keine zusätzliche Pause aktiv.';}
   const pauseButtons=[];for(const [duration,text]of [['hour','Eine Stunde pausieren'],['three_hours','Drei Stunden pausieren'],['today','24 Stunden pausieren'],['resume','Pause beenden']]){const button=document.createElement('button');button.type='button';button.textContent=text;button.disabled=true;pauseButtons.push(button);button.onclick=async()=>{for(const b of pauseButtons)b.disabled=true;try{state=await request('pause',{duration});paintPause();paintActivity();status.textContent=duration==='resume'?'Pause beendet. Ruhezeiten gelten weiterhin.':'Pause gespeichert.';}catch(e){status.textContent=e.message;}finally{for(const b of pauseButtons)b.disabled=false;}};pause.append(button);}
   const planNote=document.createElement('p');planNote.className='contact-plan-note';planNote.setAttribute('aria-label','Geplante Kontakthäufigkeit');function paintPlan(){const p=state?.contactPlan;const ranges={off:[0,0],quiet:[1,3],natural:[3,7],active:[5,9]},r=p?[p.min,p.max]:ranges[select.value]||ranges.natural;planNote.textContent=r[1]===0?'Eigeninitiative aus.':'Richtwert: '+r[0]+'–'+r[1]+' Kontakte pro Hamburger Tag. Fotos zählen mit. Keine Mindestanzahl; Ruhezeiten und Gesprächsverlauf können die Zahl reduzieren.';}
-  const distinction=document.createElement('p');distinction.className='contact-settings-note';distinction.textContent='Diese Auswahl steuert Sofias eigenständige Kontakte. Ihre Gesprächsinitiative während eines Chats wird separat unter Gespräch und Erinnerungen eingestellt. Fotos zählen als Kontakt und beachten zusätzlich deine gewählten Fototypen.';const note=document.createElement('p');note.style.fontSize='13px';note.textContent='Zwei bis drei Stunden variierender Abstand, passend zu Sofias Alltag; bei unbeantworteten Nachrichten längere Pausen. Fotos zählen mit; das Tagesbudget muss nicht ausgeschöpft werden.';
+  const distinction=document.createElement('p');distinction.className='contact-settings-note';distinction.textContent='Diese Auswahl steuert Sofias eigenständige Kontakte. Ihre Gesprächsinitiative während eines Chats wird separat unter Einstellungen → Gespräch eingestellt. Fotos zählen als Kontakt und beachten zusätzlich deine gewählten Fototypen.';const note=document.createElement('p');note.style.fontSize='13px';note.textContent='Zwei bis drei Stunden variierender Abstand, passend zu Sofias Alltag; bei unbeantworteten Nachrichten längere Pausen. Fotos zählen mit; das Tagesbudget muss nicht ausgeschöpft werden.';
   const status=document.createElement('p');status.id='sofia-push-status';status.setAttribute('role','status');status.setAttribute('aria-live','polite');status.setAttribute('aria-atomic','true');status.style.cssText='display:block;min-height:44px;padding:12px;background:#252535;color:#fff;border-radius:10px;font-size:14px;line-height:1.4';status.textContent='Mitteilungsstatus wird geprüft …';const save=document.createElement('button');save.textContent='Speichern';save.type='button';save.disabled=true;select.disabled=true;photos.disabled=true;
   const push=document.createElement('button');push.textContent='Mitteilungen auf diesem Gerät aktivieren';push.type='button';push.style.cssText='display:block;margin:16px 0';
   const disable=document.createElement('button');disable.textContent='Mitteilungen auf diesem Gerät deaktivieren';disable.type='button';disable.style.cssText='display:block;margin:12px 0';
@@ -75,15 +75,25 @@
   }
   const close=document.createElement('button');close.textContent='Schließen';close.type='button';close.onclick=()=>dialog.close();
   const openUnread=document.createElement('button');openUnread.type='button';openUnread.textContent='Neue Nachrichten ansehen';openUnread.disabled=true;openUnread.onclick=()=>{const contact=state?.contacts?.find(x=>x.sequence>state.read);dialog.close();if(contact)window.dispatchEvent(new CustomEvent('sofia-contact-open',{detail:{contactId:contact.id}}));};
-  dialog.append(title,activityStatus,openUnread,inbox,label,select,planNote,distinction,photoLabel,note,quiet,pause,today,status,save,push,disable,devices,close);document.body.append(dialog);dialog.addEventListener('close',()=>dialog.remove(),{once:true});window.SofiaUI?.enhanceDialog(dialog,'Nachrichten und Eigeninitiative');dialog.showModal();close.focus();
+  dialog.append(title,activityStatus,openUnread,inbox,label,select,planNote,distinction,photoLabel,note,quiet,pause,today,status,save,push,disable,devices,close);
+  if(section!=='all'){
+    openUnread.hidden=inbox.hidden=true;
+    if(section!=='initiative')for(const node of [activityStatus,label,select,planNote,distinction,note,quiet,pause,today])node.hidden=true;
+    if(section!=='photos')photoLabel.hidden=true;
+    if(section!=='notifications')push.hidden=disable.hidden=devices.hidden=true;
+    if(section==='notifications')save.hidden=true;
+  }
+  document.body.append(dialog);dialog.addEventListener('close',()=>dialog.remove(),{once:true});window.SofiaUI?.enhanceDialog(dialog,title.textContent);dialog.showModal();close.focus();
   let registration=null;push.disabled=true;disable.disabled=true;
   const within=(promise)=>{let timer;return Promise.race([promise,new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('Die Einrichtung dauert zu lange. Bitte schließe dieses Fenster und versuche es erneut.')),20000);})]).finally(()=>clearTimeout(timer));};
   try{state=await request();openUnread.disabled=!state.unread;select.value=state.preferences.level;photos.checked=state.preferences.photos;quietStart.value=state.preferences.quietStart||'23:00';quietEnd.value=state.preferences.quietEnd||'08:00';quietStart.disabled=quietEnd.disabled=false;for(const b of pauseButtons)b.disabled=false;paintPause();save.disabled=false;select.disabled=false;photos.disabled=false;paintToday();paintDevices();paintActivity();paintInbox();paintPlan();if(focus==='quiet'||focus==='pause'){const target=focus==='quiet'?quiet:pause;target.scrollIntoView?.({block:'center'});target.querySelector?.('input,button')?.focus?.({preventScroll:true});}
+   if(section==='all'||section==='notifications'){
    if('serviceWorker' in navigator)registration=await within(navigator.serviceWorker.ready);
    const sub=registration?.pushManager?await within(registration.pushManager.getSubscription()):null;
    status.textContent=typeof Notification!=='undefined'&&Notification.permission==='denied'?'Mitteilungen sind im Browser blockiert. Bitte erlaube sie in den Website-Einstellungen.':sub&&Notification.permission==='granted'?'Mitteilungen auf diesem Gerät eingerichtet.':'Mitteilungen auf diesem Gerät noch nicht aktiviert.';
    if(sub){const id=await localDeviceId(sub.endpoint),device=state.devices?.find(x=>x.id===id);if(!device||device.status==='expired')status.textContent='Lokale Freigabe vorhanden, aber das Abonnement ist nicht aktiv. Bitte erneut aktivieren.';}
    if(!state.backgroundConfigured)status.textContent+=' Hintergrundversand ist noch nicht eingerichtet. Bei geöffneter App kann Sofia sich bereits melden.';
+   }else status.textContent='Einstellungen geladen.';
   }catch(e){status.textContent=e.message;push.disabled=true;}
   push.disabled=!registration?.pushManager;disable.disabled=!registration?.pushManager;
   if(!registration?.pushManager||typeof Notification==='undefined'){push.disabled=true;disable.disabled=true;status.textContent+=' Mitteilungen sind derzeit nicht verfügbar. Auf dem iPhone Sofia vom Home-Bildschirm öffnen.';}

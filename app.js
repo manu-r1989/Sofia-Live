@@ -1072,8 +1072,9 @@ function createMemoryUI() {
   const title =
     document.createElement('div');
 
+  title.id='sofia-memory-title';
   title.textContent =
-    'Sofias Memory';
+    'Erinnerungen';
 
   Object.assign(
     title.style,
@@ -1114,7 +1115,7 @@ function createMemoryUI() {
 
   closeButton.setAttribute(
     'aria-label',
-    'Memory schließen'
+    'Erinnerungen schließen'
   );
 
   Object.assign(
@@ -1222,8 +1223,10 @@ function setMemoryStatus(
       : 'none';
 }
 
-function openMemoryView() {
+function openMemoryView(section='memory') {
+  memorySection=section;
   createMemoryUI();
+  const heading=document.getElementById('sofia-memory-title');if(heading)heading.textContent={conversation:'Gespräch',photos:'Fotos',memory:'Erinnerungen und Vorhaben'}[section]||'Erinnerungen';
 
   memoryOverlay.style.display =
     'flex';
@@ -1262,7 +1265,7 @@ async function loadLongTermMemories() {
   memoryList.replaceChildren();
 
   setMemoryStatus(
-    'Memory wird geladen…'
+    'Wird geladen…'
   );
 
   try {
@@ -1313,6 +1316,7 @@ async function loadLongTermMemories() {
         ? '1 Langzeiterinnerung'
         : `${memories.length} Langzeiterinnerungen`;
 
+    if(memorySection!=='memory')memoryCount.textContent=memorySection==='photos'?'Fototypen und eigene Fotos':'Antworten, Rückfragen und Themen';
     setMemoryStatus(
       '',
       false
@@ -1322,7 +1326,9 @@ async function loadLongTermMemories() {
       memories.length === 0
     ) {
       renderEmptyMemory();
-      renderCharacterMemories(data.character);filterMemories();
+      const userNodes=[...memoryList.children];
+    renderCharacterMemories(data.character);filterMemories();
+    if(memorySection!=='memory')for(const node of userNodes)node.hidden=true;
       return;
     }
 
@@ -1365,7 +1371,9 @@ async function loadLongTermMemories() {
       }
       renderMemoryItem(item.text, index, category,item);
     });
+    const userNodes=[...memoryList.children];
     renderCharacterMemories(data.character);filterMemories();
+    if(memorySection!=='memory')for(const node of userNodes)node.hidden=true;
 
   } catch (error) {
     console.error(
@@ -1377,15 +1385,16 @@ async function loadLongTermMemories() {
       'Langzeiterinnerungen';
 
     setMemoryStatus(
-      'Memory konnte gerade nicht geladen werden.'
+      'Diese Ansicht konnte gerade nicht geladen werden.'
     );
   }
 }
 
+let memorySection='memory';
 let flushCharacterSettings=null;
 let characterSettingsError=null;
 let characterSettingsFocus=false;
-window.SofiaCharacterSettings={open(){characterSettingsFocus=true;openMemoryView();},flush:()=>flushCharacterSettings?flushCharacterSettings():Promise.resolve(true)};
+window.SofiaCharacterSettings={open(section='conversation'){characterSettingsFocus=true;openMemoryView(section);},flush:()=>flushCharacterSettings?flushCharacterSettings():Promise.resolve(true)};
 const CHARACTER_SETTINGS_DRAFT='sofia_character_settings_pending_v1';
 function readCharacterSettingsDraft(){
   try{const draft=JSON.parse(localStorage.getItem(CHARACTER_SETTINGS_DRAFT)||'null');
@@ -1451,7 +1460,7 @@ function renderCharacterMemories(character) {
   const photoSection=document.createElement('details'),photoSummary=document.createElement('summary');
   const summarizePhotos=()=>{photoSummary.textContent='Fototypen · '+photoKinds.filter(x=>x.checked).length+' ausgewählt';};summarizePhotos();photoSection.append(photoSummary,motifs);controls.append(photoSection);
   const photoLabel=document.createElement('label'),photos=document.createElement('input');photos.type='checkbox';photos.checked=settings.photos!==false;photoLabel.textContent='Gelegentliche eigene Fotos (max. 2 pro Stunde) ';photoLabel.append(photos);controls.append(photoLabel);
-  const help=document.createElement('small');help.textContent='Die Motivauswahl gilt für selbst angebotene Fotos. Ausdrücklich angefragte Bilder bleiben möglich. Nachrichtenhäufigkeit und Ruhezeiten findest du unter Mitteilungen.';help.style.opacity='.65';controls.append(help);
+  const help=document.createElement('small');help.textContent='Die Motivauswahl gilt für selbst angebotene Fotos. Ausdrücklich angefragte Bilder bleiben möglich. Nachrichtenhäufigkeit und Ruhezeiten findest du unter Einstellungen → Eigeninitiative.';help.style.opacity='.65';controls.append(help);
   const values=()=>({initiative:initiative.value,replyLength:length.value,questionFrequency:questions.value,topicInitiative:topics.value,photos:photos.checked,photoKinds:photoKinds.filter(x=>x.checked).map(x=>x.value)});
   let serverValues=values();
   let settingsRevision=character.revision;
@@ -1510,6 +1519,18 @@ function renderCharacterMemories(character) {
   for(const input of [initiative,length,questions,topics,photos,...photoKinds])input.onchange=()=>{summarizePhotos();storeCharacterSettingsDraft(values(),JSON.parse(committed));return flushSettings();};
   save.onclick=()=>flushSettings(true);controls.append(save,feedback);
   groups.settings.append(controls);
+  if(memorySection==='memory'){groups.settings.hidden=true;}
+  else{
+    heading.hidden=true;note.hidden=true;
+    for(const [key,group]of Object.entries(groups))if(key!=='settings')group.hidden=true;
+    groups.settings.querySelector('summary').textContent=memorySection==='photos'?'Eigene Fotos':'Gesprächsverhalten';
+    const conversationControls=[initiative,length,questions,topics];
+    for(const field of conversationControls)field.parentElement.hidden=memorySection==='photos';
+    photoSection.hidden=photoLabel.hidden=help.hidden=memorySection==='conversation';
+    save.textContent=memorySection==='photos'?'Fotoeinstellungen speichern':'Gesprächseinstellungen speichern';
+    if(memorySection==='photos'){const socialPhotos=document.createElement('button');socialPhotos.type='button';socialPhotos.textContent='Fotos in eigenständigen Kontakten';socialPhotos.onclick=async()=>{if(await closeMemoryView())window.SofiaSocial?.preferences?.({section:'photos'});};groups.settings.append(socialPhotos);}
+  }
+
 
   for(const pref of character.preferences||[])if(pref.value)history(row(groups.preferences,'Vorliebe: '+pref.topic,pref.value,'preference',pref.topic,'preference'),pref.history);
   for(const interest of character.interests||[])if(!interest.dismissed){const item=row(groups.interests,'Interesse: '+interest.topic,interest.description+(interest.progress?' · '+interest.progress:''),'interest',interest.topic,'interest');history(item,interest.history);}
