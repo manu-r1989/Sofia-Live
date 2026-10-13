@@ -496,7 +496,7 @@ window.addEventListener('focus', () => {
 
 // Recovery reads shared state only; never resends a turn or starts Live.
 window.SofiaChatCleanupTurns=()=>conversationHistory;
-window.addEventListener('sofia-companion-photo',event=>{const request=event.detail;if(!request?.id)return;addMessage('Gib mir einen kleinen Moment.','sofia',request.id,null,new Date().toISOString());void window.SofiaImages?.generate(request);});
+window.addEventListener('sofia-companion-photo',event=>{const request=event.detail;if(!request?.id)return;addMessage('Gib mir einen kleinen Moment.','sofia',request.id,null,request.acknowledgedAt||new Date().toISOString());void window.SofiaImages?.generate(request);});
 window.SofiaChatCleanupRefresh=()=>syncConversationFromServer({silent:true});
 window.addEventListener('sofia-social-updated',()=>{syncConversationFromServer({silent:true});});
 let pendingContactOpen=null;

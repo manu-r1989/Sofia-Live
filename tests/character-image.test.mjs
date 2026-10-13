@@ -10,6 +10,7 @@ import crypto from 'node:crypto';
 const source = await readFile(new URL('../lib/character-image.js',import.meta.url),'utf8');
 const api = await import('data:text/javascript;base64,' + Buffer.from(source).toString('base64'));
 const prefix='sofia:main:portrait:';
+test('cached completed photo retains the users hidden-chat selection without provider work',async()=>{reset();const id='11111111-1111-4111-8111-111111111111';db.set(prefix+'request:'+id,JSON.stringify({id,status:'done',image:{id,createdAt:new Date().toISOString()}}));db.set(prefix+'chat-hidden-photos',JSON.stringify([id]));assert.equal((await api.generatePortrait(id)).chatHidden,true);assert.equal(imageCalls.length,0);});
 test('monthly image limit blocks provider work and stores an actionable failed job',async()=>{reset();const request=await api.preparePortrait('Mach bitte ein Selfie von dir.');blockPersonalImage=true;try{await assert.rejects(api.generatePortrait(request.id));assert.equal(imageCalls.length,0);const failed=JSON.parse(db.get(prefix+'request:'+request.id));assert.equal(failed.failureCode,'personal_image_limit');assert.match(api.portraitFailureMessage(failed.failureCode),/monatliches Bildlimit/);}finally{blockPersonalImage=false;}});
 test('structured photo wish binds the selected outfit and type before its job becomes ready',async()=>{reset();const id='11111111-1111-4111-8111-111111111111';db.set(prefix+'companion',JSON.stringify({...api.defaultCompanionState(),wardrobe:[{id,title:'Rosa',text:'Rosa Pullover',archived:false}],wishes:[{id,title:'Spiegel',text:'Natürliches Licht',photoKind:'mirror',outfitId:id,scene:'Am Fenster',archived:false}]}));const request=await api.prepareCompanionPhoto(id);const stored=JSON.parse(db.get(prefix+'request:'+request.id));assert.equal(stored.status,'ready');assert.equal(stored.kind,'mirror');assert.equal(stored.outfit,'Rosa Pullover');assert.equal(stored.explicitScene,true);assert.equal(stored.scene,'Am Fenster');assert.equal(imageCalls.length,0);});
 let db, plan, calls, imageCalls, failImage, failRedis, plannerInputs, textInputs, reviewQueue, reviewInputs, weatherData, weatherCalls, chatReply,blockPersonalImage=false;
@@ -227,7 +228,7 @@ test('image delivery is private JPEG with download attachment and validated IDs'
 });
 test('UI integration loads shared renderer before app and does not alter avatar assets',async()=>{
  const root=new URL('../',import.meta.url);const index=await readFile(new URL('index.html',root),'utf8');
- assert.ok(index.indexOf('sofia-images.js?v=410106v1')<index.indexOf('app.js?v=410106v1'));
+ assert.ok(index.indexOf('sofia-images.js?v=410106v2')<index.indexOf('app.js?v=410106v2'));
  const chat=await readFile(new URL('api/chat.js',root),'utf8');
  assert.ok(chat.indexOf('!safeEqual(')<chat.indexOf('await servePortrait'));
  const ui=await readFile(new URL('sofia-images.js',root),'utf8');assert.match(ui,/dialog.showModal/);assert.match(ui,/link.download=/);assert.doesNotMatch(ui,/spinner|generating-status/);
