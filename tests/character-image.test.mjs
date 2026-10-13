@@ -10,7 +10,10 @@ import crypto from 'node:crypto';
 const source = await readFile(new URL('../lib/character-image.js',import.meta.url),'utf8');
 const api = await import('data:text/javascript;base64,' + Buffer.from(source).toString('base64'));
 const prefix='sofia:main:portrait:';
-let db, plan, calls, imageCalls, failImage, failRedis, plannerInputs, textInputs, reviewQueue, reviewInputs, weatherData, weatherCalls, chatReply;
+test('cached completed photo retains the users hidden-chat selection without provider work',async()=>{reset();const id='11111111-1111-4111-8111-111111111111';db.set(prefix+'request:'+id,JSON.stringify({id,status:'done',image:{id,createdAt:new Date().toISOString()}}));db.set(prefix+'chat-hidden-photos',JSON.stringify([id]));assert.equal((await api.generatePortrait(id)).chatHidden,true);assert.equal(imageCalls.length,0);});
+test('monthly image limit blocks provider work and stores an actionable failed job',async()=>{reset();const request=await api.preparePortrait('Mach bitte ein Selfie von dir.');blockPersonalImage=true;try{await assert.rejects(api.generatePortrait(request.id));assert.equal(imageCalls.length,0);const failed=JSON.parse(db.get(prefix+'request:'+request.id));assert.equal(failed.failureCode,'personal_image_limit');assert.match(api.portraitFailureMessage(failed.failureCode),/monatliches Bildlimit/);}finally{blockPersonalImage=false;}});
+test('structured photo wish binds the selected outfit and type before its job becomes ready',async()=>{reset();const id='11111111-1111-4111-8111-111111111111';db.set(prefix+'companion',JSON.stringify({...api.defaultCompanionState(),wardrobe:[{id,title:'Rosa',text:'Rosa Pullover',archived:false}],wishes:[{id,title:'Spiegel',text:'Natürliches Licht',photoKind:'mirror',outfitId:id,scene:'Am Fenster',archived:false}]}));const request=await api.prepareCompanionPhoto(id);const stored=JSON.parse(db.get(prefix+'request:'+request.id));assert.equal(stored.status,'ready');assert.equal(stored.kind,'mirror');assert.equal(stored.outfit,'Rosa Pullover');assert.equal(stored.explicitScene,true);assert.equal(stored.scene,'Am Fenster');assert.equal(imageCalls.length,0);});
+let db, plan, calls, imageCalls, failImage, failRedis, plannerInputs, textInputs, reviewQueue, reviewInputs, weatherData, weatherCalls, chatReply,blockPersonalImage=false;
 const savedFetch=globalThis.fetch;
 const envKeys=['KV_REST_API_URL','KV_REST_API_TOKEN','OPENAI_API_KEY','SOFIA_PASSWORD'];
 const env=Object.fromEntries(envKeys.map(k=>[k,process.env[k]]));
@@ -27,6 +30,7 @@ globalThis.fetch=async(url,options)=>{
   if(op==='GET')return response({result:db.get(key)||null});
   if(op==='SET'){if(rest.includes('NX')&&db.has(key))return response({result:null});db.set(key,value);return response({result:'OK'});}
   if(op==='DEL'){db.delete(key);return response({result:1});}
+  if(op==='EVAL'&&key.includes('sofia-companion-usage-reserve'))return response({result:blockPersonalImage?0:1});
   if(op==='EVAL' && key.includes('sofia-gallery-append')) {const target=body[3],item=JSON.parse(body[4]);db.set(target,JSON.stringify([...JSON.parse(db.get(target)||'[]').filter(x=>x.id!==item.id),item]));return response({result:1});}
   if(op==='EVAL' && key.includes('sofia-portrait-jobs')) {const target=body[3],id=body[4];let jobs=JSON.parse(db.get(target)||'[]').filter(x=>x.id!==id);if(body[5])jobs.push(JSON.parse(body[5]));db.set(target,JSON.stringify(jobs.slice(-20)));return response({result:1});}
   if(op==='EVAL' && key.includes('sofia-life-cas')) {const target=body[3];if((db.get(target)||'')!==body[4])return response({result:0});db.set(target,body[5]);return response({result:1});}
@@ -224,7 +228,7 @@ test('image delivery is private JPEG with download attachment and validated IDs'
 });
 test('UI integration loads shared renderer before app and does not alter avatar assets',async()=>{
  const root=new URL('../',import.meta.url);const index=await readFile(new URL('index.html',root),'utf8');
- assert.ok(index.indexOf('sofia-images.js?v=410105v1')<index.indexOf('app.js?v=410105v1'));
+ assert.ok(index.indexOf('sofia-images.js?v=410106v2')<index.indexOf('app.js?v=410106v2'));
  const chat=await readFile(new URL('api/chat.js',root),'utf8');
  assert.ok(chat.indexOf('!safeEqual(')<chat.indexOf('await servePortrait'));
  const ui=await readFile(new URL('sofia-images.js',root),'utf8');assert.match(ui,/dialog.showModal/);assert.match(ui,/link.download=/);assert.doesNotMatch(ui,/spinner|generating-status/);

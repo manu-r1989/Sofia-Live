@@ -1,0 +1,179 @@
+"""Execute production Lua against a small in-memory Redis command adapter.
+
+The native Lua runtime tests the actual scripts, including cjson null semantics.
+No network, credentials or paid services are used.
+"""
+import ctypes as C
+import ctypes.util
+import json
+import sys
+import unittest
+
+library = ctypes.util.find_library('lua5.4') or ctypes.util.find_library('lua5.3')
+if not library:
+    sys.exit(77)
+lua = C.CDLL(library)
+def api(name, result, *args):
+    function = getattr(lua, name)
+    function.restype, function.argtypes = result, args
+    return function
+ptr, integer = C.c_void_p, C.c_longlong
+new = api('luaL_newstate', ptr)
+openlibs = api('luaL_openlibs', None, ptr)
+gettop = api('lua_gettop', C.c_int, ptr)
+settop = api('lua_settop', None, ptr, C.c_int)
+kind = api('lua_type', C.c_int, ptr, C.c_int)
+string = api('lua_tolstring', C.c_char_p, ptr, C.c_int, ptr)
+number = api('lua_tonumberx', C.c_double, ptr, C.c_int, ptr)
+boolean = api('lua_toboolean', C.c_int, ptr, C.c_int)
+pointer = api('lua_topointer', ptr, ptr, C.c_int)
+pushnil = api('lua_pushnil', None, ptr)
+pushnumber = api('lua_pushnumber', None, ptr, C.c_double)
+pushboolean = api('lua_pushboolean', None, ptr, C.c_int)
+pushstring = api('lua_pushstring', C.c_char_p, ptr, C.c_char_p)
+createtable = api('lua_createtable', None, ptr, C.c_int, C.c_int)
+rawset = api('lua_rawseti', None, ptr, C.c_int, integer)
+setfield = api('lua_setfield', None, ptr, C.c_int, C.c_char_p)
+getglobal = api('lua_getglobal', C.c_int, ptr, C.c_char_p)
+setglobal = api('lua_setglobal', None, ptr, C.c_char_p)
+nextitem = api('lua_next', C.c_int, ptr, C.c_int)
+load = api('luaL_loadstring', C.c_int, ptr, C.c_char_p)
+pcall = api('lua_pcallk', C.c_int, ptr, C.c_int, C.c_int, C.c_int, C.c_longlong, ptr)
+callback_type = C.CFUNCTYPE(C.c_int, ptr)
+pushcallback = api('lua_pushcclosure', None, ptr, callback_type, C.c_int)
+state = new()
+openlibs(state)
+arrays, db, errors = set(), {}, []
+def run(code):
+    if load(state, code.encode()) or pcall(state, 0, 0, 0, 0, None):
+        raise RuntimeError(string(state, -1, None).decode())
+run('__json_null={};collectgarbage("stop")')
+getglobal(state, b'__json_null')
+null_pointer = pointer(state, -1)
+settop(state, 0)
+def push(value):
+    if value is None:
+        getglobal(state, b'__json_null')
+    elif isinstance(value, bool):
+        pushboolean(state, value)
+    elif isinstance(value, (int, float)):
+        pushnumber(state, value)
+    elif isinstance(value, str):
+        pushstring(state, value.encode())
+    elif isinstance(value, list):
+        createtable(state, len(value), 0)
+        arrays.add(pointer(state, -1))
+        for i, item in enumerate(value, 1):
+            push(item)
+            rawset(state, -2, i)
+    else:
+        createtable(state, 0, len(value))
+        for key, item in value.items():
+            push(item)
+            setfield(state, -2, key.encode())
+def read(index):
+    index = index if index > 0 else gettop(state) + index + 1
+    t = kind(state, index)
+    if t == 0 or pointer(state, index) == null_pointer:
+        return None
+    if t == 1:
+        return bool(boolean(state, index))
+    if t == 3:
+        n = number(state, index, None)
+        return int(n) if n.is_integer() else n
+    if t == 4:
+        return string(state, index, None).decode()
+    if t != 5:
+        raise TypeError(t)
+    values = {}
+    pushnil(state)
+    while nextitem(state, index):
+        values[read(-2)] = read(-1)
+        settop(state, gettop(state) - 1)
+    if pointer(state, index) in arrays:
+        return [values[i] for i in sorted(values)]
+    return values
+def safe(fn):
+    @callback_type
+    def call(_):
+        try:
+            push(fn())
+        except Exception as error:
+            errors.append(str(error))
+            pushnil(state)
+        return 1
+    return call
+decode = safe(lambda: json.loads(read(1)))
+encode = safe(lambda: json.dumps(read(1), separators=(',', ':')))
+def redis_call():
+    command, *args = [read(i) for i in range(1, gettop(state)+1)]
+    if command == 'GET':
+        return db.get(args[0], False)
+    if command == 'EXISTS':
+        return int(args[0] in db)
+    if command == 'SET':
+        db[args[0]] = args[1]
+        return 'OK'
+    raise ValueError(command)
+redis = safe(redis_call)
+for name, fn in [(b'decode', decode), (b'encode', encode), (b'redis_call', redis)]:
+    pushcallback(state, fn, 0)
+    setglobal(state, name)
+run('cjson={decode=decode,encode=encode,null=__json_null};redis={call=redis_call}')
+scripts = json.load(sys.stdin)
+def execute(name, keys, args):
+    push(keys)
+    setglobal(state, b'KEYS')
+    push(args)
+    setglobal(state, b'ARGV')
+    run('__result=(function()\n'+scripts[name]+'\nend)()')
+    getglobal(state, b'__result')
+    result = read(-1)
+    settop(state, 0)
+    if errors:
+        raise AssertionError(errors)
+    return result
+class AtomicTests(unittest.TestCase):
+    def setUp(self):
+        db.clear()
+        errors.clear()
+        db['state'] = json.dumps({'revision':0, 'limits':{'images':1,'liveMinutes':2},'livePreferences':{'sessionMinutes':20}})
+    def test_image_duplicate_and_monthly_cap(self):
+        self.assertEqual(execute('reserve',['state','usage','image1'],['image']),1)
+        self.assertEqual(execute('reserve',['state','usage','image1'],['image']),1)
+        self.assertEqual(execute('reserve',['state','usage','image2'],['image']),0)
+        self.assertEqual(json.loads(db['usage'])['imageAttempts'],1)
+    def test_live_reservation_blocks_overlap_and_refunds_once(self):
+        result=json.loads(execute('reserve',['state','usage','session1'],['live','session1','2026-10','100000']))
+        self.assertEqual(result['seconds'],120)
+        self.assertEqual(execute('reserve',['state','usage','session2'],['live','session2','2026-10','100000']),'')
+        self.assertEqual(execute('end',['session1','usage'],['130000','2026-10']),1)
+        self.assertEqual(json.loads(db['usage'])['liveSeconds'],30)
+        self.assertEqual(execute('end',['session1','usage'],['130000','2026-10']),0)
+        result=json.loads(execute('reserve',['state','usage','session2'],['live','session2','2026-10','130000']))
+        self.assertEqual(result['seconds'],90)
+    def ritual(self, enabled=True):
+        db['state']=json.dumps({'revision':0,'rituals':[{'id':'r','enabled':enabled,'archived':False,'updatedAt':'v1','lastSentAt':None}]})
+        db['history']='[]'
+        return ['[]',json.dumps({'id':'contact','text':'Frage','createdAt':'now'}),'r','v1','','now']
+    def test_first_ritual_accepts_json_null_and_duplicate_is_rejected(self):
+        args=self.ritual()
+        self.assertEqual(execute('deliver',['history','inbox','state'],args),1)
+        self.assertEqual(json.loads(db['state'])['rituals'][0]['lastSentAt'],'now')
+        self.assertEqual(execute('deliver',['history','inbox','state'],args),0)
+        self.assertEqual(len(json.loads(db['history'])),1)
+    def test_disabled_or_edited_ritual_does_not_write_a_message(self):
+        args=self.ritual(False)
+        self.assertEqual(execute('deliver',['history','inbox','state'],args),0)
+        self.assertNotIn('inbox',db)
+        args=self.ritual()
+        args[3]='old-version'
+        self.assertEqual(execute('deliver',['history','inbox','state'],args),0)
+        self.assertEqual(json.loads(db['state'])['revision'],0)
+    def test_conversation_changed_prevents_ritual_delivery_and_marking(self):
+        args=self.ritual()
+        db['history']='[{"role":"user","content":"new"}]'
+        self.assertEqual(execute('deliver',['history','inbox','state'],args),0)
+        self.assertIsNone(json.loads(db['state'])['rituals'][0]['lastSentAt'])
+        self.assertNotIn('inbox',db)
+unittest.main(argv=['atomic-tests'])

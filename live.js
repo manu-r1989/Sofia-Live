@@ -18,6 +18,17 @@
   let connecting = false;
   let desiredMuted = localStorage.getItem("sofia_audio_muted") === "true";
   let pendingImageContext = null;
+  let manuallyPaused=false,turnDelay=1500,liveUsageSession=null,liveBudgetTimer=null;
+  let activeResponseId=null;const cancelledResponseIds=new Set();
+  function configureLiveSession(data){
+    turnDelay=[700,1500,2500].includes(data.livePreferences?.turnDelay)?data.livePreferences.turnDelay:1500;
+    manuallyPaused=false;liveUsageSession=data.usageSession||null;
+    if(liveBudgetTimer)clearTimeout(liveBudgetTimer);
+    if(liveUsageSession?.seconds>0)liveBudgetTimer=window.setTimeout(()=>{stopLive(false);setPresence('idle','Deine eingestellte Live-Zeit ist erreicht. Du kannst im Textchat weiterreden.');},Math.max(0,liveUsageSession.expiresAt?liveUsageSession.expiresAt-Date.now():liveUsageSession.seconds*1000));
+    window.dispatchEvent(new CustomEvent('sofia-live-controls-changed'));
+  }
+  function pauseLive(paused){if(!liveActive)return false;manuallyPaused=paused;if(paused){cancelPendingLiveResponse();userSpeaking=false;}setRealtimeMicEnabled(!paused&&!assistantResponding&&!responseLocked);setPresence(paused?'idle':'ready',paused?'Live-Mikrofon pausiert':'bereit zum Zuhören');if(!paused)scheduleLiveResponse();window.dispatchEvent(new CustomEvent('sofia-live-controls-changed'));return true;}
+  function interruptLive(){if(!liveActive)return false;cancelPendingLiveResponse();if(activeResponseId){cancelledResponseIds.add(activeResponseId);if(cancelledResponseIds.size>20)cancelledResponseIds.delete(cancelledResponseIds.values().next().value);}try{dataChannel?.send(JSON.stringify({type:'response.cancel'}));}catch{}if(remoteAudio)remoteAudio.pause();commitCurrentTurn();assistantResponding=false;responseLocked=false;micSuppressedForAssistant=false;ignoreInputUntil=Date.now()+500;setRealtimeMicEnabled(!manuallyPaused);setPresence('ready',manuallyPaused?'Live-Mikrofon pausiert':'Antwort unterbrochen · bereit zum Zuhören');return true;}
 
   // V4.5.7: hard half-duplex microphone gate.
   let responseLocked = false;
@@ -29,7 +40,7 @@
   function setRealtimeMicEnabled(enabled) {
     if (!localStream) return;
     for (const track of localStream.getAudioTracks()) {
-      track.enabled = Boolean(enabled);
+      track.enabled = Boolean(enabled)&&!manuallyPaused;
     }
   }
 
@@ -80,13 +91,13 @@
   function scheduleLiveResponse() {
     if (userTurnTimer !== null) clearTimeout(userTurnTimer);
     userTurnTimer = null;
-    if (userSpeaking || !pendingUserText.trim() || responseLocked || assistantResponding ||
+    if (manuallyPaused || userSpeaking || !pendingUserText.trim() || responseLocked || assistantResponding ||
         (latestSpeechItemId && !transcribedSpeechItems.has(latestSpeechItemId))) return;
     const revision = userTurnRevision;
     userTurnTimer = window.setTimeout(() => {
       userTurnTimer = null;
       void createLiveTurnResponse(revision);
-    }, 1500);
+    }, turnDelay);
   }
 
   async function fetchLiveTurnContext(message) {
@@ -117,7 +128,7 @@
   }
 
   async function createLiveTurnResponse(revision) {
-    const current = () => liveActive && revision === userTurnRevision && !userSpeaking &&
+    const current = () => liveActive && !manuallyPaused && revision === userTurnRevision && !userSpeaking &&
       !responseLocked && !assistantResponding && dataChannel?.readyState === "open";
     if (!current() || userContextRequestRevision === revision) return;
     userContextRequestRevision = revision;
@@ -136,6 +147,7 @@
     window.SofiaLifeStatus?.update(contextData.life);
     pendingLifeRevision = contextData.life?.revision ?? null;
     window.SofiaActionFeedback?.show(contextFailed ? { ok: false, status: "execution_failed" } : contextData.taskAction);
+    window.dispatchEvent(new CustomEvent("sofia-live-result",{detail:{taskAction:contextData.taskAction,imageRequest:contextData.imageRequest,failed:contextFailed}}));
     if (contextData.imageRequest) {
       pendingImageRequestId = contextData.imageRequest.id;
       void window.SofiaImages?.generate(contextData.imageRequest);
@@ -344,6 +356,7 @@
 
 
   function setPresence(state, label) {
+    if(manuallyPaused&&liveActive&&['ready','listening','thinking'].includes(state)){state='idle';label='Live-Mikrofon pausiert';}
     const changed = lastPresenceState !== state;
     if (changed) {
       presenceStartedAt = performance.now();
@@ -965,6 +978,7 @@
             },
 
             body: JSON.stringify({
+              conversationMode:window.SofiaCompanion?.mode?.(),
               history: (() => {
                 try {
                   const parsed =
@@ -1012,6 +1026,7 @@
         throw Object.assign(new Error("Realtime-Session nicht verfügbar."),{code:tokenData.code,cause:tokenData.cause,status:tokenResponse.status});
 
       }
+      configureLiveSession(tokenData);
 
 
       cancelPendingLiveResponse();
@@ -1395,6 +1410,7 @@
   async function handleRealtimeEvent(
     event
   ) {
+    if(cancelledResponseIds.has(event.response_id||event.response?.id))return;
 
     switch (event.type) {
 
@@ -1405,7 +1421,7 @@
 
       case
         "input_audio_buffer.speech_started":
-        if (responseLocked || assistantResponding || Date.now() < ignoreInputUntil) break;
+        if (manuallyPaused || responseLocked || assistantResponding || Date.now() < ignoreInputUntil) break;
         window.SofiaActionFeedback?.clear();
         userSpeaking = true;
         latestSpeechItemId = event.item_id || null;
@@ -1439,7 +1455,7 @@
 
       case
         "input_audio_buffer.speech_stopped":
-        if (responseLocked || assistantResponding || Date.now() < ignoreInputUntil) break;
+        if (manuallyPaused || responseLocked || assistantResponding || Date.now() < ignoreInputUntil) break;
         userSpeaking = false;
         latestSpeechItemId = event.item_id || latestSpeechItemId;
         scheduleLiveResponse();
@@ -1499,6 +1515,8 @@
 
       case
         "response.created":
+        activeResponseId=event.response?.id||null;
+        if(remoteAudio?.paused)void remoteAudio.play().catch(()=>{});
 
         suppressMicForAssistant();
 
@@ -1688,6 +1706,11 @@
   function stopLive(
     userInitiated = true
   ) {
+    if(liveBudgetTimer)clearTimeout(liveBudgetTimer);liveBudgetTimer=null;
+    if(liveUsageSession){const id=liveUsageSession.id;liveUsageSession=null;void fetch('/api/session?companion=1',{method:'POST',credentials:'same-origin',keepalive:true,headers:{'Content-Type':'application/json'},body:JSON.stringify({operation:'live_end',id})}).catch(()=>{});}
+    manuallyPaused=false;
+    activeResponseId=null;cancelledResponseIds.clear();
+    window.dispatchEvent(new CustomEvent('sofia-live-controls-changed'));
     cancelPendingLiveResponse();
     userSpeaking = false;
     latestSpeechItemId = null;
@@ -1891,6 +1914,7 @@
 
 
   window.SofiaLive = {
+    pause:()=>pauseLive(true),resume:()=>pauseLive(false),interrupt:interruptLive,end:()=>stopLive(),isPaused:()=>manuallyPaused,
     setMuted(muted) {
       desiredMuted = Boolean(muted);
       localStorage.setItem("sofia_audio_muted", desiredMuted ? "true" : "false");
