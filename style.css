@@ -1280,3 +1280,21 @@ html[data-chat-font="large"] .photo-follow-ups{grid-template-columns:repeat(2,mi
 body:has(#sofia-test-banner) .app .chatPanel[data-chat-size="full"]{top:44px!important}
 body:has(#sofia-test-banner) .app .chatPanel[data-chat-size="compact"]{top:auto!important}
 .sofia-photo-view [aria-label="Vorheriges Foto"],.sofia-photo-view [aria-label="Nächstes Foto"]{min-height:36px!important;padding:6px 10px!important;font-size:12px!important;line-height:1.2!important}
+
+/* V4.100.2 — stacked selects and safe menu geometry, including 402px phones. */
+.sofia-dialog label:has(>select),#sofiaMemoryOverlay label:has(>select){display:flex!important;flex-direction:column!important;align-items:stretch!important;gap:6px!important;min-width:0;margin:8px 0}
+.sofia-dialog select,#sofiaMemoryOverlay select{display:block!important;width:100%!important;max-width:100%;min-width:0;box-sizing:border-box;min-height:44px;margin:6px 0 0!important;font-size:16px}
+.sofia-dialog label:has(>select)>select,#sofiaMemoryOverlay label:has(>select)>select{margin-top:0!important}
+.memory-tools{display:grid!important;grid-template-columns:minmax(0,1fr);gap:10px!important}
+.memory-tools>*{min-width:0!important;width:100%;box-sizing:border-box}
+#sofiaMemoryOverlay.sofia-dialog{position:fixed!important;inset:auto 0!important;top:var(--sofia-visible-top,0px)!important;width:100%!important;height:var(--sofia-visible-height,100dvh)!important;max-width:none!important;max-height:none!important;padding:max(12px,calc(env(safe-area-inset-top) + 8px)) max(12px,env(safe-area-inset-right)) max(12px,calc(env(safe-area-inset-bottom) + 8px)) max(12px,env(safe-area-inset-left))!important;box-sizing:border-box!important;border:0!important;border-radius:0!important;background:#04070cc7!important;overflow:hidden!important;align-items:center!important}
+#sofiaMemoryOverlay>section{width:min(560px,100%)!important;max-height:100%!important;min-height:0!important;box-sizing:border-box;flex-shrink:1}
+#sofiaMemoryOverlay>section>div:last-of-type{min-height:0;overscroll-behavior:contain;overflow-x:hidden!important}
+@media(max-width:850px){
+ dialog.sofia-dialog[open]:not(#sofia-gallery){position:fixed!important;--menu-top:max(calc(var(--sofia-visible-top,0px) + 12px),calc(env(safe-area-inset-top) + 8px));top:var(--menu-top)!important;bottom:auto!important;left:max(12px,env(safe-area-inset-left))!important;right:max(12px,env(safe-area-inset-right))!important;margin:0!important;width:auto!important;max-width:none!important;max-height:calc(var(--sofia-visible-top,0px) + var(--sofia-visible-height,100dvh) - var(--menu-top) - max(12px,calc(env(safe-area-inset-bottom) + 8px)))!important;padding:16px!important;box-sizing:border-box;overflow:auto}
+ #sofiaMemoryOverlay.sofia-dialog{align-items:flex-start!important}
+ #sofiaMemoryOverlay>section{border-radius:18px!important}
+ .sofia-dialog input:not([type=checkbox]):not([type=range]),.sofia-dialog textarea{font-size:16px;max-width:100%;box-sizing:border-box}
+ .sofia-dialog .dialog-header{top:-16px;margin-bottom:10px;padding:8px 0}
+}
+@media(min-width:390px) and (max-width:430px){.settings-entry{padding:12px!important;min-height:56px}.sofia-main-nav{gap:3px}.sofia-dialog{overflow-wrap:anywhere}}

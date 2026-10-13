@@ -1,10 +1,22 @@
 (() => {
   const motion=()=>window.matchMedia?.('(prefers-reduced-motion: reduce)').matches?'auto':'smooth';
+  let pendingReturnMenu=null;
+  function navigateFrom(parent,open,reopen,close){
+    const scroll=parent.scrollTop||0,ancestor=parent._returnMenu||null;
+    parent.dataset ||= {};
+    parent.dataset.menuForward='true';
+    const proceed=ok=>{if(ok===false){delete parent.dataset.menuForward;return false;}pendingReturnMenu=()=>{pendingReturnMenu=ancestor;const restored=reopen();if(restored)restored.scrollTop=scroll;};open();return true;};
+    const result=close?close():parent.close();
+    return result?.then?result.then(proceed):proceed(result);
+  }
   function enhanceDialog(element,label,close){
     const trigger=document.activeElement,viewport=window.SofiaChatViewport?.capture();
     element.classList.add('sofia-dialog');element.setAttribute('aria-label',label);
+    element.dataset ||= {};
+    delete element.dataset.menuForward;
+    element._returnMenu=pendingReturnMenu;pendingReturnMenu=null;
     const native=element.tagName==='DIALOG';if(!native){element.setAttribute('role','dialog');element.setAttribute('aria-modal','true');}
-    const restore=()=>{const parent=[...(document.querySelectorAll?.('dialog[open]')||[])].at(-1)||document.querySelector?.('dialog[open]');if(!parent&&element.dataset?.returnToLatest!=='true')window.SofiaChatViewport?.restore(viewport);if(trigger?.isConnected&&(!parent||parent.contains?.(trigger)))trigger.focus?.({preventScroll:true});};
+    const restore=()=>{if(element.dataset?.menuForward==='true')return;if(element.dataset?.returnToLatest!=='true'&&element._returnMenu){const back=element._returnMenu;element._returnMenu=null;back();return;}const parent=[...(document.querySelectorAll?.('dialog[open]')||[])].at(-1)||document.querySelector?.('dialog[open]');if(!parent&&element.dataset?.returnToLatest!=='true')window.SofiaChatViewport?.restore(viewport);if(trigger?.isConnected&&(!parent||parent.contains?.(trigger)))trigger.focus?.({preventScroll:true});};
     if(native)element.addEventListener('close',restore,{once:true});
     else element.onkeydown=event=>{
       if(event.key==='Escape'){event.preventDefault();close?.();}if(event.key!=='Tab')return;
@@ -61,7 +73,7 @@
     editor.getBoundingClientRect?.();
     editor.focus?.({preventScroll:true});
   }
-  window.SofiaUI={enhanceDialog,resizeComposer,refreshDays,motion,bindSendButton,focusEditor};
+  window.SofiaUI={enhanceDialog,navigateFrom,resizeComposer,refreshDays,motion,bindSendButton,focusEditor};
   const input=document.getElementById('input');input?.addEventListener('input',()=>resizeComposer(input));resizeComposer(input);
   const viewport=window.visualViewport;
   let layoutHeight=Math.max(window.innerHeight||0,document.documentElement.clientHeight||0,viewport?.height||0);

@@ -1237,6 +1237,7 @@ function openMemoryView(section='memory') {
     'hidden';
 
   loadLongTermMemories();
+  return memoryOverlay;
 }
 
 async function closeMemoryView() {
@@ -1300,7 +1301,7 @@ async function loadLongTermMemories() {
         : (Array.isArray(data.memories) ? data.memories.map(text => ({text, category: 'Persönliches'})) : []);
 
     const memories = memoryItems.map(item => item.text);
-    const tools=document.createElement('div');tools.style.cssText='display:flex;gap:8px;flex-wrap:wrap;margin:12px 0';
+    const tools=document.createElement('div');tools.className='memory-tools';tools.style.cssText='display:flex;gap:8px;flex-wrap:wrap;margin:12px 0';
     const projects=document.createElement('button');projects.type='button';projects.textContent='Gemeinsame Vorhaben';projects.onclick=()=>window.SofiaProjects?.open();
     const search=document.createElement('input');search.type='search';search.placeholder='Erinnerungen durchsuchen';search.setAttribute('aria-label','Erinnerungen durchsuchen');search.style.cssText='flex:1;min-width:150px';
     const categoryFilter=document.createElement('select');categoryFilter.setAttribute('aria-label','Erinnerungen nach Kategorie filtern');
@@ -1308,7 +1309,7 @@ async function loadLongTermMemories() {
     const reviewLabel=document.createElement('label'),reviewOnly=document.createElement('input');reviewOnly.type='checkbox';reviewOnly.setAttribute('aria-label','Nur Erinnerungen mit Prüfhinweisen');reviewLabel.append(reviewOnly,document.createTextNode(' Nur Prüfhinweise ('+memoryItems.filter(x=>x.review?.length).length+')'));const filtered=document.createElement('span');filtered.setAttribute('role','status');
     function filterMemories(){let count=0;for(const row of memoryList.querySelectorAll('[data-memory-text]')){row.hidden=!row.dataset.memoryText.includes(search.value.toLowerCase().trim())||(categoryFilter.value!=='Alle Kategorien'&&row.dataset.memoryCategory!==categoryFilter.value)||(reviewOnly.checked&&row.dataset.memoryReview!=='true');if(!row.hidden)count++;}filtered.textContent=count+' passende Erinnerungen';}
     search.value=memoryFilterState.query;categoryFilter.value=[...categoryFilter.options].some(x=>x.value===memoryFilterState.category)?memoryFilterState.category:'Alle Kategorien';reviewOnly.checked=memoryFilterState.review;
-    search.oninput=categoryFilter.onchange=reviewOnly.onchange=()=>{memoryFilterState={query:search.value,category:categoryFilter.value,review:reviewOnly.checked};filterMemories();};tools.append(projects,search,categoryFilter,reviewLabel,filtered);memoryList.append(tools);
+    search.oninput=categoryFilter.onchange=reviewOnly.onchange=()=>{memoryFilterState={query:search.value,category:categoryFilter.value,review:reviewOnly.checked};filterMemories();};const categoryLabel=document.createElement('label');categoryLabel.textContent='Kategorie';categoryLabel.append(categoryFilter);tools.append(projects,search,categoryLabel,reviewLabel,filtered);memoryList.append(tools);
 
 
     memoryCount.textContent =
@@ -1394,7 +1395,7 @@ let memorySection='memory';
 let flushCharacterSettings=null;
 let characterSettingsError=null;
 let characterSettingsFocus=false;
-window.SofiaCharacterSettings={open(section='conversation'){characterSettingsFocus=true;openMemoryView(section);},flush:()=>flushCharacterSettings?flushCharacterSettings():Promise.resolve(true)};
+window.SofiaCharacterSettings={open(section='conversation'){characterSettingsFocus=true;return openMemoryView(section);},flush:()=>flushCharacterSettings?flushCharacterSettings():Promise.resolve(true)};
 const CHARACTER_SETTINGS_DRAFT='sofia_character_settings_pending_v1';
 function readCharacterSettingsDraft(){
   try{const draft=JSON.parse(localStorage.getItem(CHARACTER_SETTINGS_DRAFT)||'null');
@@ -1528,7 +1529,7 @@ function renderCharacterMemories(character) {
     for(const field of conversationControls)field.parentElement.hidden=memorySection==='photos';
     photoSection.hidden=photoLabel.hidden=help.hidden=memorySection==='conversation';
     save.textContent=memorySection==='photos'?'Fotoeinstellungen speichern':'Gesprächseinstellungen speichern';
-    if(memorySection==='photos'){const socialPhotos=document.createElement('button');socialPhotos.type='button';socialPhotos.textContent='Fotos in eigenständigen Kontakten';socialPhotos.onclick=async()=>{if(await closeMemoryView())window.SofiaSocial?.preferences?.({section:'photos'});};groups.settings.append(socialPhotos);}
+    if(memorySection==='photos'){const socialPhotos=document.createElement('button');socialPhotos.type='button';socialPhotos.textContent='Fotos in eigenständigen Kontakten';socialPhotos.onclick=async()=>{const open=()=>window.SofiaSocial?.preferences?.({section:'photos'});if(window.SofiaUI?.navigateFrom)return window.SofiaUI.navigateFrom(memoryOverlay,open,()=>openMemoryView('photos'),closeMemoryView);if(await closeMemoryView())open();};groups.settings.append(socialPhotos);}
   }
 
 

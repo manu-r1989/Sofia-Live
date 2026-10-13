@@ -3,6 +3,10 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {readFile} from 'node:fs/promises';
 const source=await readFile(new URL('../sofia-ui.js',import.meta.url),'utf8');
+function menu(h,label){const listeners={},d={tagName:'DIALOG',dataset:{},scrollTop:0,classList:{add(){}},setAttribute(){},addEventListener:(k,f)=>listeners[k]=f,close(){listeners.close?.();}};h.window.SofiaUI.enhanceDialog(d,label);return d;}
+test('closing a submenu restores its parent and then the ancestor exactly once',()=>{const h=harness();let settings=menu(h,'Einstellungen'),photos,contacts,settingsReturns=0,photoReturns=0;settings.scrollTop=80;h.window.SofiaUI.navigateFrom(settings,()=>photos=menu(h,'Fotos'),()=>{settingsReturns++;return settings=menu(h,'Einstellungen');});h.window.SofiaUI.navigateFrom(photos,()=>contacts=menu(h,'Eigenständige Fotos'),()=>{photoReturns++;return photos=menu(h,'Fotos');});assert.equal(settingsReturns,0);contacts.close();assert.equal(photoReturns,1);assert.equal(settingsReturns,0);photos.close();assert.equal(settingsReturns,1);assert.equal(settings.scrollTop,80);});
+test('a failed settings flush keeps the submenu open and does not navigate',async()=>{const h=harness(),d=menu(h,'Fotos');let opened=0;const result=await h.window.SofiaUI.navigateFrom(d,()=>opened++,()=>menu(h,'Einstellungen'),async()=>false);assert.equal(result,false);assert.equal(opened,0);assert.equal(d.dataset.menuForward,undefined);});
+test('an explicit jump to chat does not reopen a menu behind it',()=>{const h=harness(),settings=menu(h,'Einstellungen');let child,returned=0;h.window.SofiaUI.navigateFrom(settings,()=>child=menu(h,'Letzter Versand'),()=>{returned++;return menu(h,'Einstellungen');});child.dataset.returnToLatest='true';child.close();assert.equal(returned,0);});
 function harness(){
  const events={},variables={},input={tagName:'TEXTAREA',style:{},scrollHeight:210,addEventListener:(t,f)=>events[t]=f};
  const document={activeElement:input,documentElement:{dataset:{},style:{setProperty:(k,v)=>variables[k]=v}},getElementById:()=>input};
