@@ -1,6 +1,6 @@
 import { dataPrefix, testModeRequested, publicTestMode, guardTestRequest, providerFailure } from "../lib/environment.js";
 import { resolveReplyReference, replyReferenceContext, participantLocationContext, visibleConversation, DELETE_MESSAGE_SCRIPT, RESTORE_MESSAGE_SCRIPT, SAVE_VISIBLE_HISTORY_SCRIPT, conversationReferenceContext, conversationReferenceClarification, replyPhotoReference } from '../lib/message-context.js';
-import { persistMemorySnapshot, executeProjectCommand, executeMemoryCommand, projectState, projectContext, projectBinding, linkProjectResult, appearanceChoice, conversationClarification, guardPermanentMemory, compactConversationHistory, safeDiagnostic, taskReceipt, hamburgReferenceTime, portraitPreparationReply, preparePortrait, generatePortrait, servePortrait, portraitGallery, appendPortraitAcknowledgment, PORTRAIT_FAILURE_REPLY, getSofiaLife, currentSituationCorrection, synchronizeSituation, learnSofiaLife, lifeContext, selectedPhotoContext, prepareProactivePortrait, PROACTIVE_PHOTO_ANNOUNCEMENT } from '../lib/character-image.js';
+import { persistMemorySnapshot, executeProjectCommand, executeMemoryCommand, projectState, projectContext, projectBinding, linkProjectResult, appearanceChoice, conversationClarification, guardPermanentMemory, compactConversationHistory, safeDiagnostic, taskReceipt, hamburgReferenceTime, portraitPreparationReply, groundedPhotoReply, preparePortrait, generatePortrait, servePortrait, portraitGallery, appendPortraitAcknowledgment, PORTRAIT_FAILURE_REPLY, getSofiaLife, currentSituationCorrection, synchronizeSituation, learnSofiaLife, lifeContext, selectedPhotoContext, prepareProactivePortrait, PROACTIVE_PHOTO_ANNOUNCEMENT } from '../lib/character-image.js';
 import crypto from "node:crypto";
 import { executeUnifiedAction, getActionState, getResearchState } from "./action-engine.js";
 
@@ -1969,6 +1969,7 @@ Kein Markdown außerhalb des JSON-Objekts.
       if(await persistMemorySnapshot(storedMemories,next))memories=next;
       else {memoryAction={action:'none',old_memory:null,new_memory:null,category:null};reply=(taskAction?.ok&&taskAction.action!=='none'?taskReceipt(taskAction)+' ':'')+'Der Erinnerungsstand hat sich inzwischen geändert. Die Änderung konnte ich nicht bestätigen; bitte prüfe die Erinnerungsübersicht.';}
     }
+    reply=groundedPhotoReply(reply);
     sofiaLife = await learnSofiaLife(message, reply, new Date(), mood, sofiaLife.revision);
     let spontaneousImageRequest = null;
     if (taskAction?.ok && taskAction.action === "none" && !calendarAction && !image) {
