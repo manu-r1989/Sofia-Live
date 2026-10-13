@@ -38,7 +38,7 @@ test('quiet settings and temporary pause controls load, save and give explicit f
  const h=harness();await h.open();assert.equal(h.label('Ruhezeit beginnt').value,'23:00');assert.equal(h.label('Ruhezeit endet').value,'08:00');
  h.label('Ruhezeit beginnt').value='22:30';h.label('Ruhezeit endet').value='07:15';await h.find('Speichern').onclick();
  assert.equal(h.state.preferences.quietStart,'22:30');assert.equal(h.state.preferences.quietEnd,'07:15');assert.ok(h.find('Gespeichert.'));
- await h.find('Eine Stunde pausieren').onclick();assert.ok(h.state.preferences.pausedUntil);assert.ok(h.find('Pause gespeichert.'));
+ await h.find('1 Stunde').onclick();assert.ok(h.state.preferences.pausedUntil);assert.ok(h.find('Pause gespeichert.'));
  await h.find('Pause beenden').onclick();assert.equal(h.state.preferences.pausedUntil,null);assert.equal(h.state.preferences.level,'natural');assert.ok(h.find('Pause beendet. Ruhezeiten gelten weiterhin.'));
 });
 test('a settings dialog and a hidden message viewport do not acknowledge unread contacts',async()=>{
