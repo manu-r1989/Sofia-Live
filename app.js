@@ -904,41 +904,43 @@ if (sendButton) {
    MOBILE CHAT PANEL
 ========================= */
 
-const CHAT_STATES = ['hidden', 'compact', 'full', 'compact'];
-let chatStateStep = 1;
+const CHAT_STATES = ['compact', 'full', 'hidden'];
+let chatStateStep = 0;
+let hiddenChatViewport=null;
 
 function applyChatState(state) {
   if (!chatPanel) return;
   const next = ['hidden', 'compact', 'full'].includes(state) ? state : 'compact';
+  const viewport=chatPanel.classList.contains('chat-hidden')?hiddenChatViewport:window.SofiaChatViewport?.capture?.();
+  if(next==='hidden')hiddenChatViewport=viewport;
+  chatStateStep=CHAT_STATES.indexOf(next);
+  chatPanel.dataset.chatSize=next;
   chatPanel.classList.toggle('chat-hidden', next === 'hidden');
   chatPanel.classList.toggle('minimized', next === 'compact');
   chatPanel.classList.toggle('chat-full', next === 'full');
   app?.classList.toggle('chat-is-hidden', next === 'hidden');
 
   if (chatMinimize) {
-    chatMinimize.textContent = next === 'hidden' ? '▴' : next === 'full' ? '▾' : '•';
-    chatMinimize.title = next === 'hidden' ? 'Chat einblenden' : next === 'compact' ? 'Chat vergrößern' : 'Chat verkleinern';
+    const target=CHAT_STATES[(chatStateStep+1)%CHAT_STATES.length];
+    const names={compact:'Halbe Größe',full:'Volle Größe',hidden:'Ausgeblendet'};
+    const label='Chatgröße: '+names[next]+' · '+({compact:'Halbe Größe anzeigen',full:'Volle Größe anzeigen',hidden:'Chat ausblenden'}[target]);
+    if(window.SofiaIcons?.set)window.SofiaIcons.set(chatMinimize,{compact:'half',full:'full',hidden:'hide'}[target]);
+    else chatMinimize.textContent=target==='hidden'?'▾':target==='full'?'□':'▤';
+    chatMinimize.title = label;
+    chatMinimize.setAttribute('aria-label',label);
     chatMinimize.setAttribute('aria-expanded', next === 'hidden' ? 'false' : 'true');
   }
-  if (next !== 'hidden') scrollChatToLatest('auto');
+  try{localStorage.setItem('sofia_chat_size_v41001',next);}catch{}
+  if (next !== 'hidden') window.SofiaChatViewport?.restore?.(viewport);
 }
 
 function setChatMinimized(minimized) {
-  chatStateStep = minimized ? 1 : 2;
   applyChatState(minimized ? 'compact' : 'full');
 }
 
 if (chatMinimize) {
   chatMinimize.addEventListener('click', event => {
     event.preventDefault();
-
-    // Querformat: Der Bedienbereich überlagert Sofia nicht.
-    // Deshalb bleibt der Chat dort immer vollständig sichtbar.
-    if (window.matchMedia('(orientation: landscape)').matches) {
-      chatStateStep = 2;
-      applyChatState('full');
-      return;
-    }
 
     chatStateStep = (chatStateStep + 1) % CHAT_STATES.length;
     applyChatState(CHAT_STATES[chatStateStep]);
@@ -949,23 +951,21 @@ if (chatMinimize) {
 if (chatRestore) {
   chatRestore.addEventListener('click', event => {
     event.preventDefault();
-    chatStateStep = 1;
     applyChatState('compact');
   });
 }
 
 function enforceLandscapeChat() {
-  if (window.matchMedia('(orientation: landscape)').matches) {
-    chatStateStep = 2;
-    applyChatState('full');
-  }
+  // Rotation and keyboard resize must not replace the explicitly chosen size.
+  if(chatPanel)chatPanel.dataset.chatSize=CHAT_STATES[chatStateStep];
 }
 
 window.addEventListener('orientationchange', () => {
   window.setTimeout(enforceLandscapeChat, 120);
 });
 window.addEventListener('resize', enforceLandscapeChat);
-applyChatState(window.matchMedia('(orientation: landscape)').matches?'full':'compact');
+let savedChatSize=null;try{savedChatSize=localStorage.getItem('sofia_chat_size_v41001');}catch{}
+applyChatState(CHAT_STATES.includes(savedChatSize)?savedChatSize:window.matchMedia('(orientation: landscape)').matches?'full':'compact');
 
 if (app) {
   let previousLive = app.dataset.live === 'true';
@@ -1975,6 +1975,7 @@ function setTopLiveState(state = 'inactive') {
     : connecting
       ? 'Live-Sprachchat wird verbunden'
       : 'Live-Sprachchat starten';
+  voiceToggle.setAttribute('aria-label',voiceToggle.title);
 }
 
 function syncTopLiveButton() {
