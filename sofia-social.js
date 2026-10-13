@@ -52,6 +52,12 @@
   const label=document.createElement('label');label.textContent='Wie häufig darf Sofia sich melden?';const select=document.createElement('select');select.setAttribute('aria-label',label.textContent);select.style.cssText='display:block;width:100%;margin:12px 0;padding:10px';
   for(const [value,text]of [['off','Aus'],['quiet','Zurückhaltend · 1–3 pro Tag'],['natural','Natürlich · 3–7 pro Tag'],['active','Aktiv · 5–9 pro Tag']]){const o=document.createElement('option');o.value=value;o.textContent=text;select.append(o);}
   const photoLabel=document.createElement('label');const photos=document.createElement('input');photos.type='checkbox';photos.setAttribute('aria-label','Eigenständige Fotos erlauben');photoLabel.append(photos,document.createTextNode(' Eigenständige Fotos erlauben'));
+  const mix=document.createElement('fieldset'),mixLegend=document.createElement('legend');mixLegend.textContent='Nachrichten und Fotos';
+  const mixLabel=document.createElement('label');mixLabel.textContent='Gewünschte Verteilung';const photoShare=document.createElement('select');photoShare.setAttribute('aria-label','Verteilung proaktiver Nachrichten und Fotos');photoShare.disabled=true;
+  for(let percent=0;percent<=100;percent+=10){const option=document.createElement('option');option.value=String(percent);option.textContent=(100-percent)+' % Nachrichten · '+percent+' % Fotos';photoShare.append(option);}
+  const mixNote=document.createElement('p');mixNote.textContent='Gewichtung, keine feste Quote. Ruhezeiten, Fotofreigabe und Limits gelten weiterhin. Ist ein Foto ungeeignet, kann Sofia eine Textnachricht senden.';mixLabel.append(photoShare);mix.append(mixLegend,mixLabel,mixNote);
+  function paintMix(){photoShare.disabled=!state||!photos.checked;mixNote.textContent=photos.checked?'Gewichtung, keine feste Quote. Ruhezeiten, Fotofreigabe und Limits gelten weiterhin. Ist ein Foto ungeeignet, kann Sofia eine Textnachricht senden.':'Eigenständige Fotos sind ausgeschaltet. Sofia sendet nur Textnachrichten; die gewählte Verteilung bleibt gespeichert.';}
+  photos.onchange=paintMix;
   const quiet=document.createElement('fieldset'),quietLegend=document.createElement('legend');quietLegend.textContent='Ruhezeit in Hamburg';quiet.append(quietLegend);
   const quietStart=document.createElement('input'),quietEnd=document.createElement('input');quietStart.type=quietEnd.type='time';quietStart.setAttribute('aria-label','Ruhezeit beginnt');quietEnd.setAttribute('aria-label','Ruhezeit endet');quietStart.disabled=quietEnd.disabled=true;quiet.append(quietStart,document.createTextNode(' bis '),quietEnd);
   const pause=document.createElement('fieldset'),pauseLegend=document.createElement('legend'),pauseStatus=document.createElement('p');pauseLegend.textContent='Eigeninitiative pausieren';pause.append(pauseLegend,pauseStatus);
@@ -75,18 +81,19 @@
   }
   const close=document.createElement('button');close.textContent='Schließen';close.type='button';close.onclick=()=>dialog.close();
   const openUnread=document.createElement('button');openUnread.type='button';openUnread.textContent='Neue Nachrichten ansehen';openUnread.disabled=true;openUnread.onclick=()=>{const contact=state?.contacts?.find(x=>x.sequence>state.read);dialog.close();if(contact)window.dispatchEvent(new CustomEvent('sofia-contact-open',{detail:{contactId:contact.id}}));};
-  dialog.append(title,activityStatus,openUnread,inbox,label,select,planNote,distinction,photoLabel,note,quiet,pause,today,status,save,push,disable,devices,close);
+  dialog.append(title,activityStatus,openUnread,inbox,label,select,planNote,distinction,photoLabel,mix,note,quiet,pause,today,status,save,push,disable,devices,close);
   if(section!=='all'){
     openUnread.hidden=inbox.hidden=true;
     if(section!=='initiative')for(const node of [activityStatus,label,select,planNote,distinction,note,quiet,pause,today])node.hidden=true;
-    if(section!=='photos')photoLabel.hidden=true;
+    if(!['initiative','photos'].includes(section))photoLabel.hidden=true;
+    if(!['initiative','photos'].includes(section))mix.hidden=true;
     if(section!=='notifications')push.hidden=disable.hidden=devices.hidden=true;
     if(section==='notifications')save.hidden=true;
   }
   document.body.append(dialog);dialog.addEventListener('close',()=>dialog.remove(),{once:true});window.SofiaUI?.enhanceDialog(dialog,title.textContent);dialog.showModal();close.focus();
   let registration=null;push.disabled=true;disable.disabled=true;
   const within=(promise)=>{let timer;return Promise.race([promise,new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('Die Einrichtung dauert zu lange. Bitte schließe dieses Fenster und versuche es erneut.')),20000);})]).finally(()=>clearTimeout(timer));};
-  try{state=await request();openUnread.disabled=!state.unread;select.value=state.preferences.level;photos.checked=state.preferences.photos;quietStart.value=state.preferences.quietStart||'23:00';quietEnd.value=state.preferences.quietEnd||'08:00';quietStart.disabled=quietEnd.disabled=false;for(const b of pauseButtons)b.disabled=false;paintPause();save.disabled=false;select.disabled=false;photos.disabled=false;paintToday();paintDevices();paintActivity();paintInbox();paintPlan();dialog.scrollTop=0;
+  try{state=await request();openUnread.disabled=!state.unread;select.value=state.preferences.level;photos.checked=state.preferences.photos;photoShare.value=String(state.preferences.photoShare??30);paintMix();quietStart.value=state.preferences.quietStart||'23:00';quietEnd.value=state.preferences.quietEnd||'08:00';quietStart.disabled=quietEnd.disabled=false;for(const b of pauseButtons)b.disabled=false;paintPause();save.disabled=false;select.disabled=false;photos.disabled=false;paintToday();paintDevices();paintActivity();paintInbox();paintPlan();dialog.scrollTop=0;
    if(section==='all'||section==='notifications'){
    if('serviceWorker' in navigator)registration=await within(navigator.serviceWorker.ready);
    const sub=registration?.pushManager?await within(registration.pushManager.getSubscription()):null;
@@ -97,8 +104,8 @@
   }catch(e){status.textContent=e.message;push.disabled=true;}
   push.disabled=!registration?.pushManager;disable.disabled=!registration?.pushManager;
   if(!registration?.pushManager||typeof Notification==='undefined'){push.disabled=true;disable.disabled=true;status.textContent+=' Mitteilungen sind derzeit nicht verfügbar. Auf dem iPhone Sofia vom Home-Bildschirm öffnen.';}
-  for(const control of [select,photos,quietStart,quietEnd])control.addEventListener('change',()=>{status.textContent='Änderungen noch nicht gespeichert.';});
-  save.onclick=async()=>{save.disabled=true;status.textContent='Einstellungen werden gespeichert …';try{state=await request('preferences',{preferences:{level:select.value,photos:photos.checked,quietStart:quietStart.value,quietEnd:quietEnd.value}});status.textContent='Gespeichert.';paintToday();paintPause();paintActivity();paintPlan();renderBadge();}catch(e){status.textContent=e.message;}finally{save.disabled=false;}};
+  for(const control of [select,photos,photoShare,quietStart,quietEnd])control.addEventListener('change',()=>{status.textContent='Änderungen noch nicht gespeichert.';});
+  save.onclick=async()=>{save.disabled=true;status.textContent='Einstellungen werden gespeichert …';try{state=await request('preferences',{preferences:{level:select.value,photos:photos.checked,photoShare:Number(photoShare.value),quietStart:quietStart.value,quietEnd:quietEnd.value}});status.textContent='Gespeichert.';paintToday();paintPause();paintActivity();paintPlan();renderBadge();}catch(e){status.textContent=e.message;}finally{save.disabled=false;}};
   push.onclick=async()=>{
    push.disabled=true;push.textContent='Aktivierung läuft …';status.textContent='Bitte bestätige die Mitteilungsfreigabe deines Browsers.';try{
     // Browser permission is requested only in this explicit user click.
