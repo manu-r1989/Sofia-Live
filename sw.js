@@ -1,8 +1,8 @@
 /* =========================================================
-   SOFIA V4.100.7 — SERVICE WORKER
+   SOFIA V4.101.0 — SERVICE WORKER
    ========================================================= */
 
-const CACHE = "sofia-live-v41007v2";
+const CACHE = "sofia-live-v410101v1";
 
 
 const ASSETS = [
@@ -11,30 +11,31 @@ const ASSETS = [
 
   "./index.html",
 
-  "./style.css?v=41007v2",
+  "./style.css?v=410101v1",
 
-  "./sofia-ui.js?v=41007v2",
-  "./sofia-workspace.js?v=41007v2",
-  "./action-feedback.js?v=41007v2",
-  "./sofia-timeline.js?v=41007v2",
-  "./sofia-images.js?v=41007v2",
-  "./sofia-today.js?v=41007v2",
-  "./sofia-projects.js?v=41007v2",
-  "./sofia-social.js?v=41007v2",
-  "./sofia-navigation.js?v=41007v2",
-  "./app.js?v=41007v2",
+  "./sofia-ui.js?v=410101v1",
+  "./sofia-workspace.js?v=410101v1",
+  "./sofia-companion.js?v=410101v1",
+  "./action-feedback.js?v=410101v1",
+  "./sofia-timeline.js?v=410101v1",
+  "./sofia-images.js?v=410101v1",
+  "./sofia-today.js?v=410101v1",
+  "./sofia-projects.js?v=410101v1",
+  "./sofia-social.js?v=410101v1",
+  "./sofia-navigation.js?v=410101v1",
+  "./app.js?v=410101v1",
 
-  "./live.js?v=41007v2",
+  "./live.js?v=410101v1",
 
   "./sofia-avatar.js?v=4192c1",
 
   "./avatar-presence.js?v=4193p3",
   "./avatar-gesture.js?v=4197m1",
-  "./avatar-expression.js?v=41007v2",
+  "./avatar-expression.js?v=410101v1",
   "./avatar/sofia-friendly-mouth.png?v=4194e1",
   "./avatar/sofia-thoughtful-mouth.png?v=4194e2",
 
-  "./avatar-gaze.js?v=41007v2",
+  "./avatar-gaze.js?v=410101v1",
 
   "./avatar/sofia-gaze-left.png?v=4192g3",
 

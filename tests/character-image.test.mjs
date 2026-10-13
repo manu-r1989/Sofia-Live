@@ -224,7 +224,7 @@ test('image delivery is private JPEG with download attachment and validated IDs'
 });
 test('UI integration loads shared renderer before app and does not alter avatar assets',async()=>{
  const root=new URL('../',import.meta.url);const index=await readFile(new URL('index.html',root),'utf8');
- assert.ok(index.indexOf('sofia-images.js?v=41007v2')<index.indexOf('app.js?v=41007v2'));
+ assert.ok(index.indexOf('sofia-images.js?v=410101v1')<index.indexOf('app.js?v=410101v1'));
  const chat=await readFile(new URL('api/chat.js',root),'utf8');
  assert.ok(chat.indexOf('!safeEqual(')<chat.indexOf('await servePortrait'));
  const ui=await readFile(new URL('sofia-images.js',root),'utf8');assert.match(ui,/dialog.showModal/);assert.match(ui,/link.download=/);assert.doesNotMatch(ui,/spinner|generating-status/);
@@ -709,4 +709,11 @@ test('text chat stores no unsupported photo preparation promise from the languag
  await handler({method:'POST',headers:{cookie:'sofia_session='+session},body:{message:'Hallo'}},res);
  assert.equal(status,200);assert.equal(data.imageRequest,undefined);assert.equal(data.reply,'Möchtest du ein Foto von mir sehen?');
  assert.equal(JSON.parse(db.get('sofia:main:history')).at(-1).content,data.reply);
+});
+test('job retry returns an existing active request and never creates a second planner call',async()=>{
+ reset();const request=await api.preparePortrait('Selfie bitte');const callsBefore=plannerInputs.length;assert.equal((await api.retryCompanionJob(request.id)).id,request.id);assert.equal(plannerInputs.length,callsBefore);
+ const parent='22222222-2222-4222-8222-222222222222';db.set(prefix+'request:'+parent,JSON.stringify({id:parent,status:'failed',requestMessage:'Selfie bitte'}));db.set(prefix+'retry:'+parent,JSON.stringify({requestId:request.id}));assert.equal((await api.retryCompanionJob(parent)).id,request.id);assert.equal(plannerInputs.length,callsBefore);
+});
+test('job overview exposes safe metadata and confirmed action receipts without image bytes',async()=>{
+ reset();db.set(prefix+'jobs',JSON.stringify([{id:'a',jobStatus:'processing',requestMessage:'Selfie',requestedAt:new Date().toISOString(),base64:'private-bytes'}]));db.set('sofia:main:action-state',JSON.stringify({lastActionSummary:'Aufgabe gespeichert',secret:'not-public'}));const data=await api.companionJobs();assert.equal(data.jobs[0].phase,'processing');assert.equal(data.action,'Aufgabe gespeichert');assert.equal(data.jobs[0].base64,undefined);assert.equal(data.secret,undefined);
 });

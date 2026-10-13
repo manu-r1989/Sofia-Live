@@ -1,4 +1,5 @@
 import handleSocial from '../lib/social-handler.js';
+import handleCompanion from '../lib/companion-handler.js';
 import { testModeRequested, publicTestMode, guardTestRequest, resetTestData } from "../lib/environment.js";
 import crypto from "node:crypto";
 
@@ -44,6 +45,7 @@ function safeEqual(a, b) {
 }
 
 export default async function handler(req, res) {
+  if(req.query?.companion==='1')return handleCompanion(req,res);
   if(req.query?.social==='1')return handleSocial(req,res);
   res.setHeader(
     "Cache-Control",
@@ -97,4 +99,5 @@ export default async function handler(req, res) {
     authenticated: true
   });
 }
+
 
