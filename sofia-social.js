@@ -81,7 +81,8 @@
   }
   const close=document.createElement('button');close.textContent='Schließen';close.type='button';close.onclick=()=>dialog.close();
   const openUnread=document.createElement('button');openUnread.type='button';openUnread.textContent='Neue Nachrichten ansehen';openUnread.disabled=true;openUnread.onclick=()=>{const contact=state?.contacts?.find(x=>x.sequence>state.read);dialog.close();if(contact)window.dispatchEvent(new CustomEvent('sofia-contact-open',{detail:{contactId:contact.id}}));};
-  dialog.append(title,activityStatus,openUnread,inbox,label,select,planNote,distinction,photoLabel,mix,note,quiet,pause,today,status,save,push,disable,devices,close);
+  const extras=[];if(['all','initiative'].includes(section)){const extra=document.createElement('button');extra.type='button';extra.textContent='Kontaktarten und Rituale';extra.onclick=()=>window.SofiaCompanion?.next(dialog,()=>window.SofiaCompanion.initiative(),()=>preferences({section}));extras.push(extra);}
+  dialog.append(title,...extras,activityStatus,openUnread,inbox,label,select,planNote,distinction,photoLabel,mix,note,quiet,pause,today,status,save,push,disable,devices,close);
   if(section!=='all'){
     openUnread.hidden=inbox.hidden=true;
     if(section!=='initiative')for(const node of [activityStatus,label,select,planNote,distinction,note,quiet,pause,today])node.hidden=true;
