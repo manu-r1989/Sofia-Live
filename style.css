@@ -1298,3 +1298,4 @@ body:has(#sofia-test-banner) .app .chatPanel[data-chat-size="compact"]{top:auto!
  .sofia-dialog .dialog-header{top:-16px;margin-bottom:10px;padding:8px 0}
 }
 @media(min-width:390px) and (max-width:430px){.settings-entry{padding:12px!important;min-height:56px}.sofia-main-nav{gap:3px}.sofia-dialog{overflow-wrap:anywhere}}
+#sofiaMemoryOverlay [hidden],.sofia-dialog [hidden]{display:none!important}
