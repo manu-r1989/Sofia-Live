@@ -83,15 +83,17 @@
     if(section!=='notifications')push.hidden=disable.hidden=devices.hidden=true;
     if(section==='notifications')save.hidden=true;
   }
-  document.body.append(dialog);dialog.addEventListener('close',()=>dialog.remove(),{once:true});window.SofiaUI?.enhanceDialog(dialog,'Nachrichten und Eigeninitiative');dialog.showModal();close.focus();
+  document.body.append(dialog);dialog.addEventListener('close',()=>dialog.remove(),{once:true});window.SofiaUI?.enhanceDialog(dialog,title.textContent);dialog.showModal();close.focus();
   let registration=null;push.disabled=true;disable.disabled=true;
   const within=(promise)=>{let timer;return Promise.race([promise,new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('Die Einrichtung dauert zu lange. Bitte schließe dieses Fenster und versuche es erneut.')),20000);})]).finally(()=>clearTimeout(timer));};
   try{state=await request();openUnread.disabled=!state.unread;select.value=state.preferences.level;photos.checked=state.preferences.photos;quietStart.value=state.preferences.quietStart||'23:00';quietEnd.value=state.preferences.quietEnd||'08:00';quietStart.disabled=quietEnd.disabled=false;for(const b of pauseButtons)b.disabled=false;paintPause();save.disabled=false;select.disabled=false;photos.disabled=false;paintToday();paintDevices();paintActivity();paintInbox();paintPlan();if(focus==='quiet'||focus==='pause'){const target=focus==='quiet'?quiet:pause;target.scrollIntoView?.({block:'center'});target.querySelector?.('input,button')?.focus?.({preventScroll:true});}
+   if(section==='all'||section==='notifications'){
    if('serviceWorker' in navigator)registration=await within(navigator.serviceWorker.ready);
    const sub=registration?.pushManager?await within(registration.pushManager.getSubscription()):null;
    status.textContent=typeof Notification!=='undefined'&&Notification.permission==='denied'?'Mitteilungen sind im Browser blockiert. Bitte erlaube sie in den Website-Einstellungen.':sub&&Notification.permission==='granted'?'Mitteilungen auf diesem Gerät eingerichtet.':'Mitteilungen auf diesem Gerät noch nicht aktiviert.';
    if(sub){const id=await localDeviceId(sub.endpoint),device=state.devices?.find(x=>x.id===id);if(!device||device.status==='expired')status.textContent='Lokale Freigabe vorhanden, aber das Abonnement ist nicht aktiv. Bitte erneut aktivieren.';}
    if(!state.backgroundConfigured)status.textContent+=' Hintergrundversand ist noch nicht eingerichtet. Bei geöffneter App kann Sofia sich bereits melden.';
+   }else status.textContent='Einstellungen geladen.';
   }catch(e){status.textContent=e.message;push.disabled=true;}
   push.disabled=!registration?.pushManager;disable.disabled=!registration?.pushManager;
   if(!registration?.pushManager||typeof Notification==='undefined'){push.disabled=true;disable.disabled=true;status.textContent+=' Mitteilungen sind derzeit nicht verfügbar. Auf dem iPhone Sofia vom Home-Bildschirm öffnen.';}

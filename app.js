@@ -1115,7 +1115,7 @@ function createMemoryUI() {
 
   closeButton.setAttribute(
     'aria-label',
-    'Memory schließen'
+    'Erinnerungen schließen'
   );
 
   Object.assign(
@@ -1265,7 +1265,7 @@ async function loadLongTermMemories() {
   memoryList.replaceChildren();
 
   setMemoryStatus(
-    'Memory wird geladen…'
+    'Wird geladen…'
   );
 
   try {
@@ -1316,6 +1316,7 @@ async function loadLongTermMemories() {
         ? '1 Langzeiterinnerung'
         : `${memories.length} Langzeiterinnerungen`;
 
+    if(memorySection!=='memory')memoryCount.textContent=memorySection==='photos'?'Fototypen und eigene Fotos':'Antworten, Rückfragen und Themen';
     setMemoryStatus(
       '',
       false
@@ -1384,7 +1385,7 @@ async function loadLongTermMemories() {
       'Langzeiterinnerungen';
 
     setMemoryStatus(
-      'Memory konnte gerade nicht geladen werden.'
+      'Diese Ansicht konnte gerade nicht geladen werden.'
     );
   }
 }
@@ -1459,7 +1460,7 @@ function renderCharacterMemories(character) {
   const photoSection=document.createElement('details'),photoSummary=document.createElement('summary');
   const summarizePhotos=()=>{photoSummary.textContent='Fototypen · '+photoKinds.filter(x=>x.checked).length+' ausgewählt';};summarizePhotos();photoSection.append(photoSummary,motifs);controls.append(photoSection);
   const photoLabel=document.createElement('label'),photos=document.createElement('input');photos.type='checkbox';photos.checked=settings.photos!==false;photoLabel.textContent='Gelegentliche eigene Fotos (max. 2 pro Stunde) ';photoLabel.append(photos);controls.append(photoLabel);
-  const help=document.createElement('small');help.textContent='Die Motivauswahl gilt für selbst angebotene Fotos. Ausdrücklich angefragte Bilder bleiben möglich. Nachrichtenhäufigkeit und Ruhezeiten findest du unter Mitteilungen.';help.style.opacity='.65';controls.append(help);
+  const help=document.createElement('small');help.textContent='Die Motivauswahl gilt für selbst angebotene Fotos. Ausdrücklich angefragte Bilder bleiben möglich. Nachrichtenhäufigkeit und Ruhezeiten findest du unter Einstellungen → Eigeninitiative.';help.style.opacity='.65';controls.append(help);
   const values=()=>({initiative:initiative.value,replyLength:length.value,questionFrequency:questions.value,topicInitiative:topics.value,photos:photos.checked,photoKinds:photoKinds.filter(x=>x.checked).map(x=>x.value)});
   let serverValues=values();
   let settingsRevision=character.revision;
