@@ -549,7 +549,7 @@
                 for(const key of ['sofia_memory','sofia-photo-reference','sofia_task_notices_v417','sofia_draft_v448','sofia_pins_v448','sofia_read_at_v448'])localStorage.removeItem(key);window.location.reload();
               }catch{label.textContent='Zurücksetzen nicht möglich. Bitte erneut versuchen.';}finally{reset.disabled=false;}
             };
-            banner.append(label,reset);document.body.append(banner);
+            const voices=document.createElement('a');voices.href='/voice-preview.html';voices.textContent='Stimmen vergleichen';voices.style.color='inherit';banner.append(label,voices,reset);document.body.append(banner);
             const app=document.getElementById('app');if(app)app.style.paddingTop='44px';
           }
 
