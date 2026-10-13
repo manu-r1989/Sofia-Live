@@ -11,5 +11,7 @@ Authorized scope: implement all six roadmap releases plus the seven extensions f
 
 Existing long-term memory, tasks, gallery, cleanup, safe areas and drafts must remain intact. No paid limits are increased for testing. Provider billing is never represented as exact unless actually available.
 
-## Completed releases
-- 4.101.0: 748 tests passed. Test 6590c05549c1337898754e64c21ee9c575faa3fb READY; browser loaded 21 jobs, confirmed completed/failed states, photo links and navigation. No paid job was started during verification.
+## Completed
+- 4.101.0 production c829e323123223d09cab53f01c79c468b68f78ef READY, 748 tests; test job overview verified and deployed static files matched.
+
+4.102.0: 751 Tests bestanden; Browser: Profil gespeichert und nach Öffnen bestätigt, Testprofil zurückgesetzt; Über-uns-Eintrag gespeichert und reversibel archiviert.
