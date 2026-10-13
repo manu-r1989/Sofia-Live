@@ -10,17 +10,17 @@ import crypto from 'node:crypto';
 const source = await readFile(new URL('../lib/character-image.js',import.meta.url),'utf8');
 const api = await import('data:text/javascript;base64,' + Buffer.from(source).toString('base64'));
 const prefix='sofia:main:portrait:';
-let db, plan, calls, imageCalls, failImage, failRedis, plannerInputs, textInputs, reviewQueue, reviewInputs, weatherData, weatherCalls;
+let db, plan, calls, imageCalls, failImage, failRedis, plannerInputs, textInputs, reviewQueue, reviewInputs, weatherData, weatherCalls, chatReply;
 const savedFetch=globalThis.fetch;
 const envKeys=['KV_REST_API_URL','KV_REST_API_TOKEN','OPENAI_API_KEY','SOFIA_PASSWORD'];
 const env=Object.fromEntries(envKeys.map(k=>[k,process.env[k]]));
-function reset(){reviewQueue=[];reviewInputs=[];weatherData=null;weatherCalls=0;db=new Map();plan={action:'new',outfit:'Blue sweater',scene:'Selfie outdoors',caption:'Mein Selfie'};calls=[];imageCalls=[];plannerInputs=[];textInputs=[];failImage=false;failRedis=false;process.env.KV_REST_API_URL='https://redis.test';process.env.KV_REST_API_TOKEN='test';process.env.OPENAI_API_KEY='test';}
+function reset(){chatReply='Hallo Manu!';reviewQueue=[];reviewInputs=[];weatherData=null;weatherCalls=0;db=new Map();plan={action:'new',outfit:'Blue sweater',scene:'Selfie outdoors',caption:'Mein Selfie'};calls=[];imageCalls=[];plannerInputs=[];textInputs=[];failImage=false;failRedis=false;process.env.KV_REST_API_URL='https://redis.test';process.env.KV_REST_API_TOKEN='test';process.env.OPENAI_API_KEY='test';}
 const response = (data,ok=true)=>({ok,json:async()=>data});
 globalThis.fetch=async(url,options)=>{
  if(String(url).startsWith('https://api.open-meteo.com/')){weatherCalls++;return response(weatherData,!!weatherData);}
  const body=JSON.parse(options.body);calls.push(String(url));
  if(url==='https://redis.test/pipeline') { for(const command of body){const [op,key,value]=command;if(op==='EVAL'&&key.includes('sofia-save-visible-history')){const hidden=JSON.parse(db.get(command[4])||'[]'),h=JSON.parse(command[5]);db.set(command[3],JSON.stringify(h.filter(t=>!hidden.some(x=>x.role===t.role&&x.content===t.content&&x.createdAt===t.createdAt))));}else{assert.equal(op,'SET');db.set(key,value);}} return response(body.map(()=>({result:'OK'}))); }
- if(String(url).endsWith('/responses')) { textInputs.push(body.input); return response({output_text:JSON.stringify({action:'none'}),output:[{content:[{type:'output_text',text:JSON.stringify({reply:'Hallo Manu!',mood:'entspannt',memory_action:{action:'none'}})}]}]}); }
+ if(String(url).endsWith('/responses')) { textInputs.push(body.input); return response({output_text:JSON.stringify({action:'none'}),output:[{content:[{type:'output_text',text:JSON.stringify({reply:chatReply,mood:'entspannt',memory_action:{action:'none'}})}]}]}); }
  if(url==='https://redis.test'){
   if(failRedis) return response({},false);
   const [op,key,value,...rest]=body;
@@ -224,7 +224,7 @@ test('image delivery is private JPEG with download attachment and validated IDs'
 });
 test('UI integration loads shared renderer before app and does not alter avatar assets',async()=>{
  const root=new URL('../',import.meta.url);const index=await readFile(new URL('index.html',root),'utf8');
- assert.ok(index.indexOf('sofia-images.js?v=41004v3')<index.indexOf('app.js?v=41004v3'));
+ assert.ok(index.indexOf('sofia-images.js?v=41005v1')<index.indexOf('app.js?v=41005v1'));
  const chat=await readFile(new URL('api/chat.js',root),'utf8');
  assert.ok(chat.indexOf('!safeEqual(')<chat.indexOf('await servePortrait'));
  const ui=await readFile(new URL('sofia-images.js',root),'utf8');assert.match(ui,/dialog.showModal/);assert.match(ui,/link.download=/);assert.doesNotMatch(ui,/spinner|generating-status/);
@@ -657,3 +657,56 @@ test('exact edit contract preserves all unselected dimensions and never permits 
 test('variant job and published result retain the same selected source edit contract',async()=>{reset();const first=await api.preparePortrait('Selfie');await api.generatePortrait(first.id);plan.action='variant';const job=await api.preparePortrait('Dasselbe in anderem Licht',first.id);const stored=JSON.parse(db.get(prefix+'request:'+job.id));assert.equal(stored.editContract.sourceId,first.id);assert.deepEqual(stored.editContract.changes,['lighting']);const result=await api.generatePortrait(job.id);assert.equal(result.editContract.sourceId,first.id);assert.match(imageCalls.at(-1).prompt,/EXACT EDIT CONTRACT/);assert.match(imageCalls.at(-1).prompt,/A lighting edit alone cannot change capture time/);});
 test('review checks unrequested head and expression drift but allows their explicit edit',async()=>{reset();reviewQueue=[{ok:false,confidence:.95,mismatches:['head-pose','expression']}];let r=await api.reviewPortrait('/9j/BB==',{variant:true,sourceId:'11111111-1111-4111-8111-111111111111',dimensions:['lighting'],scene:'Nur Licht'},12000,'/9j/AA==');assert.equal(r.status,'mismatch');assert.deepEqual(r.mismatches,['head-pose','expression']);reviewQueue=[{ok:false,confidence:.95,mismatches:['head-pose','expression']}];r=await api.reviewPortrait('/9j/BB==',{variant:true,dimensions:['head-pose','expression'],scene:'Kopf gerade und lächeln'},12000,'/9j/AA==');assert.deepEqual(r.mismatches,[]);});
 test('a low confidence camera approval is uncertain without causing another image request',async()=>{reset();reviewQueue=[{ok:true,confidence:.4,mismatches:[]}];const r=await api.reviewPortrait('/9j/BB==',{variant:true,dimensions:['camera-angle'],scene:'90 Grad'},12000,'/9j/AA==');assert.equal(r.status,'uncertain');assert.equal(imageCalls.length,0);});
+
+
+test('everyday self-photo requests create tracked ready jobs when planner says none',async()=>{
+ for(const text of ['zeig dich mal','Kannst du dich mal zeigen?','Zeige dich bitte','Sofia, zeig mir dich mal!','lass mal was von dir sehen','Lass mich mal etwas von dir sehen.','in dem outfit würde ich dich gern sehen','Ich würde dich gerne in dem Outfit sehen']){
+  reset();plan.action='none';const job=await api.preparePortrait(text);assert.ok(job?.id,text);
+  const stored=JSON.parse(db.get(prefix+'request:'+job.id));assert.equal(stored.status,'ready');assert.equal(stored.variant,false);assert.equal(stored.sourceId,null);
+  const jobs=await api.portraitGallery();assert.ok(jobs.some(x=>x.id===job.id&&x.jobStatus==='ready'),text);
+ }
+});
+test('indirect photo routing excludes refusals, future tasks, quotations and explanations',async()=>{
+ for(const text of ['Zeig dich mal nicht.','Lass mal kein Foto von dir sehen.','Erinnere mich morgen: zeig dich mal.','Zeig dich mal später.','Was bedeutet zeig dich mal?','Sag „lass mal was von dir sehen“.','In dem Outfit würde ich dich nicht gern sehen.','Ich würde den Vertrag gern sehen.']){
+  reset();plan.action='none';assert.equal(api.indirectPortraitRequest(text),false,text);assert.equal(await api.preparePortrait(text),null,text);
+ }
+});
+test('indirect outfit request supplies recent outfit conversation to the image planner',async()=>{
+ reset();const now=new Date(),life=api.defaultSofiaLife(now);life.dialogue={at:now.toISOString(),lastUser:'Wie sieht dein Outfit aus?',lastAssistant:'Ich trage einen blauen Pullover.'};db.set(prefix+'life',JSON.stringify(life));
+ const job=await api.preparePortrait('In dem Outfit würde ich dich gern sehen',null,now);assert.ok(job?.id);assert.match(plannerInputs[0].conversation.lastAssistant,/blauen Pullover/);
+});
+test('photo preparation promises require a real job and preserve ordinary replies',()=>{
+ for(const reply of ['Gib mir einen kleinen Moment.','Gib mir einen kurzen Moment!','Ich schicke dir gleich ein Foto.','Das Foto wird gerade generiert.'])assert.equal(api.groundedPhotoReply(reply),'Möchtest du ein Foto von mir sehen?',reply);
+ for(const reply of ['Ich kann dir ein Foto zeigen.','Ich schicke dir kein Foto.','Dein Outfit gefällt mir.','Die Aufgabe ist gespeichert.'])assert.equal(api.groundedPhotoReply(reply),reply);
+ assert.equal(api.groundedPhotoReply('Gib mir einen kleinen Moment.',{id:'11111111-1111-4111-8111-111111111111'}),'Gib mir einen kleinen Moment.');
+});
+test('Text and Live return an actionable request id for indirect self-photo requests',async()=>{
+ const moduleUrl=s=>'data:text/javascript;base64,'+Buffer.from(s).toString('base64'),root=new URL('../',import.meta.url);
+ const dates=moduleUrl(await readFile(new URL('lib/task-dates.js',root),'utf8'));
+ const tasks=moduleUrl((await readFile(new URL('api/task-action.js',root),'utf8')).replace('../lib/task-dates.js',dates));const engine=moduleUrl((await readFile(new URL('api/action-engine.js',root),'utf8')).replace('./task-action.js',tasks));
+ process.env.SOFIA_PASSWORD='test-only';
+ const session=crypto.createHmac('sha256','test-only').update('sofia-authorized-session-v1').digest('hex');
+ for(const endpoint of ['chat','live-context']){
+  const code=(await readFile(new URL('api/'+endpoint+'.js',root),'utf8')).replace('../lib/character-image.js',moduleUrl(source)).replace('./action-engine.js',engine);const handler=(await import(moduleUrl(code))).default;
+  for(const message of ['zeig dich mal','in dem outfit würde ich dich gern sehen','lass mal was von dir sehen']){
+   reset();plan.action='none';let data,status;const res={setHeader(){},status(n){status=n;return this;},json(d){data=d;return d;}};
+   await handler({method:'POST',headers:{cookie:'sofia_session='+session},body:{message}},res);
+   assert.equal(status,200);assert.ok(data.imageRequest?.id,endpoint+': '+message);assert.match(data.reply||data.context,/Gib mir einen kleinen Moment/);
+   assert.equal(JSON.parse(db.get(prefix+'request:'+data.imageRequest.id)).status,'ready');
+   if(endpoint==='chat')assert.ok(JSON.parse(db.get('sofia:main:history')).some(x=>x.imageRequestId===data.imageRequest.id));
+  }
+ }
+});
+
+test('text chat stores no unsupported photo preparation promise from the language model',async()=>{
+ reset();chatReply='Gib mir einen kleinen Moment.';process.env.SOFIA_PASSWORD='test-only';
+ const moduleUrl=s=>'data:text/javascript;base64,'+Buffer.from(s).toString('base64'),root=new URL('../',import.meta.url);
+ const dates=moduleUrl(await readFile(new URL('lib/task-dates.js',root),'utf8'));
+ const tasks=moduleUrl((await readFile(new URL('api/task-action.js',root),'utf8')).replace('../lib/task-dates.js',dates));const engine=moduleUrl((await readFile(new URL('api/action-engine.js',root),'utf8')).replace('./task-action.js',tasks));
+ const code=(await readFile(new URL('api/chat.js',root),'utf8')).replace('../lib/character-image.js',moduleUrl(source)).replace('./action-engine.js',engine);const handler=(await import(moduleUrl(code))).default;
+ const session=crypto.createHmac('sha256','test-only').update('sofia-authorized-session-v1').digest('hex');let data,status;
+ const res={setHeader(){},status(n){status=n;return this;},json(d){data=d;return d;}};
+ await handler({method:'POST',headers:{cookie:'sofia_session='+session},body:{message:'Hallo'}},res);
+ assert.equal(status,200);assert.equal(data.imageRequest,undefined);assert.equal(data.reply,'Möchtest du ein Foto von mir sehen?');
+ assert.equal(JSON.parse(db.get('sofia:main:history')).at(-1).content,data.reply);
+});
