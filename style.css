@@ -1319,3 +1319,26 @@ body:has(#sofia-test-banner) .app .chatPanel[data-chat-size="compact"]{top:auto!
 .sofia-dialog fieldset input[type=time]{width:calc(50% - 16px)!important;max-width:150px;min-height:40px!important;padding:6px 8px;font-size:16px}
 @media(max-width:850px){.sofia-dialog .menu-header{position:sticky;top:-16px!important}.settings-entry{margin:6px 0!important;min-height:52px!important}.settings-entry small{margin-top:3px;font-size:12px}.mood-options{gap:6px}}
 #sofiaMemoryOverlay [hidden],.sofia-dialog [hidden]{display:none!important}
+
+/* V4.100.4 — dense gallery, explicit filter fields and centered chat status. */
+#sofia-gallery .gallery-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:10px!important;margin:12px 0!important}
+#sofia-gallery .gallery-card{position:relative;gap:3px}
+#sofia-gallery .gallery-card time{margin:0!important;font-size:11px!important}
+#sofia-gallery .photo-series-label{font-size:10px;line-height:1.25;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#sofia-gallery .gallery-card>.gallery-photo-button{min-height:0!important;border-radius:10px!important}
+#sofia-gallery .gallery-card>.gallery-favorite{position:absolute;right:5px;bottom:5px;width:36px!important;height:36px!important;min-height:36px!important;margin:0!important;padding:0!important;display:grid;place-items:center;border-radius:50%!important;background:rgba(12,15,21,.82)!important;color:#f5e1b5;font-size:23px!important;line-height:1!important;border:1px solid #ffffff35}
+#sofia-gallery .gallery-card:has(input[type=checkbox])>.gallery-favorite{bottom:34px}
+#sofia-gallery .gallery-filters{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px!important;align-items:end}
+#sofia-gallery .gallery-filters label{display:flex;flex-direction:column;gap:5px;min-width:0;font-size:12px;color:var(--ui-muted)}
+#sofia-gallery .gallery-filters label:first-child{grid-column:1/-1}
+#sofia-gallery .gallery-filters select,#sofia-gallery .gallery-filters input{display:block;width:100%;min-width:0;max-width:100%;flex:none;min-height:40px;padding:7px 9px;font-size:16px;color:var(--ui-text,#edf0f6);background:var(--ui-inset,#0c1016);border:1px solid var(--ui-border);border-radius:10px}
+#sofia-gallery .gallery-filter-section button{min-height:40px;font-size:13px;padding:7px 10px;margin:4px 0;border-radius:10px}
+.chatPanel .chatHead{display:flex!important;align-items:center!important;min-height:44px!important;padding:8px 0!important;flex-shrink:0}
+.chatPanel .chatHead>div:first-child{align-items:center!important;min-height:28px}
+@media(min-width:850px){#sofia-gallery .gallery-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important}}
+
+#sofia-gallery .gallery-card-date{margin:0!important;font-size:11px!important;line-height:1.3}
+#sofia-gallery .gallery-card>.gallery-favorite{min-width:36px!important}
+#sofia-gallery .gallery-filters label{margin:0!important;gap:5px!important}
+#sofia-gallery .gallery-filters select{margin:0!important}
+#sofia-gallery .gallery-filters input[type=date]{flex:none!important;height:40px!important;min-height:40px!important;max-height:40px!important}

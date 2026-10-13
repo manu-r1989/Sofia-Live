@@ -66,3 +66,18 @@ test('small safe-area viewport differences do not leave a phantom keyboard open 
 test('rotating to another width resets a stale taller keyboard baseline',()=>{const h=harness();h.window.innerWidth=390;h.events['viewport-resize']();h.window.innerWidth=800;h.window.innerHeight=470;h.window.visualViewport.height=470;h.events['viewport-resize']();assert.equal(h.document.documentElement.dataset.keyboardOpen,'false');assert.equal(h.variables['--sofia-keyboard-inset'],'0px');});
 test('a newly revealed editor scrolls and flushes layout before synchronous native focus',()=>{const h=harness(),calls=[];const editor={scrollIntoView:o=>calls.push(['scroll',o.behavior]),getBoundingClientRect:()=>calls.push(['layout']),focus:o=>{calls.push(['focus',o.preventScroll]);h.document.activeElement=editor;}};h.window.SofiaUI.focusEditor(editor);assert.deepEqual(calls,[['scroll','auto'],['layout'],['focus',true]]);assert.equal(h.document.activeElement,editor);});
 test('a photo editor stays in view when its keyboard changes the visual viewport',()=>{const h=harness(),calls=[],editor={tagName:'TEXTAREA',scrollIntoView:o=>calls.push(o.block)};h.document.activeElement=editor;h.events['viewport-resize']();assert.equal(h.document.documentElement.dataset.editorFocused,'true');h.window.visualViewport.height=260;h.events['viewport-resize']();assert.equal(h.variables['--sofia-visible-height'],'260px');assert.deepEqual(calls,['nearest','nearest']);h.document.activeElement=null;h.events.blur();assert.equal(h.document.documentElement.dataset.editorFocused,'false');});
+
+test('reopening a reused memory surface recreates enabled navigation controls',async()=>{
+ const h=harness();
+ function node(){return {children:[],classList:{add(){}},setAttribute(){},append(...xs){for(const x of xs){this.children.push(x);x.parent=this;}},remove(){this.parent.children=this.parent.children.filter(x=>x!==this);},focus(){}};}
+ const header=node(),doc={createElement:()=>node()};h.document.createElement=doc.createElement;let restore,closed=0;
+ const overlay={tagName:'DIV',ownerDocument:doc,style:{display:'flex'},dataset:{},classList:{add(){}},setAttribute(){},querySelector:s=>s==='.dialog-header'?header:s==='.menu-nav-actions'?header.children.find(x=>x.className==='menu-nav-actions'):null,querySelectorAll:()=>[]};
+ const close=()=>{closed++;overlay.style.display='none';restore();return true;};
+ const open=()=>{overlay.style.display='flex';restore=h.window.SofiaUI.enhanceDialog(overlay,'Fotos',close);};
+ h.window.SofiaUI.navigateFrom(menu(h,'Einstellungen'),open,()=>menu(h,'Einstellungen'));
+ const first=header.children.at(-1);assert.equal(first.children[0].disabled,false);await first.children[0].onclick();assert.equal(closed,1);assert.equal(first.children[0].disabled,true);
+ h.window.SofiaUI.navigateFrom(menu(h,'Einstellungen'),open,()=>menu(h,'Einstellungen'));
+ const second=header.children.at(-1);assert.notEqual(second,first);assert.equal(second.children[0].disabled,false);await second.children[1].onclick();assert.equal(closed,2);
+ h.window.SofiaUI.navigateFrom(menu(h,'Einstellungen'),open,()=>menu(h,'Einstellungen'));
+ const third=header.children.at(-1);assert.notEqual(third,second);assert.equal(third.children[0].disabled,false);assert.notEqual(third.children[1].disabled,true);
+});

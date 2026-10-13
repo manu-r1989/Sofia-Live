@@ -47,6 +47,8 @@
     element._returnMenu=pendingReturnMenu;pendingReturnMenu=null;
     const native=element.tagName==='DIALOG';if(!native){element.setAttribute('role','dialog');element.setAttribute('aria-modal','true');}
     element._closeSurface=native?()=>element.close():close;surfaces.add(element);
+    // Reused memory surfaces need fresh enabled controls and the current parent route.
+    if(element.ownerDocument?.createElement)element.querySelector('.menu-nav-actions')?.remove();
     menuControls(element,label,native);
     if(typeof queueMicrotask==='function')queueMicrotask(()=>{menuControls(element,label,native);element.scrollTop=0;const first=element.querySelector?.('.menu-nav-action:not(:disabled)');first?.focus?.({preventScroll:true});});
     const restore=()=>{surfaces.delete(element);if(element.dataset?.menuForward==='true')return;if(element.dataset?.returnToLatest!=='true'&&element._returnMenu){const back=element._returnMenu;element._returnMenu=null;back();return;}const parent=[...(document.querySelectorAll?.('dialog[open]')||[])].at(-1)||document.querySelector?.('dialog[open]');if(!parent&&element.dataset?.returnToLatest!=='true')window.SofiaChatViewport?.restore(viewport);if(trigger?.isConnected&&(!parent||parent.contains?.(trigger)))trigger.focus?.({preventScroll:true});};
