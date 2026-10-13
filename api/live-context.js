@@ -1,6 +1,6 @@
 import { dataPrefix, testModeRequested, publicTestMode, guardTestRequest } from "../lib/environment.js";
 import { participantLocationContext, conversationReferenceContext, conversationReferenceClarification, shortAgendaReply, visibleConversation } from '../lib/message-context.js';
-import { executeProjectCommand, executeMemoryCommand, projectState, projectContext, projectBinding, linkProjectResult, appearanceChoice, taskReceipt, hamburgReferenceTime, portraitPreparationReply, preparePortrait, getSofiaLife, currentSituationCorrection, synchronizeSituation, lifeContext, selectedPhotoContext, prepareProactivePortrait, PROACTIVE_PHOTO_ANNOUNCEMENT } from '../lib/character-image.js';
+import { companionState, companionContext, executeProjectCommand, executeMemoryCommand, projectState, projectContext, projectBinding, linkProjectResult, appearanceChoice, taskReceipt, hamburgReferenceTime, portraitPreparationReply, preparePortrait, getSofiaLife, currentSituationCorrection, synchronizeSituation, lifeContext, selectedPhotoContext, prepareProactivePortrait, PROACTIVE_PHOTO_ANNOUNCEMENT } from '../lib/character-image.js';
 import crypto from "node:crypto";
 import { executeUnifiedAction, getActionState, getResearchState } from "./action-engine.js";
 
@@ -237,6 +237,7 @@ export default async function handler(req, res) {
     const photoContext=await selectedPhotoContext(req.body?.referenceImageId,message,new Date(),sofiaLife);
     const context = [
       lifeContext(sofiaLife,message),
+      companionContext(await companionState(),req.body?.conversationMode),
       sharedReferenceContext,
       photoContext,
       projectContext(sharedProjects),

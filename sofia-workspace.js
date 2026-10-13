@@ -136,6 +136,7 @@
     const d=panel('Einstellungen');d.classList.add('settings-hub');
     const hint=document.createElement('p');hint.textContent='Wähle den Bereich, den du einstellen möchtest.';d.append(hint);
     const entries=[
+      ['Persönlich','Gesprächsprofil, Über uns und Erinnerungsprüfung',()=>window.SofiaCompanion?.personal()],
       ['Aufträge und Status','Laufende Bilder und bestätigte Aktionen',()=>window.SofiaCompanion?.jobs()],
       ['Chat','Chatverlauf bereinigen und letzte Bereinigung rückgängig machen',chatSettings],
       ['Gespräch','Antworten, Rückfragen und neue Themen',()=>window.SofiaCharacterSettings?.open?.('conversation')],
@@ -148,7 +149,7 @@
     ];
     for(const [title,description,action]of entries){const b=button(title,()=>menuNext(d,action,settings));b.className='settings-entry';const sub=document.createElement('small');sub.textContent=description;b.append(sub);d.append(b);}return d;
   }
-  function appHelp(){const d=panel('App und Hilfe');const version=document.createElement('p');version.textContent='Sofia 4.101.0';d.append(version,button('Technische Übersicht',()=>menuNext(d,diagnostics,appHelp)));if(updateAvailable)d.append(button('Neue Version laden',applyUpdate));if(pendingDraft)d.append(button('Letzten Versand prüfen',()=>menuNext(d,pendingSubmission,appHelp)));
+  function appHelp(){const d=panel('App und Hilfe');const version=document.createElement('p');version.textContent='Sofia 4.102.0';d.append(version,button('Technische Übersicht',()=>menuNext(d,diagnostics,appHelp)));if(updateAvailable)d.append(button('Neue Version laden',applyUpdate));if(pendingDraft)d.append(button('Letzten Versand prüfen',()=>menuNext(d,pendingSubmission,appHelp)));
     if(hiddenMessages.length)d.append(button('Ausgeblendete Nachrichten',()=>{const list=panel('Ausgeblendete Nachrichten');const status=statusNode(list);for(const turn of hiddenMessages.slice(-40).reverse()){const row=document.createElement('div'),text=document.createElement('p');text.textContent=(turn.role==='user'?'Du: ':'Sofia: ')+turn.content.slice(0,300);const restore=button('Wiederherstellen',async()=>{restore.disabled=true;try{await window.SofiaChatDelete(turn,true);row.remove();}catch(e){status.textContent=e.message;restore.disabled=false;}});row.append(text,restore);list.append(row);}}));return d;
   }
   function chatTools(){const d=panel('Chat durchsuchen');d.append(button('Im Chat suchen',()=>menuNext(d,search,chatTools)),button('Angeheftete Nachrichten',()=>menuNext(d,pinned,chatTools)));return d;}

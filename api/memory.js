@@ -110,7 +110,7 @@ function normalizeMemoryItem(item) {
     text: item.text.trim().slice(0, 500),
     category: typeof item.category === "string" && item.category.trim() ? item.category.trim() : memoryCategory(item.text),
     createdAt: typeof item.createdAt === "string" ? item.createdAt : null,
-    ...(item.source&&['conversation','manual'].includes(item.source.kind)?{source:{kind:item.source.kind,at:item.source.at||null}}:{}),
+    ...(item.source&&['conversation','manual'].includes(item.source.kind)?{source:{kind:item.source.kind,at:item.source.at||null,...(typeof item.source.message==='string'?{message:item.source.message.slice(0,600)}:{})}}:{}),
     updatedAt: typeof item.updatedAt === "string" ? item.updatedAt : null
   };
 }

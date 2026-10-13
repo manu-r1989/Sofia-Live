@@ -1,6 +1,6 @@
 import { dataPrefix, testModeRequested, publicTestMode, guardTestRequest, providerFailure } from "../lib/environment.js";
 import { chatCleanupPlan, CHAT_CLEANUP_SCRIPT, resolveReplyReference, replyReferenceContext, participantLocationContext, visibleConversation, DELETE_MESSAGE_SCRIPT, RESTORE_MESSAGE_SCRIPT, SAVE_VISIBLE_HISTORY_SCRIPT, conversationReferenceContext, conversationReferenceClarification, replyPhotoReference } from '../lib/message-context.js';
-import { persistMemorySnapshot, executeProjectCommand, executeMemoryCommand, projectState, projectContext, projectBinding, linkProjectResult, appearanceChoice, conversationClarification, guardPermanentMemory, compactConversationHistory, safeDiagnostic, taskReceipt, hamburgReferenceTime, portraitPreparationReply, groundedPhotoReply, preparePortrait, generatePortrait, servePortrait, portraitGallery, appendPortraitAcknowledgment, PORTRAIT_FAILURE_REPLY, getSofiaLife, currentSituationCorrection, synchronizeSituation, learnSofiaLife, lifeContext, selectedPhotoContext, prepareProactivePortrait, PROACTIVE_PHOTO_ANNOUNCEMENT } from '../lib/character-image.js';
+import { companionState, companionContext, persistMemorySnapshot, executeProjectCommand, executeMemoryCommand, projectState, projectContext, projectBinding, linkProjectResult, appearanceChoice, conversationClarification, guardPermanentMemory, compactConversationHistory, safeDiagnostic, taskReceipt, hamburgReferenceTime, portraitPreparationReply, groundedPhotoReply, preparePortrait, generatePortrait, servePortrait, portraitGallery, appendPortraitAcknowledgment, PORTRAIT_FAILURE_REPLY, getSofiaLife, currentSituationCorrection, synchronizeSituation, learnSofiaLife, lifeContext, selectedPhotoContext, prepareProactivePortrait, PROACTIVE_PHOTO_ANNOUNCEMENT } from '../lib/character-image.js';
 import crypto from "node:crypto";
 import { executeUnifiedAction, getActionState, getResearchState } from "./action-engine.js";
 
@@ -814,10 +814,12 @@ export default async function handler(req, res) {
     const projectTask=projectBinding(message,sharedProjects);
     history=visibleConversation(history,hiddenMessages);
     const replyReference=quoteReference;
+    const companion=await companionState();
     const SOFIA_PROMPT = `
 Du bist Sofia.
 
 ${lifeContext(sofiaLife,message)}
+${companionContext(companion,req.body?.conversationMode)}
 ${participantLocationContext(history)}
 ${conversationReferenceContext(history,message,replyReference)}
 ${req.body?.replyTo&&!replyReference?'NICHT VERFÜGBARER ANTWORTBEZUG: Die ausdrücklich zitierte Nachricht konnte nicht im gespeicherten Verlauf bestätigt werden. Frage kurz, welche Nachricht gemeint ist; nicht stattdessen die letzte Nachricht oder einen anderen Ort als Bezug annehmen.':replyReferenceContext(replyReference)}
@@ -1982,7 +1984,7 @@ Kein Markdown außerhalb des JSON-Objekts.
     memoryAction=guardPermanentMemory(message,memoryAction,memories);
     if(proposedMemory.action!=="none" && memoryAction.action==="none" && /(?:habe|hab|ist|wurde).{0,45}(?:dauerhaft gespeichert|im langzeitgedächtnis|als erinnerung gespeichert)/i.test(reply))reply="Das behalte ich zunächst nur für dieses Gespräch im Blick.";
     if(memoryAction.action!=='none') {
-      const next=applyMemoryAction(memories,memoryAction);
+      const next=applyMemoryAction(memories,memoryAction).map(t=>['add','update'].includes(memoryAction.action)&&t.text===memoryAction.new_memory?{...t,source:{...t.source,message:message.slice(0,600)}}:t);
       if(await persistMemorySnapshot(storedMemories,next))memories=next;
       else {memoryAction={action:'none',old_memory:null,new_memory:null,category:null};reply=(taskAction?.ok&&taskAction.action!=='none'?taskReceipt(taskAction)+' ':'')+'Der Erinnerungsstand hat sich inzwischen geändert. Die Änderung konnte ich nicht bestätigen; bitte prüfe die Erinnerungsübersicht.';}
     }

@@ -708,6 +708,7 @@ async function askSofia(userMessage, imageDataUrl = null, options = {}) {
         signal:typeof AbortSignal!=='undefined' && typeof AbortSignal.timeout==='function'?AbortSignal.timeout(90000):undefined,
         body: JSON.stringify({
           message: userMessage,
+          conversationMode:window.SofiaCompanion?.mode?.(),
           replyTo: options.replyTo || null,
           history: historyForAPI,
           image: imageDataUrl,

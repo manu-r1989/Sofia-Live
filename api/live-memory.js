@@ -731,7 +731,7 @@ ${cleanUser}
 
     memoryAction=guardPermanentMemory(cleanUser,memoryAction,memories);
     if(memoryAction.action!=='none') {
-      const next=applyMemoryAction(memories,memoryAction);
+      const next=applyMemoryAction(memories,memoryAction).map(t=>['add','update'].includes(memoryAction.action)&&t.text===memoryAction.new_memory?{...t,source:{...t.source,message:cleanUser.slice(0,600)}}:t);
       if(await persistMemorySnapshot(storedMemories,next))memories=next;
       else {memoryAction={action:'none',old_memory:null,new_memory:null,category:null};memoryWarning='Der Erinnerungsstand hat sich geändert. Bitte prüfe die Erinnerungsübersicht; die Änderung wurde nicht bestätigt.';}
     }
