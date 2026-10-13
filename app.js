@@ -1231,7 +1231,7 @@ function openMemoryView(section='memory') {
 
   memoryOverlay.style.display =
     'flex';
-  memoryOverlay._restoreUI=window.SofiaUI?.enhanceDialog(memoryOverlay,'Erinnerungen',closeMemoryView);
+  memoryOverlay._restoreUI=window.SofiaUI?.enhanceDialog(memoryOverlay,heading?.textContent||'Erinnerungen',closeMemoryView);
   memoryOverlay.querySelector('button')?.focus();
 
   document.body.style.overflow =
