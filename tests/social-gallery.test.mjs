@@ -251,3 +251,20 @@ test('reordered repeated contact is detected without rejecting a different topic
  assert.equal(api.repeatedContact('Zwischen Regentropfen schmeckt Kaffee wunderbar draußen neben alten Backsteinhäusern',[{text:old}]),true);
  assert.equal(api.repeatedContact('Heute lese ich ein neues Buch über Musik.',[{text:old}]),false);
 });
+
+
+test('photo weighting selects the exact fraction of eligible random draws',()=>{
+ const life={settings:{photos:true}},box={sequence:0,read:0,items:[]};
+ for(const photoShare of [0,10,30,50,100]){
+  let photos=0;for(let draw=0;draw<100;draw++)if(api.contactKind(life,box,[],{photos:true,photoShare},n=>n===100?draw:0)==='photo')photos++;
+  assert.equal(photos,photoShare);
+ }
+ for(const [life,box,prefs]of [[{settings:{photos:false}},{sequence:0,read:0,items:[]},{photos:true,photoShare:100}],[{key:'day:sleep'},{sequence:0,read:0,items:[]},{photos:true,photoShare:100}],[{}, {sequence:1,read:0,items:[]},{photos:true,photoShare:100}],[{}, {sequence:0,read:0,items:[]},{photos:false,photoShare:100}]])assert.notEqual(api.contactKind(life,box,[],prefs,()=>0),'photo');
+});
+test('photo weighting is validated and survives pause, resume and old client saves',async()=>{
+ reset();const settings={level:'natural',photos:true,photoShare:70};let r=await settingsCall({operation:'preferences',preferences:settings});assert.equal(r.status,200);assert.equal(r.data.preferences.photoShare,70);
+ for(const duration of ['hour','resume']){r=await settingsCall({operation:'pause',duration});assert.equal(r.data.preferences.photoShare,70);}
+ r=await settingsCall({operation:'preferences',preferences:{level:'quiet',photos:false}});assert.equal(r.data.preferences.photoShare,70);
+ for(const photoShare of [-1,101,20.5,'50',null])assert.equal((await settingsCall({operation:'preferences',preferences:{...settings,photoShare}})).status,400);
+ assert.equal((await api.socialState()).preferences.photoShare,70);
+});

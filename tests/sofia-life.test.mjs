@@ -15,7 +15,7 @@ const savedFetch=globalThis.fetch;
 const keys=['KV_REST_API_URL','KV_REST_API_TOKEN','OPENAI_API_KEY','SOFIA_PASSWORD'];
 const env=Object.fromEntries(keys.map(k=>[k,process.env[k]]));
 let db,quotas,decision,narrative,inputs,details;
-function reset(){db=new Map();quotas=new Map();decision=true;narrative=null;details={};inputs=[];process.env.KV_REST_API_URL='https://redis.test';process.env.KV_REST_API_TOKEN='test';process.env.OPENAI_API_KEY='test';process.env.SOFIA_PASSWORD='test-only';}
+function reset(){db=new Map();db.set(prefix+'contact-prefs',JSON.stringify({level:'natural',photos:true,photoShare:100}));quotas=new Map();decision=true;narrative=null;details={};inputs=[];process.env.KV_REST_API_URL='https://redis.test';process.env.KV_REST_API_TOKEN='test';process.env.OPENAI_API_KEY='test';process.env.SOFIA_PASSWORD='test-only';}
 const response=data=>({ok:true,json:async()=>data});
 globalThis.fetch=async(endpoint,options)=>{
  const body=JSON.parse(options.body);
@@ -652,3 +652,9 @@ test('rhythm settings survive day changes and older clients retain new settings'
 });
 
 test('shared situation reads persisted field provenance after transient change markers are cleared',()=>{const view=api.situationView({location:'im Café',situation:{sources:{location:{source:'correction',at:'2026-10-11T12:00Z'}}}},new Date('2026-10-11T12:00Z'));assert.equal(view.source,'correction');assert.equal(api.situationView({},new Date('2026-10-11T12:00Z')).source,'unrecorded');});
+
+test('zero photo share prevents spontaneous image planning and quota consumption',async()=>{
+ reset();db.set(prefix+'contact-prefs',JSON.stringify({level:'natural',photos:true,photoShare:0}));const now=new Date('2026-10-06T12:15Z'),life=await api.getSofiaLife(now);const before=inputs.length;
+ assert.equal(await api.prepareProactivePortrait('Was machst du gerade?',life,'Ich bin in der Stadt.',now),null);assert.equal(inputs.length,before);assert.equal(quotas.size,0);
+ const explicit=await api.preparePortrait('Mach bitte ein Selfie',null,now);assert.ok(explicit.id);
+});
