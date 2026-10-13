@@ -19,3 +19,5 @@ Existing long-term memory, tasks, gallery, cleanup, safe areas and drafts must r
 - 4.103.0 production 28f8cf9b5475d3358e76890759a997efd7b32153 READY, 753 tests; outfit reuse, wish storage/archive and one-photo album browser flow verified; deployed assets matched.
 
 - 4.104.0 production a42115def7efdcbe0308e0c4c8f09dd449cf40e4 READY, 755 tests; quiz progress survives close/reopen; deployed assets matched.
+
+- 4.105.0 production e994f444386e992fbc7d72e394e5b907f6756539 READY, 758 tests; contact controls, disabled ritual storage/archive and project milestone/history browser flows verified; deployed assets matched.

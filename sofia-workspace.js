@@ -142,6 +142,8 @@
       ['Aufträge und Status','Laufende Bilder und bestätigte Aktionen',()=>window.SofiaCompanion?.jobs()],
       ['Chat','Chatverlauf bereinigen und letzte Bereinigung rückgängig machen',chatSettings],
       ['Gespräch','Antworten, Rückfragen und neue Themen',()=>window.SofiaCharacterSettings?.open?.('conversation')],
+      ['Live-Gespräch','Mikrofonpause, Antwortpause und Fortsetzung',()=>window.SofiaCompanion?.liveControls()],
+      ['Nutzung und Limits','Verbrauch, persönliche Grenzen und Kostenschätzung',()=>window.SofiaCompanion?.usage()],
       ['Eigeninitiative','Kontakthäufigkeit, Ruhezeiten und Pausen',()=>window.SofiaSocial?.preferences?.({section:'initiative'})],
       ['Fotos','Eigene Fotos und erlaubte Fototypen',()=>window.SofiaCharacterSettings?.open?.('photos')],
       ['Mitteilungen','Push-Mitteilungen und Geräte',()=>window.SofiaSocial?.preferences?.({section:'notifications'})],
@@ -151,7 +153,7 @@
     ];
     for(const [title,description,action]of entries){const b=button(title,()=>menuNext(d,action,settings));b.className='settings-entry';const sub=document.createElement('small');sub.textContent=description;b.append(sub);d.append(b);}return d;
   }
-  function appHelp(){const d=panel('App und Hilfe');const version=document.createElement('p');version.textContent='Sofia 4.105.0';d.append(version,button('Technische Übersicht',()=>menuNext(d,diagnostics,appHelp)));if(updateAvailable)d.append(button('Neue Version laden',applyUpdate));if(pendingDraft)d.append(button('Letzten Versand prüfen',()=>menuNext(d,pendingSubmission,appHelp)));
+  function appHelp(){const d=panel('App und Hilfe');const version=document.createElement('p');version.textContent='Sofia 4.106.0';d.append(version,button('Technische Übersicht',()=>menuNext(d,diagnostics,appHelp)));if(updateAvailable)d.append(button('Neue Version laden',applyUpdate));if(pendingDraft)d.append(button('Letzten Versand prüfen',()=>menuNext(d,pendingSubmission,appHelp)));
     if(hiddenMessages.length)d.append(button('Ausgeblendete Nachrichten',()=>{const list=panel('Ausgeblendete Nachrichten');const status=statusNode(list);for(const turn of hiddenMessages.slice(-40).reverse()){const row=document.createElement('div'),text=document.createElement('p');text.textContent=(turn.role==='user'?'Du: ':'Sofia: ')+turn.content.slice(0,300);const restore=button('Wiederherstellen',async()=>{restore.disabled=true;try{await window.SofiaChatDelete(turn,true);row.remove();}catch(e){status.textContent=e.message;restore.disabled=false;}});row.append(text,restore);list.append(row);}}));return d;
   }
   function chatTools(){const d=panel('Chat durchsuchen');d.append(button('Im Chat suchen',()=>menuNext(d,search,chatTools)),button('Angeheftete Nachrichten',()=>menuNext(d,pinned,chatTools)));return d;}

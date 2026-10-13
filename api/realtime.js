@@ -1,5 +1,6 @@
 import { dataPrefix, testModeRequested, publicTestMode, guardTestRequest, providerFailure } from "../lib/environment.js";
 import crypto from "node:crypto";
+import {companionState,companionContext,reserveCompanionLive,finishCompanionLive} from '../lib/character-image.js';
 
 const MEMORY_KEY = dataPrefix() + 'longterm';
 const HISTORY_KEY = dataPrefix() + 'history';
@@ -159,7 +160,10 @@ export default async function handler(
     });
   }
 
+  let usageSession=null;
   try {
+    const companion=await companionState();
+    usageSession=await reserveCompanionLive();
     // Optional context must not prevent microphone/session startup.
     const contextResults=await Promise.allSettled([
       redisGetJSON(MEMORY_KEY, []),redisGetJSON(HISTORY_KEY, []),redisGetJSON(IDENTITY_KEY, []),redisGetJSON(dataPrefix()+'portrait:life',null),redisGetJSON(dataPrefix()+'portrait:shared-projects',{items:[]})
@@ -250,6 +254,7 @@ export default async function handler(
     const activeProjects=(sharedProjects.items||[]).filter(p=>p.status==='active').slice(-4);
     const instructions = `
 Du bist Sofia.
+${companionContext(companion,req.body?.conversationMode)}
 
 SITUATION BEIM LIVE-START: ${JSON.stringify(initialSituation)}.
 GESPRÄCHSSTAND BEIM LIVE-START: ${JSON.stringify(initialDialogue)}.
@@ -669,6 +674,7 @@ ${historyText}
       await openAIResponse.json();
 
     if (!openAIResponse.ok) {
+      await finishCompanionLive(usageSession.id).catch(()=>{});
       console.error('Realtime session rejected',{status:openAIResponse.status,code:/^[a-z0-9_]{1,80}$/i.test(data?.error?.code||'')?data.error.code:'provider_error'});
 
       return res
@@ -682,10 +688,14 @@ ${historyText}
 
     return res.status(200).json({
       value: data.value,
-      instructions
+      instructions,
+      usageSession:{id:usageSession.id,seconds:usageSession.seconds,expiresAt:usageSession.startedAt+usageSession.seconds*1000},
+      livePreferences:companion.livePreferences
     });
 
   } catch (error) {
+    if(usageSession)await finishCompanionLive(usageSession.id).catch(()=>{});
+    if(error.code==='personal_live_limit')return res.status(429).json({code:error.code,error:error.message});
     console.error(
       "Sofia Realtime:",
       {name:error?.name || "Error"}

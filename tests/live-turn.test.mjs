@@ -10,13 +10,13 @@ function harness(fetchImpl = async () => ({ ok: true, json: async () => ({ conte
   const timers = new Map(), sent = [], gates = [], stopped = [], feedback = [];
   let next = 0;
   const context = vm.createContext({
-    window: { SofiaActionFeedback: {show: result=>feedback.push(result),clear:()=>feedback.push("clear")}, setTimeout: (fn, delay) => { timers.set(++next, { fn, delay }); return next; }, SofiaAvatar: { listen() {}, think() {} } },
+    CustomEvent:class {constructor(type,init){this.type=type;this.detail=init?.detail;}},window: { dispatchEvent(){}, SofiaActionFeedback: {show: result=>feedback.push(result),clear:()=>feedback.push("clear")}, setTimeout: (fn, delay) => { timers.set(++next, { fn, delay }); return next; }, SofiaAvatar: { listen() {}, think() {} } },
     clearTimeout: id => timers.delete(id), fetch: fetchImpl, console, AbortController,
     setPresence() {}, setThought() {}, openCalendarImport() {}, app: null,
     stopLive: () => { stopped.push(true); context.cancel(); },
     suppressMicForAssistant: () => gates.push('closed')
   });
-  vm.runInContext(`let liveActive=true, responseLocked=false, assistantResponding=false, ignoreInputUntil=0;
+  vm.runInContext(`const cancelledResponseIds=new Set();let activeResponseId=null;let manuallyPaused=false,turnDelay=1500,remoteAudio=null;let liveActive=true, responseLocked=false, assistantResponding=false, ignoreInputUntil=0;
     const dataChannel={readyState:'open',send: x=>send(x)};
     ${turn}
     ${handler}
@@ -118,3 +118,4 @@ test('Live displays the actual task result without a second action request', asy
   await h.event(start('a'));await h.event(stop('a'));await h.event(transcript('a','Aufgabe erstellen'));await h.run();
   assert.equal(requests,1);assert.equal(h.sent.length,1);assert.equal(h.feedback[0],'clear');assert.equal(h.feedback.at(-1),result);
 });
+
