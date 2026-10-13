@@ -129,7 +129,7 @@
     const recovery=document.createElement('p');recovery.textContent='Die letzte Bereinigung lässt sich 24 Stunden lang rückgängig machen. Nicht gespeicherte Entwürfe bleiben erhalten.';d.append(note,label,dateLabel,preview,undo,recovery);return d;
   }
   function cleanupConfirmation(result){
-    const d=panel('Chatbereinigung bestätigen'),status=statusNode(d),summary=document.createElement('p');summary.textContent=result.label+': '+result.messageCount+' Nachrichten und '+result.photoCount+' Fotoeinträge aus dem Chat entfernen? Erinnerungen, Aufgaben und Galerie bleiben erhalten.';
+    const d=panel('Chatbereinigung bestätigen'),status=statusNode(d),summary=document.createElement('p');summary.textContent=result.label+': '+result.messageCount+(result.messageCount===1?' Nachricht und ':' Nachrichten und ')+result.photoCount+(result.photoCount===1?' Fotoeintrag':' Fotoeinträge')+' aus dem Chat entfernen? Erinnerungen, Aufgaben und Galerie bleiben erhalten.';
     const confirm=button('Jetzt aus dem Chat entfernen',async()=>{confirm.disabled=true;try{const data=await cleanupRequest('apply_chat_cleanup',{id:result.id,confirm:true});put('sofia-chat-cleanup-last',result.id);acceptHidden(data.hiddenMessages);window.SofiaImages?.restore(data.images);await window.SofiaChatCleanupRefresh?.();status.textContent='Chat bereinigt. Erinnerungen, Aufgaben und Galerie bleiben erhalten.';}catch(e){status.textContent=e.message;confirm.disabled=false;}});confirm.disabled=!result.messageCount&&!result.photoCount;d.append(summary,confirm,button('Abbrechen',()=>d.close()));return d;
   }
   function settings(){
