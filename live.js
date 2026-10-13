@@ -128,7 +128,7 @@
   }
 
   async function createLiveTurnResponse(revision) {
-    const current = () => liveActive && revision === userTurnRevision && !userSpeaking &&
+    const current = () => liveActive && !manuallyPaused && revision === userTurnRevision && !userSpeaking &&
       !responseLocked && !assistantResponding && dataChannel?.readyState === "open";
     if (!current() || userContextRequestRevision === revision) return;
     userContextRequestRevision = revision;
@@ -356,6 +356,7 @@
 
 
   function setPresence(state, label) {
+    if(manuallyPaused&&liveActive&&['ready','listening','thinking'].includes(state)){state='idle';label='Live-Mikrofon pausiert';}
     const changed = lastPresenceState !== state;
     if (changed) {
       presenceStartedAt = performance.now();
