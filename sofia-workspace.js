@@ -138,6 +138,7 @@
     const entries=[
       ['Persönlich','Gesprächsprofil, Über uns und Erinnerungsprüfung',()=>window.SofiaCompanion?.personal()],
       ['Fotostudio','Kleiderschrank, Fotowünsche und Alben',()=>window.SofiaCompanion?.studio()],
+      ['Aktivitäten','Geschichten, Rätsel und Quiz mit Spielstand',()=>window.SofiaCompanion?.activities()],
       ['Aufträge und Status','Laufende Bilder und bestätigte Aktionen',()=>window.SofiaCompanion?.jobs()],
       ['Chat','Chatverlauf bereinigen und letzte Bereinigung rückgängig machen',chatSettings],
       ['Gespräch','Antworten, Rückfragen und neue Themen',()=>window.SofiaCharacterSettings?.open?.('conversation')],
