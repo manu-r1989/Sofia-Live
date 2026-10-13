@@ -1278,4 +1278,5 @@ html[data-chat-font="large"] .photo-follow-ups{grid-template-columns:repeat(2,mi
 @media(min-width:851px){:root:not([data-keyboard-open="true"]) .app .chatPanel[data-chat-size="full"]{bottom:22px!important;top:18px!important}:root:not([data-keyboard-open="true"]) .app .chatPanel[data-chat-size="compact"]{bottom:22px!important;height:calc((100dvh - 40px)/2)!important;max-height:calc((100dvh - 40px)/2)!important}}
 @media(max-width:360px){.sofia-main-nav{gap:2px}.sofia-main-nav>button{padding:5px!important}.sofia-main-nav svg{width:19px;height:19px}}
 body:has(#sofia-test-banner) .app .chatPanel[data-chat-size="full"]{top:44px!important}
+body:has(#sofia-test-banner) .app .chatPanel[data-chat-size="compact"]{top:auto!important}
 .sofia-photo-view [aria-label="Vorheriges Foto"],.sofia-photo-view [aria-label="Nächstes Foto"]{min-height:36px!important;padding:6px 10px!important;font-size:12px!important;line-height:1.2!important}
