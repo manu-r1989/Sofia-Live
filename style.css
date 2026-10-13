@@ -1341,3 +1341,4 @@ body:has(#sofia-test-banner) .app .chatPanel[data-chat-size="compact"]{top:auto!
 #sofia-gallery .gallery-card>.gallery-favorite{min-width:36px!important}
 #sofia-gallery .gallery-filters label{margin:0!important;gap:5px!important}
 #sofia-gallery .gallery-filters select{margin:0!important}
+#sofia-gallery .gallery-filters input[type=date]{flex:none!important;height:40px!important;min-height:40px!important;max-height:40px!important}
