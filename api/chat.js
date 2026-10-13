@@ -1,5 +1,5 @@
 import { dataPrefix, testModeRequested, publicTestMode, guardTestRequest, providerFailure } from "../lib/environment.js";
-import { resolveReplyReference, replyReferenceContext, participantLocationContext, visibleConversation, DELETE_MESSAGE_SCRIPT, RESTORE_MESSAGE_SCRIPT, SAVE_VISIBLE_HISTORY_SCRIPT, conversationReferenceContext, conversationReferenceClarification, replyPhotoReference } from '../lib/message-context.js';
+import { chatCleanupPlan, CHAT_CLEANUP_SCRIPT, resolveReplyReference, replyReferenceContext, participantLocationContext, visibleConversation, DELETE_MESSAGE_SCRIPT, RESTORE_MESSAGE_SCRIPT, SAVE_VISIBLE_HISTORY_SCRIPT, conversationReferenceContext, conversationReferenceClarification, replyPhotoReference } from '../lib/message-context.js';
 import { persistMemorySnapshot, executeProjectCommand, executeMemoryCommand, projectState, projectContext, projectBinding, linkProjectResult, appearanceChoice, conversationClarification, guardPermanentMemory, compactConversationHistory, safeDiagnostic, taskReceipt, hamburgReferenceTime, portraitPreparationReply, groundedPhotoReply, preparePortrait, generatePortrait, servePortrait, portraitGallery, appendPortraitAcknowledgment, PORTRAIT_FAILURE_REPLY, getSofiaLife, currentSituationCorrection, synchronizeSituation, learnSofiaLife, lifeContext, selectedPhotoContext, prepareProactivePortrait, PROACTIVE_PHOTO_ANNOUNCEMENT } from '../lib/character-image.js';
 import crypto from "node:crypto";
 import { executeUnifiedAction, getActionState, getResearchState } from "./action-engine.js";
@@ -530,6 +530,23 @@ export default async function handler(req, res) {
   const turnStartedAt=new Date().toISOString();
   try {
 
+    if(req.method==='POST'&&req.body?.operation==='preview_chat_cleanup') {
+      const client=Array.isArray(req.body.turns)?req.body.turns:[];if(client.length>1000)return res.status(400).json({error:'Zu viele Nachrichten in der Vorschau.'});
+      try{
+        const hidden=await redisGetJSON(HIDDEN_MESSAGES_KEY,[]),turns=visibleConversation([...client,...(await redisGetJSON(HISTORY_KEY,[]))],hidden);
+        const plan=chatCleanupPlan(turns,await portraitGallery(),req.body.scope,req.body.date),life=await redisGetJSON(dataPrefix()+'portrait:life',{});
+        const at=life?.dialogue?.at,dialogueAt=at&&chatCleanupPlan([{role:'assistant',content:'context',createdAt:at}],[],req.body.scope,req.body.date).messageCount?at:null;
+        const id=crypto.randomUUID();await redisPipeline([['SET',dataPrefix()+'chat-cleanup:'+id,JSON.stringify({...plan,dialogueAt,status:'ready'}),'EX',600]]);
+        return res.status(200).json({id,label:plan.label,messageCount:plan.messageCount,photoCount:plan.photoCount});
+      }catch(error){return res.status(400).json({error:error.message||'Vorschau nicht verfügbar.'});}
+    }
+    if(req.method==='POST'&&['apply_chat_cleanup','undo_chat_cleanup'].includes(req.body?.operation)) {
+      const id=req.body.id;if(typeof id!=='string'||!/^[0-9a-f-]{36}$/i.test(id))return res.status(400).json({error:'Ungültige Bereinigung.'});
+      if(req.body.operation==='apply_chat_cleanup'&&req.body.confirm!==true)return res.status(400).json({error:'Bitte die Bereinigung bestätigen.'});
+      const result=await redisPipeline([['EVAL',CHAT_CLEANUP_SCRIPT,5,HISTORY_KEY,HIDDEN_MESSAGES_KEY,dataPrefix()+'portrait:chat-hidden-photos',dataPrefix()+'chat-cleanup:'+id,dataPrefix()+'portrait:life',req.body.operation==='apply_chat_cleanup'?'apply':'undo']]);
+      if(result?.[0]?.result!==1)return res.status(409).json({error:'Die Vorschau ist abgelaufen. Bitte erneut prüfen.'});
+      return res.status(200).json({ok:true,hiddenMessages:await redisGetJSON(HIDDEN_MESSAGES_KEY,[]),images:await portraitGallery()});
+    }
     if(req.method==='POST'&&req.body?.operation==='restore_message') {
       const hidden=await redisGetJSON(HIDDEN_MESSAGES_KEY,[]);const target=resolveReplyReference(req.body?.messageReference,hidden);
       if(!target)return res.status(404).json({error:'Nachricht nicht verfügbar.'});
@@ -546,7 +563,7 @@ export default async function handler(req, res) {
     if(req.method==='POST'&&['hide_photo_chat','show_photo_chat'].includes(req.body?.operation)) {
       const id=req.body?.imageId;if(typeof id!=='string'||!/^[0-9a-f-]{36}$/i.test(id))return res.status(400).json({error:'Ungültiges Foto.'});
       const photos=await portraitGallery();if(!photos.some(x=>x.id===id))return res.status(404).json({error:'Foto nicht verfügbar.'});
-      await redisPipeline([['EVAL',`local list=cjson.decode(redis.call('GET',KEYS[1]) or '[]');for _,x in ipairs(list) do if x.id==ARGV[1] then x.chatHidden=ARGV[2]=='1' end end;redis.call('SET',KEYS[1],#list==0 and '[]' or cjson.encode(list));return 1`,1,dataPrefix()+'portrait:gallery',id,req.body.operation==='hide_photo_chat'?'1':'0']]);
+      await redisPipeline([['EVAL',`local list=cjson.decode(redis.call('GET',KEYS[1]) or '[]');for _,x in ipairs(list) do if x.id==ARGV[1] then x.chatHidden=ARGV[2]=='1' end end;redis.call('SET',KEYS[1],#list==0 and '[]' or cjson.encode(list));local hidden=cjson.decode(redis.call('GET',KEYS[2]) or '[]');local next={};for _,x in ipairs(hidden)do if x~=ARGV[1] then table.insert(next,x)end end;if ARGV[2]=='1' then table.insert(next,ARGV[1])end;redis.call('SET',KEYS[2],#next==0 and '[]' or cjson.encode(next));return 1`,2,dataPrefix()+'portrait:gallery',dataPrefix()+'portrait:chat-hidden-photos',id,req.body.operation==='hide_photo_chat'?'1':'0']]);
       return res.status(200).json({ok:true});
     }
 

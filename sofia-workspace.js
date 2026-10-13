@@ -119,10 +119,24 @@
     for(const [id,label]of [['moodAuto','Automatisch'],['entspannt','Entspannt'],['flirty','Flirty'],['amüsiert','Amüsiert'],['skeptisch','Skeptisch'],['genervt','Genervt'],['ernst','Ernst']])moodChoices.append(button(label,()=>{const target=id==='moodAuto'?document.getElementById(id):document.querySelector('[data-mood="'+id+'"]');target?.click();}));dialog.append(mood);
 
   }
+  async function cleanupRequest(operation,data={}){const r=await fetch('/api/chat',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({operation,...data})});const result=await r.json();if(!r.ok)throw Error(result.error||'Bereinigung nicht verfügbar.');return result;}
+  function chatSettings(){
+    const d=panel('Chat'),status=statusNode(d),note=document.createElement('p');note.textContent='Nur Chatnachrichten und Fotoeinträge im Chat bereinigen. Erinnerungen, Aufgaben und Bilder in der Galerie bleiben erhalten. Die Zeiträume gelten nach Hamburger Zeit.';
+    const label=document.createElement('label');label.textContent='Zeitraum';const scope=document.createElement('select');scope.setAttribute('aria-label','Chat bereinigen: Zeitraum');for(const [value,text]of [['today','Heute'],['week','Letzte 7 Tage'],['date','Bestimmtes Datum'],['all','Gesamter Chatverlauf']]){const option=document.createElement('option');option.value=value;option.textContent=text;scope.append(option);}scope.value='today';label.append(scope);
+    const dateLabel=document.createElement('label');dateLabel.textContent='Datum';const date=document.createElement('input');date.type='date';date.setAttribute('aria-label','Chat bereinigen: Datum');dateLabel.append(date);dateLabel.hidden=true;scope.onchange=()=>{dateLabel.hidden=scope.value!=='date';};
+    const preview=button('Bereinigung prüfen',async()=>{preview.disabled=true;try{if(pendingDraft)throw Error('Bitte zuerst den unbestätigten Versand prüfen.');const result=await cleanupRequest('preview_chat_cleanup',{scope:scope.value,date:date.value,turns:window.SofiaChatCleanupTurns?.()||turnNodes().map(nodeTurn)});menuNext(d,()=>cleanupConfirmation(result),chatSettings);}catch(e){status.textContent=e.message;}finally{preview.disabled=false;}});
+    const undo=button('Letzte Bereinigung rückgängig',async()=>{undo.disabled=true;try{const result=await cleanupRequest('undo_chat_cleanup',{id:get('sofia-chat-cleanup-last',null)});acceptHidden(result.hiddenMessages);window.SofiaImages?.restore(result.images);await window.SofiaChatCleanupRefresh?.();put('sofia-chat-cleanup-last',null);status.textContent='Bereinigung rückgängig gemacht.';}catch(e){status.textContent=e.message;undo.disabled=false;}});undo.disabled=!get('sofia-chat-cleanup-last',null);
+    const recovery=document.createElement('p');recovery.textContent='Die letzte Bereinigung lässt sich 24 Stunden lang rückgängig machen. Nicht gespeicherte Entwürfe bleiben erhalten.';d.append(note,label,dateLabel,preview,undo,recovery);return d;
+  }
+  function cleanupConfirmation(result){
+    const d=panel('Chatbereinigung bestätigen'),status=statusNode(d),summary=document.createElement('p');summary.textContent=result.label+': '+result.messageCount+(result.messageCount===1?' Nachricht und ':' Nachrichten und ')+result.photoCount+(result.photoCount===1?' Fotoeintrag':' Fotoeinträge')+' aus dem Chat entfernen? Erinnerungen, Aufgaben und Galerie bleiben erhalten.';
+    const confirm=button('Jetzt aus dem Chat entfernen',async()=>{confirm.disabled=true;try{const data=await cleanupRequest('apply_chat_cleanup',{id:result.id,confirm:true});put('sofia-chat-cleanup-last',result.id);acceptHidden(data.hiddenMessages);window.SofiaImages?.restore(data.images);await window.SofiaChatCleanupRefresh?.();status.textContent='Chat bereinigt. Erinnerungen, Aufgaben und Galerie bleiben erhalten.';}catch(e){status.textContent=e.message;confirm.disabled=false;}});confirm.disabled=!result.messageCount&&!result.photoCount;d.append(summary,confirm,button('Abbrechen',()=>d.close()));return d;
+  }
   function settings(){
     const d=panel('Einstellungen');d.classList.add('settings-hub');
     const hint=document.createElement('p');hint.textContent='Wähle den Bereich, den du einstellen möchtest.';d.append(hint);
     const entries=[
+      ['Chat','Chatverlauf bereinigen und letzte Bereinigung rückgängig machen',chatSettings],
       ['Gespräch','Antworten, Rückfragen und neue Themen',()=>window.SofiaCharacterSettings?.open?.('conversation')],
       ['Eigeninitiative','Kontakthäufigkeit, Ruhezeiten und Pausen',()=>window.SofiaSocial?.preferences?.({section:'initiative'})],
       ['Fotos','Eigene Fotos und erlaubte Fototypen',()=>window.SofiaCharacterSettings?.open?.('photos')],
@@ -133,7 +147,7 @@
     ];
     for(const [title,description,action]of entries){const b=button(title,()=>menuNext(d,action,settings));b.className='settings-entry';const sub=document.createElement('small');sub.textContent=description;b.append(sub);d.append(b);}return d;
   }
-  function appHelp(){const d=panel('App und Hilfe');const version=document.createElement('p');version.textContent='Sofia 4.100.6';d.append(version,button('Technische Übersicht',()=>menuNext(d,diagnostics,appHelp)));if(updateAvailable)d.append(button('Neue Version laden',applyUpdate));if(pendingDraft)d.append(button('Letzten Versand prüfen',()=>menuNext(d,pendingSubmission,appHelp)));
+  function appHelp(){const d=panel('App und Hilfe');const version=document.createElement('p');version.textContent='Sofia 4.100.7';d.append(version,button('Technische Übersicht',()=>menuNext(d,diagnostics,appHelp)));if(updateAvailable)d.append(button('Neue Version laden',applyUpdate));if(pendingDraft)d.append(button('Letzten Versand prüfen',()=>menuNext(d,pendingSubmission,appHelp)));
     if(hiddenMessages.length)d.append(button('Ausgeblendete Nachrichten',()=>{const list=panel('Ausgeblendete Nachrichten');const status=statusNode(list);for(const turn of hiddenMessages.slice(-40).reverse()){const row=document.createElement('div'),text=document.createElement('p');text.textContent=(turn.role==='user'?'Du: ':'Sofia: ')+turn.content.slice(0,300);const restore=button('Wiederherstellen',async()=>{restore.disabled=true;try{await window.SofiaChatDelete(turn,true);row.remove();}catch(e){status.textContent=e.message;restore.disabled=false;}});row.append(text,restore);list.append(row);}}));return d;
   }
   function chatTools(){const d=panel('Chat durchsuchen');d.append(button('Im Chat suchen',()=>menuNext(d,search,chatTools)),button('Angeheftete Nachrichten',()=>menuNext(d,pinned,chatTools)));return d;}

@@ -495,6 +495,8 @@ window.addEventListener('focus', () => {
 });
 
 // Recovery reads shared state only; never resends a turn or starts Live.
+window.SofiaChatCleanupTurns=()=>conversationHistory;
+window.SofiaChatCleanupRefresh=()=>syncConversationFromServer({silent:true});
 window.addEventListener('sofia-social-updated',()=>{syncConversationFromServer({silent:true});});
 let pendingContactOpen=null;
 let contactLoading=null;
