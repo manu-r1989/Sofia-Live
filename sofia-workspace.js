@@ -137,6 +137,7 @@
     const hint=document.createElement('p');hint.textContent='Wähle den Bereich, den du einstellen möchtest.';d.append(hint);
     const entries=[
       ['Persönlich','Gesprächsprofil, Über uns und Erinnerungsprüfung',()=>window.SofiaCompanion?.personal()],
+      ['Fotostudio','Kleiderschrank, Fotowünsche und Alben',()=>window.SofiaCompanion?.studio()],
       ['Aufträge und Status','Laufende Bilder und bestätigte Aktionen',()=>window.SofiaCompanion?.jobs()],
       ['Chat','Chatverlauf bereinigen und letzte Bereinigung rückgängig machen',chatSettings],
       ['Gespräch','Antworten, Rückfragen und neue Themen',()=>window.SofiaCharacterSettings?.open?.('conversation')],
