@@ -532,12 +532,18 @@ export default async function handler(req, res) {
 
     if(req.method==='POST'&&req.body?.operation==='preview_chat_cleanup') {
       const client=Array.isArray(req.body.turns)?req.body.turns:[];if(client.length>1000)return res.status(400).json({error:'Zu viele Nachrichten in der Vorschau.'});
-      try{const hidden=await redisGetJSON(HIDDEN_MESSAGES_KEY,[]);const turns=visibleConversation([...client,...(await redisGetJSON(HISTORY_KEY,[]))],hidden);const plan=chatCleanupPlan(turns,await portraitGallery(),req.body.scope,req.body.date);const id=crypto.randomUUID();await redisPipeline([['SET',dataPrefix()+'chat-cleanup:'+id,JSON.stringify({...plan,status:'ready'}),'EX',600]]);return res.status(200).json({id,label:plan.label,messageCount:plan.messageCount,photoCount:plan.photoCount});}catch(error){return res.status(400).json({error:error.message||'Vorschau nicht verfügbar.'});}
+      try{
+        const hidden=await redisGetJSON(HIDDEN_MESSAGES_KEY,[]),turns=visibleConversation([...client,...(await redisGetJSON(HISTORY_KEY,[]))],hidden);
+        const plan=chatCleanupPlan(turns,await portraitGallery(),req.body.scope,req.body.date),life=await redisGetJSON(dataPrefix()+'portrait:life',{});
+        const at=life?.dialogue?.at,dialogueAt=at&&chatCleanupPlan([{role:'assistant',content:'context',createdAt:at}],[],req.body.scope,req.body.date).messageCount?at:null;
+        const id=crypto.randomUUID();await redisPipeline([['SET',dataPrefix()+'chat-cleanup:'+id,JSON.stringify({...plan,dialogueAt,status:'ready'}),'EX',600]]);
+        return res.status(200).json({id,label:plan.label,messageCount:plan.messageCount,photoCount:plan.photoCount});
+      }catch(error){return res.status(400).json({error:error.message||'Vorschau nicht verfügbar.'});}
     }
     if(req.method==='POST'&&['apply_chat_cleanup','undo_chat_cleanup'].includes(req.body?.operation)) {
       const id=req.body.id;if(typeof id!=='string'||!/^[0-9a-f-]{36}$/i.test(id))return res.status(400).json({error:'Ungültige Bereinigung.'});
       if(req.body.operation==='apply_chat_cleanup'&&req.body.confirm!==true)return res.status(400).json({error:'Bitte die Bereinigung bestätigen.'});
-      const result=await redisPipeline([['EVAL',CHAT_CLEANUP_SCRIPT,4,HISTORY_KEY,HIDDEN_MESSAGES_KEY,dataPrefix()+'portrait:chat-hidden-photos',dataPrefix()+'chat-cleanup:'+id,req.body.operation==='apply_chat_cleanup'?'apply':'undo']]);
+      const result=await redisPipeline([['EVAL',CHAT_CLEANUP_SCRIPT,5,HISTORY_KEY,HIDDEN_MESSAGES_KEY,dataPrefix()+'portrait:chat-hidden-photos',dataPrefix()+'chat-cleanup:'+id,dataPrefix()+'portrait:life',req.body.operation==='apply_chat_cleanup'?'apply':'undo']]);
       if(result?.[0]?.result!==1)return res.status(409).json({error:'Die Vorschau ist abgelaufen. Bitte erneut prüfen.'});
       return res.status(200).json({ok:true,hiddenMessages:await redisGetJSON(HIDDEN_MESSAGES_KEY,[]),images:await portraitGallery()});
     }

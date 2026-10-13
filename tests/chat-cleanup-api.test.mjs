@@ -14,8 +14,8 @@ test('cleanup preview, confirmation, idempotency and undo preserve memory tasks 
   const args=JSON.parse(options.body);
   if(String(url).endsWith('/pipeline'))return {ok:true,json:async()=>args.map(c=>{
    if(c[0]==='SET'){db.set(c[1],c[2]);return {result:'OK'};}
-   assert.equal(c[0],'EVAL');assert.match(c[1],/sofia-chat-cleanup/);assert.equal(c[2],4);
-   const [historyKey,hiddenKey,photosKey,jobKey,operation]=c.slice(3);const job=db.has(jobKey)?JSON.parse(db.get(jobKey)):null;if(!job)return {result:0};
+   assert.equal(c[0],'EVAL');assert.match(c[1],/sofia-chat-cleanup/);assert.equal(c[2],5);
+   const [historyKey,hiddenKey,photosKey,jobKey,lifeKey,operation]=c.slice(3);assert.equal(lifeKey,portrait+'life');const job=db.has(jobKey)?JSON.parse(db.get(jobKey)):null;if(!job)return {result:0};
    let history=read(historyKey),hidden=read(hiddenKey),photos=read(photosKey);const has=(list,t)=>list.some(x=>messageIdentity(x)===messageIdentity(t));
    if(operation==='apply'){
     if(job.status==='applied')return {result:1};if(job.status!=='ready')return {result:0};

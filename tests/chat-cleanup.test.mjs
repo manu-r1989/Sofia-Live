@@ -17,5 +17,8 @@ test('invalid date and scope cannot produce a cleanup snapshot',()=>{
  for(const date of ['2026-02-30','2026-13-01','bad'])assert.throws(()=>chatCleanupPlan([],[],'date',date));assert.throws(()=>chatCleanupPlan([],[],'unknown'));
 });
 test('atomic cleanup and undo touch only history, visibility and their snapshot; no memory/task/image deletion',()=>{
- assert.match(CHAT_CLEANUP_SCRIPT,/job.status~='ready'/);assert.match(CHAT_CLEANUP_SCRIPT,/job.hiddenAdded/);assert.match(CHAT_CLEANUP_SCRIPT,/job.photoAdded/);assert.match(CHAT_CLEANUP_SCRIPT,/job.status='undone'/);assert.doesNotMatch(CHAT_CLEANUP_SCRIPT,/redis.call\('DEL'|longterm|tasks|image:|KEYS\[5\]/);
+ assert.match(CHAT_CLEANUP_SCRIPT,/job.status~='ready'/);assert.match(CHAT_CLEANUP_SCRIPT,/job.hiddenAdded/);assert.match(CHAT_CLEANUP_SCRIPT,/job.photoAdded/);assert.match(CHAT_CLEANUP_SCRIPT,/job.status='undone'/);assert.doesNotMatch(CHAT_CLEANUP_SCRIPT,/redis.call\('DEL'|longterm|tasks|image:|KEYS\[6\]/);
+});
+test('cleanup clears only the snapshotted short-term dialogue and undo cannot overwrite a newer conversation',()=>{
+ assert.match(CHAT_CLEANUP_SCRIPT,/life.dialogue.at==job.dialogueAt/);assert.match(CHAT_CLEANUP_SCRIPT,/life.dialogue=\{\}/);assert.match(CHAT_CLEANUP_SCRIPT,/life.revision==job.dialogueRevision/);assert.match(CHAT_CLEANUP_SCRIPT,/life.dialogue=job.dialogueBefore/);
 });
