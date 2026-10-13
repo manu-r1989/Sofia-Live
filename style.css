@@ -1299,3 +1299,23 @@ body:has(#sofia-test-banner) .app .chatPanel[data-chat-size="compact"]{top:auto!
 }
 @media(min-width:390px) and (max-width:430px){.settings-entry{padding:12px!important;min-height:56px}.sofia-main-nav{gap:3px}.sofia-dialog{overflow-wrap:anywhere}}
 #sofiaMemoryOverlay [hidden],.sofia-dialog [hidden]{display:none!important}
+
+/* V4.100.3 — compact action groups and uniform menu navigation. */
+.sofia-dialog button{box-sizing:border-box;max-width:100%;min-height:40px;padding:7px 10px;border-radius:10px;font-size:14px;line-height:1.25}
+.sofia-dialog .menu-header{display:flex!important;align-items:center!important;justify-content:space-between!important;gap:10px;flex-shrink:0;padding:10px 0!important;margin:0 0 12px;border-bottom:1px solid var(--ui-border);background:var(--ui-surface);z-index:5}
+.menu-header h2{font-size:18px;margin:0;min-width:0}
+.menu-nav-actions{display:flex;align-items:center;gap:6px;flex:none}
+.sofia-dialog .menu-nav-actions>.menu-nav-action{display:flex;align-items:center;justify-content:center;flex:none;width:40px!important;min-width:40px!important;height:40px!important;min-height:40px!important;margin:0!important;padding:0!important;border-radius:10px!important;font-size:25px!important;line-height:1!important}
+.menu-nav-action:disabled{opacity:.3;cursor:default}
+#sofiaMemoryOverlay .menu-header{padding:12px 14px!important;margin:0!important}
+#sofiaMemoryOverlay .memory-close-bottom{display:none!important}
+.menu-option-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:10px}
+.menu-option-grid button,.menu-segmented button{width:100%;margin:0!important;min-width:0!important;min-height:40px!important;padding:7px 8px!important;border-radius:10px!important;font-size:13px!important}
+.menu-segmented{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:10px}
+.mood-options{grid-template-columns:repeat(3,minmax(0,1fr))}
+.sofia-dialog fieldset{min-width:0;box-sizing:border-box;border:1px solid var(--ui-border);border-radius:12px;padding:10px 12px;margin:12px 0}
+.sofia-dialog legend{padding:0 5px;font-size:13px;color:var(--ui-muted)}
+.sofia-dialog fieldset p{margin:6px 0;font-size:13px;line-height:1.4}
+.sofia-dialog fieldset input[type=time]{width:calc(50% - 16px)!important;max-width:150px;min-height:40px!important;padding:6px 8px;font-size:16px}
+@media(max-width:850px){.sofia-dialog .menu-header{position:sticky;top:-16px!important}.settings-entry{margin:6px 0!important;min-height:52px!important}.settings-entry small{margin-top:3px;font-size:12px}.mood-options{gap:6px}}
+#sofiaMemoryOverlay [hidden],.sofia-dialog [hidden]{display:none!important}

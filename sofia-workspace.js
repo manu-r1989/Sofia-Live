@@ -115,8 +115,8 @@
     const hint=document.createElement('p');hint.textContent='Diese Bewegungsauswahl betrifft die Oberfläche. Sofias Haltungswechsel bleiben eigenständig.';dialog.append(hint);
     const mute=button('',()=>{document.getElementById('mute')?.click();paintMute();});function paintMute(){mute.textContent=localStorage.getItem('sofia_audio_muted')==='true'?'Tonausgabe einschalten':'Tonausgabe stummschalten';}paintMute();dialog.append(mute);
     dialog.append(button('Sofia groß anzeigen / Normalansicht',()=>{document.getElementById('focus')?.click();}));
-    const mood=document.createElement('details'),summary=document.createElement('summary');summary.textContent='Sofias Stimmung';mood.append(summary);
-    for(const [id,label]of [['moodAuto','Automatisch'],['entspannt','Entspannt'],['flirty','Flirty'],['amüsiert','Amüsiert'],['skeptisch','Skeptisch'],['genervt','Genervt'],['ernst','Ernst']])mood.append(button(label,()=>{const target=id==='moodAuto'?document.getElementById(id):document.querySelector('[data-mood="'+id+'"]');target?.click();}));dialog.append(mood);
+    const mood=document.createElement('details'),summary=document.createElement('summary');summary.textContent='Sofias Stimmung';mood.append(summary);const moodChoices=document.createElement('div');moodChoices.className='menu-option-grid mood-options';mood.append(moodChoices);
+    for(const [id,label]of [['moodAuto','Automatisch'],['entspannt','Entspannt'],['flirty','Flirty'],['amüsiert','Amüsiert'],['skeptisch','Skeptisch'],['genervt','Genervt'],['ernst','Ernst']])moodChoices.append(button(label,()=>{const target=id==='moodAuto'?document.getElementById(id):document.querySelector('[data-mood="'+id+'"]');target?.click();}));dialog.append(mood);
 
   }
   function settings(){
@@ -133,7 +133,7 @@
     ];
     for(const [title,description,action]of entries){const b=button(title,()=>menuNext(d,action,settings));b.className='settings-entry';const sub=document.createElement('small');sub.textContent=description;b.append(sub);d.append(b);}return d;
   }
-  function appHelp(){const d=panel('App und Hilfe');const version=document.createElement('p');version.textContent='Sofia 4.100.2';d.append(version,button('Technische Übersicht',()=>menuNext(d,diagnostics,appHelp)));if(updateAvailable)d.append(button('Neue Version laden',applyUpdate));if(pendingDraft)d.append(button('Letzten Versand prüfen',()=>menuNext(d,pendingSubmission,appHelp)));
+  function appHelp(){const d=panel('App und Hilfe');const version=document.createElement('p');version.textContent='Sofia 4.100.3';d.append(version,button('Technische Übersicht',()=>menuNext(d,diagnostics,appHelp)));if(updateAvailable)d.append(button('Neue Version laden',applyUpdate));if(pendingDraft)d.append(button('Letzten Versand prüfen',()=>menuNext(d,pendingSubmission,appHelp)));
     if(hiddenMessages.length)d.append(button('Ausgeblendete Nachrichten',()=>{const list=panel('Ausgeblendete Nachrichten');const status=statusNode(list);for(const turn of hiddenMessages.slice(-40).reverse()){const row=document.createElement('div'),text=document.createElement('p');text.textContent=(turn.role==='user'?'Du: ':'Sofia: ')+turn.content.slice(0,300);const restore=button('Wiederherstellen',async()=>{restore.disabled=true;try{await window.SofiaChatDelete(turn,true);row.remove();}catch(e){status.textContent=e.message;restore.disabled=false;}});row.append(text,restore);list.append(row);}}));return d;
   }
   function chatTools(){const d=panel('Chat durchsuchen');d.append(button('Im Chat suchen',()=>menuNext(d,search,chatTools)),button('Angeheftete Nachrichten',()=>menuNext(d,pinned,chatTools)));return d;}

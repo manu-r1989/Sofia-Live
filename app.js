@@ -172,7 +172,7 @@ function restoreChatViewport(snapshot) {
   chatPinnedToLatest = false;updateLatestButton();
   chatScrollFrame = null;
 }
-window.SofiaChatViewport = { capture:captureChatViewport, restore:restoreChatViewport, latest:()=>scrollChatToLatest('smooth',true), reveal:()=>applyChatState('full') };
+window.SofiaChatViewport = { capture:captureChatViewport, restore:restoreChatViewport, latest:()=>scrollChatToLatest('smooth',true), reveal:()=>applyChatState('full'), showCurrent:()=>{if(chatPanel?.classList.contains('chat-hidden'))applyChatState('compact');} };
 
 function addMessage(text, who = 'sofia', imageRequestId = null, contactId = null, createdAt = new Date().toISOString(), replyTo = null) {
   if (!messages || window.SofiaWorkspace?.isHidden({role:who==='user'?'user':'assistant',content:text,createdAt})) return;
@@ -1168,6 +1168,7 @@ function createMemoryUI() {
 
   memoryList =
     document.createElement('div');
+  memoryList.id='sofia-memory-list';
 
   Object.assign(
     memoryList.style,
@@ -1236,6 +1237,7 @@ function openMemoryView(section='memory') {
   document.body.style.overflow =
     'hidden';
 
+  memoryList.scrollTop=0;
   loadLongTermMemories();
   return memoryOverlay;
 }
@@ -1432,7 +1434,7 @@ function renderCharacterMemories(character) {
   const note=document.createElement('p');note.textContent='Charakteralltag und Gesprächsbezüge. „Vergessen“ entfernt den gespeicherten Bezug; Nachrichten im Chat bleiben erhalten.';note.style.cssText='font-size:12px;opacity:.65';memoryList.append(note);
   const section=label=>{const group=document.createElement('details');group.style.cssText='padding:12px 0;border-top:1px solid rgba(255,255,255,.1)';const summary=document.createElement('summary');summary.textContent=label;summary.style.cssText='cursor:pointer;font-weight:600';group.append(summary);memoryList.append(group);return group;};
   const groups={settings:section('Gespräch und Fotos'),day:section('Aktueller Alltag'),interests:section('Interessen'),plans:section('Sofias eigene Vorhaben'),references:section('Persönliche Gesprächsbezüge'),preferences:section('Vorlieben'),habits:section('Gesprächsgewohnheiten'),development:section('Jüngste Entwicklungen')};groups.settings.open=true;
-  if(characterSettingsFocus){characterSettingsFocus=false;if(typeof requestAnimationFrame==='function')requestAnimationFrame(()=>groups.settings.scrollIntoView?.({block:'start',behavior:'auto'}));}
+  if(characterSettingsFocus){characterSettingsFocus=false;memoryList.scrollTop=0;}
   const date=at=>new Date(at).toLocaleDateString('de-DE',{timeZone:'Europe/Berlin',day:'2-digit',month:'2-digit',year:'numeric'});
   const status=(text)=>setMemoryStatus(text);
   const apply=async(field,value,topic,button)=>{button.disabled=true;status('Wird gespeichert …');try{if(await saveCharacterEdit(field,value,topic,latestSofiaLife?.revision??character.revision)){await loadLongTermMemories();status(field==='forget'?'Bezug vergessen.':'Gespeichert.');}}catch{status('Änderung konnte nicht gespeichert werden.');}finally{button.disabled=false;}};
