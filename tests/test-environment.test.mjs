@@ -11,8 +11,9 @@ const socialURL=encode((await readFile(new URL('lib/social.js',root),'utf8')).re
 const handlerURL=encode((await readFile(new URL('lib/social-handler.js',root),'utf8')).replace('./environment.js',url).replace('./character-image.js',photoURL).replace('./social.js',socialURL));
 async function dependencyURL(path,cache=new Map([['lib/environment.js',url],['lib/character-image.js',photoURL]])){if(cache.has(path))return cache.get(path);let text=await readFile(new URL(path,root),'utf8');for(const match of [...text.matchAll(/from\s+['\"](\.[^'\"]+)['\"]/g)]){const name=new URL(match[1],new URL(path,root)).pathname.slice(root.pathname.length);text=text.replace(match[1],await dependencyURL(name,cache));}const result=encode(text);cache.set(path,result);return result;}
 const evolutionURL=await dependencyURL('lib/companion-evolution.js');
+const growthURL=await dependencyURL('lib/companion-growth.js');
 const nextURL=await dependencyURL('lib/companion-next.js');
-const companionURL=encode((await readFile(new URL('lib/companion-handler.js',root),'utf8')).replace('./environment.js',url).replace('./character-image.js',photoURL).replace('./companion-evolution.js',evolutionURL).replace('./companion-next.js',nextURL));
+const companionURL=encode((await readFile(new URL('lib/companion-handler.js',root),'utf8')).replace('./environment.js',url).replace('./character-image.js',photoURL).replace('./companion-evolution.js',evolutionURL).replace('./companion-next.js',nextURL).replace('./companion-growth.js',growthURL));
 const session=(await import('data:text/javascript;base64,'+Buffer.from((await readFile(new URL('api/session.js',root),'utf8')).replace('../lib/environment.js',url).replace('../lib/social-handler.js',handlerURL).replace('../lib/companion-handler.js',companionURL)).toString('base64'))).default;
 const names=['SOFIA_TEST_MODE','SOFIA_DATA_NAMESPACE','SOFIA_TEST_PROJECT_ID','VERCEL_PROJECT_ID','SOFIA_TEST_STORAGE','SOFIA_TEST_ALLOW_PAID','KV_REST_API_URL','KV_REST_API_TOKEN','SOFIA_PASSWORD'];
 const saved=Object.fromEntries(names.map(k=>[k,process.env[k]])),originalFetch=globalThis.fetch;
@@ -61,7 +62,7 @@ test('incomplete test config and default disabled AI fail before storage or prov
 });
 test('cross-origin mutations are rejected',async()=>{setup();const q=req();q.headers.origin='https://other.example';const r=response();assert.equal(await env.guardTestRequest(q,r),false);assert.equal(r.code,403);assert.equal(calls.length,0);});
 test('new voice, search and upload operations keep authorization, origin and paid-test guards',async()=>{
- for(const operation of ['voice_transcribe','semantic_search','upload_analyze','upload_confirm','next_edit','diary_draft','upload_plan']){
+ for(const operation of ['voice_transcribe','semantic_search','upload_analyze','upload_confirm','next_edit','diary_draft','upload_plan','growth_edit','growth_overview','calendar_preview','calendar_confirm','calendar_slots','slot_preview','slot_confirm','memory_trace','memory_correct','calendar_export']){
   setup();delete process.env.SOFIA_TEST_MODE;const q=req('POST',{operation});q.query={companion:'1'};const r=response();await session(q,r);assert.equal(r.code,401,operation);assert.equal(calls.length,0);
   setup();const other=req('POST',{operation});other.query={companion:'1'};other.headers.origin='https://other.example';const blocked=response();await session(other,blocked);assert.equal(blocked.code,403,operation);assert.equal(calls.length,0);
  }

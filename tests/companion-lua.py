@@ -214,4 +214,15 @@ class AtomicTests(unittest.TestCase):
         self.assertEqual(execute('restore',['preview','state','memories','projects','tasks'],[]),-1)
         self.assertEqual(db['state'],original)
         self.assertEqual(db['memories'],'[]')
+    def test_direct_memory_correction_preserves_policy_atomically(self):
+        db['memories']='[{"text":"old"}]'
+        db['state']='{"revision":0,"memoryPolicies":[]}'
+        args=[db['memories'],db['state'],'[{"text":"new"}]','{"revision":1,"memoryPolicies":[{"reference":"new","scope":"temporary"}]}']
+        original=db['memories']
+        db['state']='{"revision":2,"memoryPolicies":[]}'
+        self.assertEqual(execute('correct',['memories','state'],args),0)
+        self.assertEqual(db['memories'],original)
+        db['state']=args[1]
+        self.assertEqual(execute('correct',['memories','state'],args),1)
+        self.assertEqual(json.loads(db['state'])['memoryPolicies'][0]['scope'],'temporary')
 unittest.main(argv=['atomic-tests'])

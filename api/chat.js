@@ -1,6 +1,6 @@
 import { dataPrefix, testModeRequested, publicTestMode, guardTestRequest, providerFailure } from "../lib/environment.js";
 import { chatCleanupPlan, CHAT_CLEANUP_SCRIPT, resolveReplyReference, replyReferenceContext, participantLocationContext, visibleConversation, DELETE_MESSAGE_SCRIPT, RESTORE_MESSAGE_SCRIPT, SAVE_VISIBLE_HISTORY_SCRIPT, conversationReferenceContext, conversationReferenceClarification, replyPhotoReference } from '../lib/message-context.js';
-import { companionState, companionContext, recordMemoryConflict, filterCompanionMemories, persistMemorySnapshot, executeProjectCommand, executeMemoryCommand, projectState, projectContext, projectBinding, linkProjectResult, appearanceChoice, conversationClarification, guardPermanentMemory, compactConversationHistory, safeDiagnostic, taskReceipt, hamburgReferenceTime, portraitPreparationReply, groundedPhotoReply, preparePortrait, generatePortrait, servePortrait, portraitGallery, appendPortraitAcknowledgment, PORTRAIT_FAILURE_REPLY, getSofiaLife, currentSituationCorrection, synchronizeSituation, learnSofiaLife, lifeContext, selectedPhotoContext, prepareProactivePortrait, PROACTIVE_PHOTO_ANNOUNCEMENT } from '../lib/character-image.js';
+import { trustedMemoryHistory, memoryReplyReferences, companionState, companionContext, recordMemoryConflict, filterCompanionMemories, persistMemorySnapshot, executeProjectCommand, executeMemoryCommand, projectState, projectContext, projectBinding, linkProjectResult, appearanceChoice, conversationClarification, guardPermanentMemory, compactConversationHistory, safeDiagnostic, taskReceipt, hamburgReferenceTime, portraitPreparationReply, groundedPhotoReply, preparePortrait, generatePortrait, servePortrait, portraitGallery, appendPortraitAcknowledgment, PORTRAIT_FAILURE_REPLY, getSofiaLife, currentSituationCorrection, synchronizeSituation, learnSofiaLife, lifeContext, selectedPhotoContext, prepareProactivePortrait, PROACTIVE_PHOTO_ANNOUNCEMENT } from '../lib/character-image.js';
 import crypto from "node:crypto";
 import { executeUnifiedAction, getActionState, getResearchState } from "./action-engine.js";
 
@@ -774,7 +774,7 @@ export default async function handler(req, res) {
         : [];
 
     if (handoffHistory.length) {
-      history = handoffHistory;
+      history = trustedMemoryHistory(handoffHistory,history);
     }
 
 
@@ -1553,13 +1553,14 @@ Wiederholt bestätigte Angaben sind ebenfalls speicherwürdig.
 AUSGABE
 ==================================================
 
-Antworte ausschließlich als gültiges JSON-Objekt.
+Antworte ausschließlich als gültiges JSON-Objekt. memory_used enthält nur die 1-basierten Nummern aus den für diese Antwort ausgewählten Langzeiterinnerungen, auf die sich deine Antwort tatsächlich stützt. Ohne Bezug leere Liste; keine Nummern aus dem Verwaltungskatalog verwenden.
 
 Schema:
 
 {
   "reply": "Antwort an den Nutzer",
   "mood": "entspannt",
+  "memory_used": [],
   "memory_action": {
     "action": "none",
     "old_memory": null,
@@ -2014,6 +2015,8 @@ Kein Markdown außerhalb des JSON-Objekts.
 
       {
         role: "assistant",
+        memoryTraceVersion:1,
+        memoryReferences:memoryReplyReferences(parsed.memory_used,relevantMemories),
         createdAt: new Date().toISOString(),
         ...(replyReference?{replyTo:replyReference}:{}),
         ...(spontaneousImageRequest ? {imageRequestId:spontaneousImageRequest.id} : {}),
