@@ -85,3 +85,7 @@ test('retained done photos can be annotated and associated with projects without
  const state=await editGrowth({revision:0,action:'upsert',collection:'photoNotes',value:{title:'Mein Motiv',imageId:id,tags:'Garten',text:'Prüfnotiz'}});assert.equal(state.photoNotes[0].imageId,id);assert.equal(JSON.parse(db.get(prefix+'image:'+id)).base64,'unchanged');
  overview=await growthOverview();assert.equal(overview.images[0].id,id);
 });
+test('legacy plain-string memories retain their audit identity through explicit correction',async()=>{
+ reset();db.set('sofia:main:longterm',JSON.stringify(['Alte Angabe']));const reference=memoryVersion({text:'Alte Angabe'}),state=defaultCompanionState();state.memoryPolicies=[{reference,scope:'temporary',expiresAt:new Date(Date.now()+86400000).toISOString()}];db.set(prefix+'companion',JSON.stringify(state));
+ const result=await correctMemory({reference,text:'Geprüfte neue Angabe',category:'Sonstiges'}),item=JSON.parse(db.get('sofia:main:longterm'))[0];assert.equal(item.text,'Geprüfte neue Angabe');assert.equal(result.state.memoryPolicies[0].reference,memoryVersion(item));
+});
