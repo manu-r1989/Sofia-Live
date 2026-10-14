@@ -1,5 +1,5 @@
 import { dataPrefix, testModeRequested, publicTestMode, guardTestRequest } from "../lib/environment.js";
-import { persistMemorySnapshot, guardPermanentMemory, permanentMemoryCandidate, safeDiagnostic, learnSofiaLife, getSofiaLife } from '../lib/character-image.js';
+import { companionState, recordMemoryConflict, filterCompanionMemories, persistMemorySnapshot, guardPermanentMemory, permanentMemoryCandidate, safeDiagnostic, learnSofiaLife, getSofiaLife } from '../lib/character-image.js';
 import crypto from "node:crypto";
 
 const HISTORY_KEY = dataPrefix() + 'history';
@@ -419,7 +419,7 @@ export default async function handler(
       );
 
     memories =
-      memories.slice(
+      filterCompanionMemories(memories,await companionState()).slice(
         -MAX_LONGTERM_MEMORIES
       );
 
@@ -431,9 +431,10 @@ export default async function handler(
         ? assistantText.trim()
         : "";
 
+    const activeMemories=filterCompanionMemories(memories,await companionState());
     const memoryText =
-      memories.length
-        ? memories
+      activeMemories.length
+        ? activeMemories
             .map(
               (memory, index) =>
                 `${index + 1}. [${memory.category || "Sonstiges"}] ${getMemoryText(memory)}`
@@ -730,6 +731,7 @@ ${cleanUser}
     ======================================== */
 
     memoryAction=guardPermanentMemory(cleanUser,memoryAction,memories);
+    if(memoryAction.conflict){await recordMemoryConflict(memoryAction.conflict);memoryWarning='Widersprüchliche Erinnerungsangabe. Bitte unter Persönlich → Gedächtnisprüfung bestätigen.';}
     if(memoryAction.action!=='none') {
       const next=applyMemoryAction(memories,memoryAction).map(t=>['add','update'].includes(memoryAction.action)&&t.text===memoryAction.new_memory?{...t,source:{...t.source,message:cleanUser.slice(0,600)}}:t);
       if(await persistMemorySnapshot(storedMemories,next))memories=next;

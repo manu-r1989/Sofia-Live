@@ -9,7 +9,8 @@
     const list=node('div'),create=node('form'),title=node('input'),add=node('button','Vorhaben anlegen');title.maxLength=100;title.required=true;title.minLength=3;title.placeholder='Name des Vorhabens';title.setAttribute('aria-label','Name des Vorhabens');add.type='submit';add.disabled=true;create.append(title,add);
     const bottom=node('button','Schließen');bottom.type='button';bottom.onclick=()=>dialog.close();
     const progress=node('button','Fortschritt und Rückblick');progress.type='button';progress.onclick=()=>window.SofiaCompanion?.next(dialog,()=>window.SofiaCompanion.milestones(),open);
-    dialog.append(heading,close,intro,progress,create,feedback,list,bottom);document.body.append(dialog);dialog.addEventListener('close',()=>dialog.remove(),{once:true});window.SofiaUI?.enhanceDialog(dialog,'Gemeinsame Vorhaben');dialog.showModal();close.focus();
+    const steps=node('button','Schritte und Wochenrückblick');steps.type='button';steps.onclick=()=>window.SofiaCompanion.next(dialog,()=>window.SofiaEvolution.planning(),open);
+    dialog.append(heading,close,intro,progress,steps,create,feedback,list,bottom);document.body.append(dialog);dialog.addEventListener('close',()=>dialog.remove(),{once:true});window.SofiaUI?.enhanceDialog(dialog,'Gemeinsame Vorhaben');dialog.showModal();close.focus();
     let state=null,availableTasks=[],busy=false;
     async function reload(){const r=await fetch('/api/memory',{credentials:'same-origin',cache:'no-store'});const d=await r.json();if(!r.ok)throw Error(d.error||'Die Vorhaben konnten nicht geladen werden.');state=d.projects||{revision:0,selectedId:null,items:[],tasks:[]};add.disabled=false;render();}
     async function change(operation,extra={}) {

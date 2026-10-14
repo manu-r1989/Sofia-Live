@@ -41,8 +41,8 @@ test('explicit stable preference may be saved with source evidence',()=>{
 test('memory correction targets an existing exact memory and respects negation',()=>{
  const old='Der Nutzer trinkt Kaffee schwarz.';
  const good=api.guardPermanentMemory('Nein, ich meinte Kaffee mit Milch',{action:'update',old_memory:old,new_memory:'Der Nutzer trinkt Kaffee mit Milch.'},[old]);
- assert.equal(good.action,'update');
- assert.equal(api.guardPermanentMemory('Nein, ich meinte Kaffee mit Milch',{...good,old_memory:'another'},[old]).action,'none');
+ assert.equal(good.action,'none');assert.equal(good.conflict.old,old);assert.equal(good.conflict.next,'Der Nutzer trinkt Kaffee mit Milch.');
+ assert.equal(api.guardPermanentMemory('Nein, ich meinte Kaffee mit Milch',{action:'update',old_memory:'another',new_memory:'Der Nutzer trinkt Kaffee mit Milch.'},[old]).action,'none');
  assert.equal(api.guardPermanentMemory('Ich mag keinen Kaffee',{action:'add',new_memory:'Der Nutzer mag Kaffee.'}).action,'none');
 });
 test('deletion needs an explicit request and never turns a stale update into a new fact',()=>{
@@ -107,3 +107,4 @@ test('generic ambiguous follow-up receives a concrete clarification while a name
  assert.equal(api.conversationClarification(life,'Erledige Aufgabe TEST',now),null);
  assert.match(api.initiativeContext(life,'Warum?',now),/BEZUGSKLÄRUNG DIESES TURNS/);
 });
+

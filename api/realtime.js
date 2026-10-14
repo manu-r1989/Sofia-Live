@@ -1,6 +1,6 @@
 import { dataPrefix, testModeRequested, publicTestMode, guardTestRequest, providerFailure } from "../lib/environment.js";
 import crypto from "node:crypto";
-import {companionState,companionContext,reserveCompanionLive,finishCompanionLive} from '../lib/character-image.js';
+import {companionState,companionContext,filterCompanionMemories,reserveCompanionLive,finishCompanionLive} from '../lib/character-image.js';
 
 const MEMORY_KEY = dataPrefix() + 'longterm';
 const HISTORY_KEY = dataPrefix() + 'history';
@@ -199,7 +199,7 @@ export default async function handler(
     // des kompletten Langzeitgedächtnisses. Die vollständige Memory-Verwaltung
     // bleibt in /api/live-memory erhalten.
     const liveMemories =
-      memories.slice(-16);
+      filterCompanionMemories(memories,companion).slice(-16);
 
     const memoryText =
       liveMemories.length
