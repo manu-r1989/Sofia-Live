@@ -1,6 +1,6 @@
 import { dataPrefix, testModeRequested, publicTestMode, guardTestRequest, providerFailure } from "../lib/environment.js";
 import { chatCleanupPlan, CHAT_CLEANUP_SCRIPT, resolveReplyReference, replyReferenceContext, participantLocationContext, visibleConversation, DELETE_MESSAGE_SCRIPT, RESTORE_MESSAGE_SCRIPT, SAVE_VISIBLE_HISTORY_SCRIPT, conversationReferenceContext, conversationReferenceClarification, replyPhotoReference } from '../lib/message-context.js';
-import { companionState, companionContext, persistMemorySnapshot, executeProjectCommand, executeMemoryCommand, projectState, projectContext, projectBinding, linkProjectResult, appearanceChoice, conversationClarification, guardPermanentMemory, compactConversationHistory, safeDiagnostic, taskReceipt, hamburgReferenceTime, portraitPreparationReply, groundedPhotoReply, preparePortrait, generatePortrait, servePortrait, portraitGallery, appendPortraitAcknowledgment, PORTRAIT_FAILURE_REPLY, getSofiaLife, currentSituationCorrection, synchronizeSituation, learnSofiaLife, lifeContext, selectedPhotoContext, prepareProactivePortrait, PROACTIVE_PHOTO_ANNOUNCEMENT } from '../lib/character-image.js';
+import { companionState, companionContext, recordMemoryConflict, filterCompanionMemories, persistMemorySnapshot, executeProjectCommand, executeMemoryCommand, projectState, projectContext, projectBinding, linkProjectResult, appearanceChoice, conversationClarification, guardPermanentMemory, compactConversationHistory, safeDiagnostic, taskReceipt, hamburgReferenceTime, portraitPreparationReply, groundedPhotoReply, preparePortrait, generatePortrait, servePortrait, portraitGallery, appendPortraitAcknowledgment, PORTRAIT_FAILURE_REPLY, getSofiaLife, currentSituationCorrection, synchronizeSituation, learnSofiaLife, lifeContext, selectedPhotoContext, prepareProactivePortrait, PROACTIVE_PHOTO_ANNOUNCEMENT } from '../lib/character-image.js';
 import crypto from "node:crypto";
 import { executeUnifiedAction, getActionState, getResearchState } from "./action-engine.js";
 
@@ -797,14 +797,16 @@ export default async function handler(req, res) {
        SOFIA PROMPT
     ======================================== */
 
-    const relevantMemories = await selectSemanticRelevantMemories(memories, message, 12);
+    const companion=await companionState();
+    const activeMemories=filterCompanionMemories(memories,companion);
+    const relevantMemories = await selectSemanticRelevantMemories(activeMemories, message, 12);
 
     const responseMemoryText = relevantMemories.length
       ? relevantMemories.map((memory, index) => `${index + 1}. [${memory.category || "Sonstiges"}] ${memoryText(memory)}`).join("\n")
       : "Für diese Nachricht wurden keine relevanten Langzeiterinnerungen ausgewählt.";
 
     const memoryManagementText = memories.length
-      ? memories.map((memory, index) => `${index + 1}. [${memory.category || "Sonstiges"}] ${memoryText(memory)}`).join("\n")
+      ? activeMemories.map((memory, index) => `${index + 1}. [${memory.category || "Sonstiges"}] ${memoryText(memory)}`).join("\n")
       : "Noch keine Langzeiterinnerungen vorhanden.";
 
 
@@ -814,7 +816,6 @@ export default async function handler(req, res) {
     const projectTask=projectBinding(message,sharedProjects);
     history=visibleConversation(history,hiddenMessages);
     const replyReference=quoteReference;
-    const companion=await companionState();
     const SOFIA_PROMPT = `
 Du bist Sofia.
 
@@ -1983,6 +1984,7 @@ Kein Markdown außerhalb des JSON-Objekts.
     const proposedMemory=memoryAction;
     memoryAction=guardPermanentMemory(message,memoryAction,memories);
     if(proposedMemory.action!=="none" && memoryAction.action==="none" && /(?:habe|hab|ist|wurde).{0,45}(?:dauerhaft gespeichert|im langzeitgedächtnis|als erinnerung gespeichert)/i.test(reply))reply="Das behalte ich zunächst nur für dieses Gespräch im Blick.";
+    if(memoryAction.conflict){await recordMemoryConflict(memoryAction.conflict);reply='Dazu ist eine andere Erinnerung gespeichert: „'+memoryAction.conflict.old+'“. Soll die neue Angabe „'+memoryAction.conflict.next+'“ sie ersetzen? Bitte bestätige die Änderung unter Einstellungen → Persönlich → Gedächtnisprüfung.';}
     if(memoryAction.action!=='none') {
       const next=applyMemoryAction(memories,memoryAction).map(t=>['add','update'].includes(memoryAction.action)&&t.text===memoryAction.new_memory?{...t,source:{...t.source,message:message.slice(0,600)}}:t);
       if(await persistMemorySnapshot(storedMemories,next))memories=next;

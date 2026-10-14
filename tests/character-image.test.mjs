@@ -228,7 +228,7 @@ test('image delivery is private JPEG with download attachment and validated IDs'
 });
 test('UI integration loads shared renderer before app and does not alter avatar assets',async()=>{
  const root=new URL('../',import.meta.url);const index=await readFile(new URL('index.html',root),'utf8');
- assert.ok(index.indexOf('sofia-images.js?v=4101061v1')<index.indexOf('app.js?v=4101061v1'));
+ assert.ok(index.indexOf('sofia-images.js?v=411200v1')<index.indexOf('app.js?v=411200v1'));
  const chat=await readFile(new URL('api/chat.js',root),'utf8');
  assert.ok(chat.indexOf('!safeEqual(')<chat.indexOf('await servePortrait'));
  const ui=await readFile(new URL('sofia-images.js',root),'utf8');assert.match(ui,/dialog.showModal/);assert.match(ui,/link.download=/);assert.doesNotMatch(ui,/spinner|generating-status/);
@@ -492,11 +492,11 @@ test('head-only changes do not accidentally select body pose from preservation w
  assert.deepEqual(api.variantDimensions('Kamerastandpunkt: 90° nach links. Kopf und Körperhaltung beibehalten.'),['camera-angle']);
 });
 
-test('a clear photo context mismatch retries once before storing only the checked result',async()=>{
- reset();reviewQueue=[{ok:false,confidence:.97,mismatches:['location','daylight']},{ok:true,confidence:.94,mismatches:[]}];const job=await api.preparePortrait('Selfie');const image=await api.generatePortrait(job.id);assert.equal(imageCalls.length,2);assert.equal(image.review.status,'passed');assert.match(imageCalls[1].prompt,/CORRECTION.*location, daylight/);assert.equal(JSON.parse(db.get(prefix+'gallery')).length,1);assert.equal(image.sentAt,image.createdAt);assert.equal(image.availabilityAt,image.createdAt);
+test('a clear photo mismatch reports its dimensions and requires explicit retry',async()=>{
+ reset();reviewQueue=[{ok:false,confidence:.97,mismatches:['location','daylight']},{ok:true,confidence:.94,mismatches:[]}];const job=await api.preparePortrait('Selfie');await assert.rejects(api.generatePortrait(job.id),/portrait_context_mismatch/);assert.equal(imageCalls.length,1);assert.equal(db.has(prefix+'image:'+job.id),false);assert.deepEqual(JSON.parse(db.get(prefix+'notices'))[0].review.mismatches,['location','daylight']);
 });
-test('a second clear mismatch fails honestly without publishing or continuing to bill',async()=>{
- reset();reviewQueue=[{ok:false,confidence:.95,mismatches:['weather']},{ok:false,confidence:.92,mismatches:['weather']}];const job=await api.preparePortrait('Selfie');await assert.rejects(api.generatePortrait(job.id),/portrait_context_mismatch/);assert.equal(imageCalls.length,2);assert.equal(db.has(prefix+'image:'+job.id),false);assert.equal(JSON.parse(db.get(prefix+'request:'+job.id)).status,'failed');assert.equal(JSON.parse(db.get(prefix+'notices'))[0].status,'failed');
+test('a clear mismatch fails honestly without publishing or continuing to bill',async()=>{
+ reset();reviewQueue=[{ok:false,confidence:.95,mismatches:['weather']},{ok:false,confidence:.92,mismatches:['weather']}];const job=await api.preparePortrait('Selfie');await assert.rejects(api.generatePortrait(job.id),/portrait_context_mismatch/);assert.equal(imageCalls.length,1);assert.equal(db.has(prefix+'image:'+job.id),false);assert.equal(JSON.parse(db.get(prefix+'request:'+job.id)).status,'failed');assert.equal(JSON.parse(db.get(prefix+'notices'))[0].status,'failed');
 });
 test('invalid review output never silently publishes an unchecked photograph',async()=>{
  reset();reviewQueue=[{ok:'yes',confidence:.9,mismatches:[]}];const job=await api.preparePortrait('Selfie');await assert.rejects(api.generatePortrait(job.id),/portrait_review_unavailable/);assert.equal(imageCalls.length,1);assert.equal(db.has(prefix+'image:'+job.id),false);
@@ -544,11 +544,11 @@ test('camera variants give visible source posture priority over stale sitting me
  reset();const now=new Date(),old=previousPhotograph(now);plan.action='none';
  const job=await api.preparePortrait('Zeig dieses Foto bitte aus einer anderen Perspektive. Kamerastandpunkt: 90° nach links um das Motiv.',old,now);
  const request=JSON.parse(db.get(prefix+'request:'+job.id));assert.equal(request.bodyPose,'sitting');const context=api.photoSceneContext(request);assert.match(context,/VISIBLE posture/);assert.doesNotMatch(context,/"posture":"sitting"/);
- reviewQueue=[{ok:false,confidence:.97,mismatches:['posture','camera-angle']},{ok:true,confidence:.95,mismatches:[]}];await api.generatePortrait(job.id);assert.equal(imageCalls.length,2);assert.match(imageCalls[1].prompt,/CORRECTION.*posture, camera-angle/);assert.match(imageCalls[0].prompt,/90-degree request.*visibly perpendicular/);assert.doesNotMatch(imageCalls[0].prompt,/"activity":"sit/);
+ reviewQueue=[{ok:false,confidence:.97,mismatches:['posture','camera-angle']},{ok:true,confidence:.95,mismatches:[]}];await assert.rejects(api.generatePortrait(job.id),/portrait_context_mismatch/);assert.equal(imageCalls.length,1);assert.match(imageCalls[0].prompt,/90-degree request.*visibly perpendicular/);assert.doesNotMatch(imageCalls[0].prompt,/"activity":"sit/);
  const content=reviewInputs[0][1].content,pictures=content.filter(x=>x.type==='image_url');assert.equal(pictures.length,2);assert.equal(pictures[0].image_url.url,'data:image/jpeg;base64,/9j/AA==');assert.match(reviewInputs[0][0].content,/SOURCE and RESULT directly/);assert.match(reviewInputs[0][0].content,/standing-to-sitting/);assert.match(reviewInputs[0][0].content,/requested 90-degree orbit remains a frontal selfie/);assert.match(reviewInputs[0][0].content,/uncertain camera geometry must not cause a retry/);
 });
 test('repeated clear perspective or posture failure stays unpublished',async()=>{
- reset();const now=new Date(),old=previousPhotograph(now);plan.action='none';const job=await api.preparePortrait('Zeig dieses Foto bitte aus einer anderen Perspektive. Kamerastandpunkt: 90° nach links um das Motiv.',old,now);reviewQueue=[{ok:false,confidence:.95,mismatches:['camera-angle']},{ok:false,confidence:.97,mismatches:['posture']}];await assert.rejects(api.generatePortrait(job.id),/portrait_context_mismatch/);assert.equal(imageCalls.length,2);assert.equal(db.has(prefix+'image:'+job.id),false);
+ reset();const now=new Date(),old=previousPhotograph(now);plan.action='none';const job=await api.preparePortrait('Zeig dieses Foto bitte aus einer anderen Perspektive. Kamerastandpunkt: 90° nach links um das Motiv.',old,now);reviewQueue=[{ok:false,confidence:.95,mismatches:['camera-angle']},{ok:false,confidence:.97,mismatches:['posture']}];await assert.rejects(api.generatePortrait(job.id),/portrait_context_mismatch/);assert.equal(imageCalls.length,1);assert.equal(db.has(prefix+'image:'+job.id),false);
 });
 test('uncertain camera geometry and an explicitly changed pose do not cause unnecessary regeneration',async()=>{
  reset();reviewQueue=[{ok:false,confidence:.4,mismatches:['camera-angle']}];let result=await api.reviewPortrait('/9j/BB==',{variant:true,dimensions:['camera-angle'],scene:'Kamerastandpunkt: 90° nach links'},12000,'/9j/AA==');assert.equal(result.status,'uncertain');

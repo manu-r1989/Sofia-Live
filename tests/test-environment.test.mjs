@@ -9,7 +9,9 @@ const encode=s=>'data:text/javascript;base64,'+Buffer.from(s).toString('base64')
 const photoURL=encode((await readFile(new URL('lib/character-image.js',root),'utf8')).replace('../lib/environment.js',url));
 const socialURL=encode((await readFile(new URL('lib/social.js',root),'utf8')).replace('./environment.js',url).replace('./character-image.js',photoURL));
 const handlerURL=encode((await readFile(new URL('lib/social-handler.js',root),'utf8')).replace('./environment.js',url).replace('./character-image.js',photoURL).replace('./social.js',socialURL));
-const companionURL=encode((await readFile(new URL('lib/companion-handler.js',root),'utf8')).replace('./environment.js',url).replace('./character-image.js',photoURL));
+async function dependencyURL(path,cache=new Map([['lib/environment.js',url],['lib/character-image.js',photoURL]])){if(cache.has(path))return cache.get(path);let text=await readFile(new URL(path,root),'utf8');for(const match of [...text.matchAll(/from\s+['\"](\.[^'\"]+)['\"]/g)]){const name=new URL(match[1],new URL(path,root)).pathname.slice(root.pathname.length);text=text.replace(match[1],await dependencyURL(name,cache));}const result=encode(text);cache.set(path,result);return result;}
+const evolutionURL=await dependencyURL('lib/companion-evolution.js');
+const companionURL=encode((await readFile(new URL('lib/companion-handler.js',root),'utf8')).replace('./environment.js',url).replace('./character-image.js',photoURL).replace('./companion-evolution.js',evolutionURL));
 const session=(await import('data:text/javascript;base64,'+Buffer.from((await readFile(new URL('api/session.js',root),'utf8')).replace('../lib/environment.js',url).replace('../lib/social-handler.js',handlerURL).replace('../lib/companion-handler.js',companionURL)).toString('base64'))).default;
 const names=['SOFIA_TEST_MODE','SOFIA_DATA_NAMESPACE','SOFIA_TEST_PROJECT_ID','VERCEL_PROJECT_ID','SOFIA_TEST_STORAGE','SOFIA_TEST_ALLOW_PAID','KV_REST_API_URL','KV_REST_API_TOKEN','SOFIA_PASSWORD'];
 const saved=Object.fromEntries(names.map(k=>[k,process.env[k]])),originalFetch=globalThis.fetch;

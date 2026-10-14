@@ -1,6 +1,6 @@
 import { dataPrefix, testModeRequested, publicTestMode, guardTestRequest } from "../lib/environment.js";
 import { participantLocationContext, conversationReferenceContext, conversationReferenceClarification, shortAgendaReply, visibleConversation } from '../lib/message-context.js';
-import { companionState, companionContext, executeProjectCommand, executeMemoryCommand, projectState, projectContext, projectBinding, linkProjectResult, appearanceChoice, taskReceipt, hamburgReferenceTime, portraitPreparationReply, preparePortrait, getSofiaLife, currentSituationCorrection, synchronizeSituation, lifeContext, selectedPhotoContext, prepareProactivePortrait, PROACTIVE_PHOTO_ANNOUNCEMENT } from '../lib/character-image.js';
+import { filterCompanionMemories, companionState, companionContext, executeProjectCommand, executeMemoryCommand, projectState, projectContext, projectBinding, linkProjectResult, appearanceChoice, taskReceipt, hamburgReferenceTime, portraitPreparationReply, preparePortrait, getSofiaLife, currentSituationCorrection, synchronizeSituation, lifeContext, selectedPhotoContext, prepareProactivePortrait, PROACTIVE_PHOTO_ANNOUNCEMENT } from '../lib/character-image.js';
 import crypto from "node:crypto";
 import { executeUnifiedAction, getActionState, getResearchState } from "./action-engine.js";
 
@@ -157,7 +157,7 @@ export default async function handler(req, res) {
     ]);
     const referenceHistory=visibleConversation(sharedHistory,hiddenHistory);
     sharedReferenceContext=participantLocationContext(referenceHistory)+'\n'+conversationReferenceContext(referenceHistory,message);
-    const memories = Array.isArray(raw) ? raw.filter(x => textOf(x)).slice(-80) : [];
+    const memories = filterCompanionMemories(Array.isArray(raw) ? raw.filter(x => textOf(x)).slice(-80) : [],await companionState());
     const catalog = memories.map((m, i) => `${i}: [${m?.category || "Sonstiges"}] ${textOf(m)}`).join("\n");
     const taskContext = Array.isArray(rawTasks)
       ? rawTasks.filter(task => task?.status === "open").slice(-30).map(task =>

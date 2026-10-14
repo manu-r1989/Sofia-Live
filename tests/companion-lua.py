@@ -111,6 +111,8 @@ def redis_call():
         return db.get(args[0], False)
     if command == 'EXISTS':
         return int(args[0] in db)
+    if command == 'DEL':
+        return int(db.pop(args[0], None) is not None)
     if command == 'SET':
         db[args[0]] = args[1]
         return 'OK'
@@ -155,11 +157,13 @@ class AtomicTests(unittest.TestCase):
     def ritual(self, enabled=True):
         db['state']=json.dumps({'revision':0,'rituals':[{'id':'r','enabled':enabled,'archived':False,'updatedAt':'v1','lastSentAt':None}]})
         db['history']='[]'
-        return ['[]',json.dumps({'id':'contact','text':'Frage','createdAt':'now'}),'r','v1','','now']
+        updated=json.loads(db['state']);updated['revision']=1;updated['rituals'][0]['lastSentAt']='now';updated['topics']=[]
+        return ['[]',json.dumps({'id':'contact','text':'Frage','createdAt':'now'}),'r','v1','','now',db['state'],json.dumps(updated)]
     def test_first_ritual_accepts_json_null_and_duplicate_is_rejected(self):
         args=self.ritual()
         self.assertEqual(execute('deliver',['history','inbox','state'],args),1)
         self.assertEqual(json.loads(db['state'])['rituals'][0]['lastSentAt'],'now')
+        self.assertIsInstance(json.loads(db['state'])['topics'],list)
         self.assertEqual(execute('deliver',['history','inbox','state'],args),0)
         self.assertEqual(len(json.loads(db['history'])),1)
     def test_disabled_or_edited_ritual_does_not_write_a_message(self):
@@ -176,4 +180,38 @@ class AtomicTests(unittest.TestCase):
         self.assertEqual(execute('deliver',['history','inbox','state'],args),0)
         self.assertIsNone(json.loads(db['state'])['rituals'][0]['lastSentAt'])
         self.assertNotIn('inbox',db)
+    def test_memory_resolution_checks_both_versions_before_writing(self):
+        db['memories']='[{"text":"old"}]'
+        db['proposals']='[{"id":"p","status":"pending"}]'
+        args=[db['memories'],db['proposals'],'[{"text":"new"}]','[{"id":"p","status":"accepted"}]']
+        self.assertEqual(execute('resolve',['memories','proposals'],args),1)
+        self.assertEqual(execute('resolve',['memories','proposals'],args),0)
+        self.assertEqual(json.loads(db['memories'])[0]['text'],'new')
+    def test_memory_policy_change_is_atomic_with_confirmed_text(self):
+        db['memories']='[{"text":"old"}]'
+        db['proposals']='[{"id":"p","status":"pending"}]'
+        db['state']='{"revision":0,"memoryPolicies":[]}'
+        args=[db['memories'],db['proposals'],'[{"text":"new"}]','[{"id":"p","status":"accepted"}]',db['state'],'{"revision":1,"memoryPolicies":[{"reference":"new","scope":"temporary"}]}']
+        db['state']='{"revision":2,"memoryPolicies":[]}'
+        self.assertEqual(execute('resolve',['memories','proposals','state'],args),0)
+        self.assertEqual(json.loads(db['memories'])[0]['text'],'old')
+    def restore_preview(self):
+        db['memories']='[]'
+        db['projects']='{"revision":0,"items":[]}'
+        db['tasks']='[]'
+        db['preview']=json.dumps({'raw':db['state'],'memoryRaw':db['memories'],'projectRaw':db['projects'],'taskRaw':db['tasks'],'stateJSON':'{"revision":1,"topics":[],"writings":[]}','memoriesJSON':'[]','projectsJSON':'{"revision":1,"items":[]}'})
+    def test_restore_preserves_empty_arrays_and_consumes_confirmation_once(self):
+        self.restore_preview()
+        keys=['preview','state','memories','projects','tasks']
+        self.assertEqual(execute('restore',keys,[]),1)
+        self.assertIsInstance(json.loads(db['state'])['topics'],list)
+        self.assertEqual(db['tasks'],'[]')
+        self.assertEqual(execute('restore',keys,[]),0)
+    def test_task_change_invalidates_restore_without_partial_writes(self):
+        self.restore_preview()
+        original=db['state']
+        db['tasks']='[{"id":"new-task"}]'
+        self.assertEqual(execute('restore',['preview','state','memories','projects','tasks'],[]),-1)
+        self.assertEqual(db['state'],original)
+        self.assertEqual(db['memories'],'[]')
 unittest.main(argv=['atomic-tests'])
