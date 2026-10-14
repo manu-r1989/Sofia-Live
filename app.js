@@ -800,7 +800,8 @@ async function askSofia(userMessage, imageDataUrl = null, options = {}) {
       }
     }
 
-    if(!data.imageRequest || !/^Gib mir einen kleinen Moment[.!]?$/i.test(reply.trim()))speak(reply);
+    if(options.voiceMessage)window.dispatchEvent(new CustomEvent('sofia-voice-reply',{detail:{text:reply,audioReply:options.audioReply===true}}));
+    else if(!data.imageRequest || !/^Gib mir einen kleinen Moment[.!]?$/i.test(reply.trim()))speak(reply);
 
   } catch (error) {
     console.warn('Sofia API Fehler',{code:error?.name==='TimeoutError'?'request_timeout':'request_failed',...(Number.isInteger(error?.status)?{status:error.status}:{})});
