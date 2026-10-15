@@ -39,3 +39,11 @@ Neue persönliche Bereiche werden im validierten persönlichen Backup mitgesiche
 Bis zu 30 Sitzungen mit je 40 Abschnitten und insgesamt 500 KB Erweiterungsdaten; keine unbegrenzte Langzeitablage. Archivieren blendet Einträge aus und löscht sie nicht. Foto-Merkhilfen sind keine automatische Erkennung von Kleidungsstücken oder technische Garantie visueller Übereinstimmung. Fotos behalten ihre bestehende Aufbewahrungszeit. Bildaufträge, die bereits angenommen wurden, lassen sich durch Serien-Stopp nicht zurücknehmen. Unbestätigte Starts werden nicht automatisch kostenpflichtig wiederholt.
 
 897 automatisierte Tests bestanden (Stand vor Browser-Abnahme), einschließlich Zustand/Backup, Versionskonflikten, Sitzungszweigen, echten abgeschirmten Quizprompts, Vokabel-Deduplizierung, Kontaktregeln, zeitabhängigen Fokusgrenzen sowie doppelten Foto-/Serienfreigaben. Keine subjektive Modellqualitätsgarantie und kein physischer iPhone-Test.
+
+## Ergänzende Releaseprüfung
+
+- Alte Fotovorschauen werden bei Eingabe-/Auswahländerung oder Serien-Stopp entfernt, auch wenn die Vorschauantwort erst später eintrifft.
+- Serienstarts behalten eine dauerhafte Startmarkierung. Angenommene Aufträge werden nach parallelen Formularänderungen gezielt mit frischem Stand verknüpft; andere Änderungen und ein zwischenzeitlicher Stopp bleiben erhalten. Unklare Starts werden nicht kostenpflichtig wiederholt. Eine neue bewusst geplante Serie hat eine eigene Identität.
+- Bestehende Serien lassen sich nicht durch neue Motive überschreiben. Leere Serien und leere Eintragstitel werden abgelehnt.
+- Wochenrückblicke berücksichtigen auch archivierte abgeschlossene Schritte, verwenden die tatsächlich datierten Fortschrittsänderungen und schließen zukünftige Änderungseinträge aus.
+- Situationsauswahl zeigt den aktuell gültigen Modus; abgelaufene Modi werden nicht als aktiv angezeigt.
