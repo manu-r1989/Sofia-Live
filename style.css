@@ -1350,3 +1350,14 @@ body:has(#sofia-test-banner) .app .chatPanel[data-chat-size="compact"]{top:auto!
 .next-dialog form{display:flex;flex-direction:column;gap:12px}.next-dialog textarea{min-height:100px;width:100%;box-sizing:border-box}.next-dialog small{display:block;color:var(--muted,#a9afbb);margin:6px 0}.next-dialog fieldset{min-width:0}.next-dialog .companion-card{margin-top:12px;overflow-wrap:anywhere}.next-dialog .companion-card p{white-space:pre-line}.next-dialog audio,.voice-reply audio{width:100%;max-width:100%;margin:8px 0}.next-dialog .upload-preview{max-width:100%;max-height:260px;object-fit:contain;border-radius:12px}.voice-reply{padding:8px 12px;max-width:100%;color:var(--muted,#a9afbb);font-size:.85em}.next-dialog input[type=file]{max-width:100%;box-sizing:border-box}.next-dialog fieldset label{min-height:44px;display:flex;align-items:center;gap:8px}
 
 .growth-dialog details{margin:12px 0}.growth-dialog summary{padding:10px 0;cursor:pointer}.growth-dialog fieldset{display:flex;flex-wrap:wrap;gap:8px}.growth-dialog fieldset legend{width:100%}.growth-dialog .companion-card fieldset{display:block}.growth-photo-pair{display:grid;grid-template-columns:1fr 1fr;gap:12px}.growth-photo-pair figure{margin:0;min-width:0}.growth-photo-pair img{display:block;width:100%;object-fit:contain;border-radius:10px}.growth-dialog input[type=time],.growth-dialog input[type=date]{min-width:0;width:100%}.growth-dialog button{min-height:44px}.growth-dialog .companion-card .companion-card{background:rgba(255,255,255,.025)}@media(max-width:440px){.growth-photo-pair{grid-template-columns:1fr}}
+.features-dialog{max-width:680px;overscroll-behavior:contain;scroll-padding-top:76px}
+.features-dialog .companion-card{margin-block:10px;padding:12px;border-radius:14px}
+.features-dialog button{min-height:44px;padding:8px 12px;margin:4px;border-radius:12px;font-size:14px}
+.features-dialog textarea{min-height:82px;resize:vertical}
+.features-dialog label{display:flex;flex-direction:column;gap:5px;margin-block:9px}
+.features-dialog label:has(input[type=checkbox]){flex-direction:row;align-items:center}
+.features-dialog fieldset{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.features-dialog canvas.region-canvas{display:block;max-width:100%;height:auto;max-height:48dvh;object-fit:contain;touch-action:none;border-radius:12px;margin:12px auto}
+.features-dialog canvas[hidden]{display:none}
+.features-dialog p{white-space:pre-wrap;overflow-wrap:anywhere}
+@media(max-width:440px){.features-dialog{width:calc(100% - 16px);padding:14px}.features-dialog button{font-size:13px}.features-dialog .dialog-header h2{font-size:18px}}

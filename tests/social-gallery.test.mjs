@@ -6,7 +6,7 @@ import {readFile} from 'node:fs/promises';
 const url=s=>'data:text/javascript;base64,'+Buffer.from(s).toString('base64');
 const env=url(await readFile(new URL('../lib/environment.js',import.meta.url),'utf8'));
 const portrait=url((await readFile(new URL('../lib/character-image.js',import.meta.url),'utf8')).replace('../lib/environment.js',env));
-const social=url((await readFile(new URL('../lib/social.js',import.meta.url),'utf8')).replace('./environment.js',env).replace('./character-image.js',portrait));
+const social=url((await readFile(new URL('../lib/social.js',import.meta.url),'utf8')).replace('./environment.js',env).replace('./character-image.js',portrait).replace('./feature-state.js',url(await readFile(new URL('../lib/feature-state.js',import.meta.url),'utf8'))));
 const photo=await import(portrait),api=await import(social);
 const handler=(await import(url((await readFile(new URL('../lib/social-handler.js',import.meta.url),'utf8')).replace('./environment.js',env).replace('./social.js',social).replace('./character-image.js',portrait)))).default;
 const base=new Date('2026-10-07T10:00:00Z'),image={createdAt:base.toISOString()};
