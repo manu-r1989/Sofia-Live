@@ -31,4 +31,4 @@ Der bisherige manuell freigegebene ICS-Import ist unverändert verfügbar.
 
 ## Prüfung
 
-Automatisierte Gesamtsuite sowie isolierte Browser-Abnahme vor Veröffentlichung. Bezahlte Bild-/Kartenaufrufe werden in Regressionstests mit Provider-Antworten simuliert; damit ist keine subjektive Bildqualität nachgewiesen.
+851 automatisierte Tests bestanden (keine Fehler, keine übersprungenen Tests). Isolierte Browser-Abnahme: Tagesfokus speichern und leeren, eigene Karte mit falscher und richtiger Antwort sowie Pausieren, Gesprächsauszug bearbeiten/aktivieren/deaktivieren, Kontaktregel und Hamburger Zusatzpause speichern/beenden, echte Maskenvorschau ohne kostenpflichtigen Start, veraltete Bestätigung nach Wunschänderung entfernt, Teilsicherung herunterladen und unverbindliche Wiederherstellungsvorschau, Projekt-Rückblick. Keine Produktiv-Nutzerdaten verändert. Kein Mitteilungsgerät vorhanden; Widerruf deshalb nicht live ausgeführt. Bezahlte Bild-/Kartenaufrufe werden in Regressionstests mit Provider-Antworten simuliert; damit ist keine subjektive Bildqualität nachgewiesen.
