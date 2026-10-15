@@ -28,3 +28,12 @@ Kontaktpause gilt während einer laufenden Fokus-Etappe; bei abgelaufener oder p
 ## Prüfung vor Browser-Abnahme
 
 920 Tests bestanden, einschließlich Profile/Ablauf, Fokus-Restzeit und Etappen, Backup ohne aktivierte Importtimer, Sprachkontext, Figurenübernahme bei Zweigen, Ritualpausen, Entscheidungsszenarien, Ideenfreigaben, Quizkorrektur/einmaliger Lernübernahme, atomarer Hauptchatübernahme sowie vorhandenen Foto-/Live-/Kalender-Regressionsprüfungen. Neue Zwei-Schlüssel-Übernahme zusätzlich mit tatsächlicher Lua-Ausführung gegen konkurrierende History-Änderungen und Doppelübernahmen geprüft. Alle ausgelieferten JavaScript-Dateien/Inline-Skripte werden auf Syntax geprüft.
+
+
+## Browserprüfung auf Test
+
+- Persönlicher Startbereich lädt tatsächliche Vorhaben/Sitzungen; Profil mit eigener Antwortlänge gespeichert, bis zur angezeigten Uhrzeit aktiviert und wieder beendet.
+- Fokus mit zwei Etappen gestartet, mit gespeicherter Restzeit unterbrochen/fortgesetzt, erste Etappe ausdrücklich bestätigt und zweite übersprungen. Abschluss zeigt die tatsächlich bestätigte Anzahl. Etappennotizen werden im aktuellen Ablauf und in den letzten 40 Abschlussaufzeichnungen angezeigt.
+- Strukturierte Sprachsitzung Spanisch/A2 mit Ziel „Im Café bestellen“ angelegt. Echte Modellantwort in Spanisch empfangen, drei Vokabelpaare vor Übernahme geprüft und als Lernkarten gespeichert. Kein automatischer Hauptchatversand oder Audiostart.
+- Fotokarte aus zwei vorhandenen Fotos mit Layout untereinander und eigenem Text erstellt, PNG tatsächlich heruntergeladen und visuell geprüft: 1200 × 1000 Pixel, beide ausgewählten Fotos und kompletter Text vorhanden. Keine KI-Bildgenerierung.
+- Nachbesserungen: konsistente Minuten-/Sekundenanzeige, deutsche Profilbeschreibungen und verständlicher gespeicherter Ausgangspunkt von Chat-Zweigen. Situationshinweis passt auch zu einem Profil außerhalb des Arbeitsmodus.
