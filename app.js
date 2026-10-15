@@ -398,14 +398,16 @@ window.SofiaChatDelete=async (turn,restore=false)=>{
 let lastServerHistorySignature = '';
 let historySyncTimer = null;
 let historySyncInFlight = false;
+let historySyncWaiters = [];
 let pendingCalendarAction = null;
 
 function historySignature(history) {
   return JSON.stringify(history);
 }
 
-async function syncConversationFromServer({ silent = false } = {}) {
-  if (isResponding || historySyncInFlight || (typeof navigator!=='undefined' && navigator.onLine===false)) return false;
+async function syncConversationFromServer({ silent = false, afterWrite = false } = {}) {
+  if (isResponding || (typeof navigator!=='undefined' && navigator.onLine===false)) return false;
+  if(historySyncInFlight){if(afterWrite&&typeof historySyncWaiters!=='undefined')return new Promise(resolve=>historySyncWaiters.push(resolve));return false;}
   historySyncInFlight = true;
 
   try {
@@ -471,6 +473,8 @@ async function syncConversationFromServer({ silent = false } = {}) {
   } finally {
     historySyncInFlight = false;
     focusPendingContact();
+    const waiters=typeof historySyncWaiters!=='undefined'?historySyncWaiters.splice(0):[];
+    if(waiters.length)void syncConversationFromServer({silent:true}).then(result=>waiters.forEach(resolve=>resolve(result)));
   }
 }
 
@@ -497,7 +501,7 @@ window.addEventListener('focus', () => {
 // Recovery reads shared state only; never resends a turn or starts Live.
 window.SofiaChatCleanupTurns=()=>conversationHistory;
 window.addEventListener('sofia-companion-photo',event=>{const request=event.detail;if(!request?.id)return;addMessage('Gib mir einen kleinen Moment.','sofia',request.id,null,request.acknowledgedAt||new Date().toISOString());void window.SofiaImages?.generate(request,{resume:true});});
-window.SofiaChatCleanupRefresh=()=>syncConversationFromServer({silent:true});
+window.SofiaChatCleanupRefresh=()=>syncConversationFromServer({silent:true,afterWrite:true});
 window.addEventListener('sofia-social-updated',()=>{syncConversationFromServer({silent:true});});
 let pendingContactOpen=null;
 let contactLoading=null;
