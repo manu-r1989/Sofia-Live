@@ -1,4 +1,4 @@
-import { testModeRequested, publicTestMode, guardTestRequest } from "../lib/environment.js";
+import { issueDeviceSession, testModeRequested, publicTestMode, guardTestRequest } from "../lib/environment.js";
 import crypto from "node:crypto";
 
 function makeSession(password) {
@@ -51,22 +51,11 @@ export default async function handler(req, res) {
     });
   }
 
-  const session =
-    makeSession(configuredPassword);
-
-  res.setHeader(
-    "Set-Cookie",
-    [
-      `sofia_session=${session}`,
-      "Path=/",
-      "HttpOnly",
-      "Secure",
-      "SameSite=Lax",
-      "Max-Age=2592000"
-    ].join("; ")
-  );
+  if(req.headers?.origin){try{if(new URL(req.headers.origin).host!==req.headers.host)throw Error();}catch{return res.status(403).json({error:"Origin not allowed"});}}
+  try{await issueDeviceSession(req,res);}catch{return res.status(503).json({error:"Anmeldung konnte nicht gespeichert werden. Bitte später erneut versuchen."});}
 
   return res.status(200).json({
     ok: true
   });
 }
+

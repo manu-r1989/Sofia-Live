@@ -90,7 +90,7 @@ def read(index):
     while nextitem(state, index):
         values[read(-2)] = read(-1)
         settop(state, gettop(state) - 1)
-    if pointer(state, index) in arrays:
+    if pointer(state, index) in arrays or (values and set(values)==set(range(1,len(values)+1))):
         return [values[i] for i in sorted(values)]
     return values
 def safe(fn):
@@ -225,4 +225,28 @@ class AtomicTests(unittest.TestCase):
         db['state']=args[1]
         self.assertEqual(execute('correct',['memories','state'],args),1)
         self.assertEqual(json.loads(db['state'])['memoryPolicies'][0]['scope'],'temporary')
+    def test_template_cas_updates_both_keys_once(self):
+        db['projects']='{"revision":0,"items":[]}'
+        db['preview']=json.dumps({'raw':db['state'],'projectRaw':db['projects']})
+        args=[db['state'],db['projects'],'{"revision":1,"steps":[]}','{"revision":1,"items":[{"id":"new"}]}']
+        db['projects']='{"revision":2,"items":[]}'
+        self.assertEqual(execute('template',['preview','state','projects'],args),0)
+        self.assertEqual(db['state'],args[0])
+        db['projects']=args[1]
+        self.assertEqual(execute('template',['preview','state','projects'],args),1)
+        self.assertEqual(db['state'],args[2])
+        self.assertEqual(execute('template',['preview','state','projects'],args),2)
+        self.assertEqual(len(json.loads(db['projects'])['items']),1)
+    def test_device_sessions_create_and_revoke_independently(self):
+        a={'id':'a','hash':'ha','expiresMs':2000,'passwordVersion':'v'}
+        b={'id':'b','hash':'hb','expiresMs':2000,'passwordVersion':'v'}
+        self.assertEqual(execute('session_create',['index','session:ha'],[json.dumps(a),'1000','v']),1)
+        self.assertEqual(execute('session_create',['index','session:hb'],[json.dumps(b),'1000','v']),1)
+        self.assertEqual(len(json.loads(db['index'])),2)
+        self.assertEqual(execute('session_revoke',['index'],['b','session:']),1)
+        self.assertIn('session:ha',db)
+        self.assertNotIn('session:hb',db)
+        self.assertEqual(json.loads(db['index'])[0]['id'],'a')
+        self.assertEqual(execute('session_revoke',['index'],['a','session:']),1)
+        self.assertEqual(db['index'],'[]')
 unittest.main(argv=['atomic-tests'])

@@ -1,4 +1,4 @@
-import { dataPrefix, testModeRequested, publicTestMode, guardTestRequest } from "../lib/environment.js";
+import { authorizeSession, dataPrefix, testModeRequested, publicTestMode, guardTestRequest } from "../lib/environment.js";
 import crypto from "node:crypto";
 import {memoryReview,selectMemory} from '../lib/memory-view.js';
 import { projectOverview, editProject, persistMemorySnapshot, getSofiaLife, editCharacterState } from '../lib/character-image.js';
@@ -127,7 +127,7 @@ export default async function handler(req, res) {
   );
 
 
-  if (!isAuthorized(req)) {
+  if (!await authorizeSession(req)) {
     return res.status(401).json({
       error: "Nicht autorisiert."
     });

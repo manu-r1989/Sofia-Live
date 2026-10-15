@@ -99,10 +99,10 @@
         try {
           const response=await fetch(requestedUrl,{credentials:'same-origin',cache:'no-store'});
           if(!response.ok)throw new Error('download_failed');
-          const preparedBlob=await response.blob();if(!preparedBlob.size || !/^image\/jpeg(?:;|$)/i.test(preparedBlob.type))throw new Error('download_invalid');
+          const preparedBlob=await response.blob();if(!preparedBlob.size || !/^image\/(?:jpeg|png)(?:;|$)/i.test(preparedBlob.type))throw new Error('download_invalid');
           if(closed || version!==downloadVersion)return;
           blob=preparedBlob;
-          if(typeof File!=='undefined')file=new File([blob],'sofia-'+requestedImage.id+'.jpg',{type:'image/jpeg'});
+          if(typeof File!=='undefined')file=new File([blob],'sofia-'+requestedImage.id+(blob.type==='image/png'?'.png':'.jpg'),{type:blob.type==='image/png'?'image/png':'image/jpeg'});
           download.disabled=false;status.textContent='';
         } catch {if(version!==downloadVersion)return;blob=null;file=null;if(!closed){download.disabled=false;status.textContent='Bild konnte nicht vorbereitet werden. Bitte noch einmal versuchen.';}}
       }
@@ -115,7 +115,7 @@
           } else {
             if(mobile){status.textContent='Teilen wird hier nicht unterstützt. Halte das Bild gedrückt und wähle „In Fotos sichern“.';return;}
             objectUrl ||= URL.createObjectURL(blob);
-            const link=document.createElement('a');link.href=objectUrl;link.download='sofia-'+image.id+'.jpg';document.body.append(link);link.click();link.remove();status.textContent='Download gestartet. Prüfe den Downloadordner deines Browsers.';
+            const link=document.createElement('a');link.href=objectUrl;link.download='sofia-'+image.id+(blob.type==='image/png'?'.png':'.jpg');document.body.append(link);link.click();link.remove();status.textContent='Download gestartet. Prüfe den Downloadordner deines Browsers.';
           }
         } catch(error) {status.textContent=error?.name==='AbortError'?'Teilen abgebrochen.':'Speichern oder Teilen ist gerade nicht möglich. Bitte erneut versuchen.';}
         finally {download.disabled=false;}
@@ -314,8 +314,8 @@
     function nodeButton(text){const b=document.createElement('button');b.type='button';b.textContent=text;return b;}
     selection.setAttribute('aria-pressed','false');selection.onclick=()=>{selecting=!selecting;selected.clear();selection.setAttribute('aria-pressed',String(selecting));selection.textContent=selecting?'Auswahl beenden':'Mehrere auswählen';void prepareBatch();render();};
     async function prepareBatch(){const version=++batchVersion;prepared=null;downloadMany.disabled=true;if(batchUrl){URL.revokeObjectURL(batchUrl);batchUrl=null;}if(!selected.size){selectionStatus.textContent='';return;}selectionStatus.textContent=selected.size+' Fotos werden zum Speichern vorbereitet …';
-      try {const files=[];for(const id of selected){const image=galleryItems.get(id);if(!image||!retained(image))throw Error();const response=await fetch('/api/chat?image='+id,{credentials:'same-origin',cache:'no-store'});if(!response.ok)throw Error();const blob=await response.blob();if(!/^image\/jpeg(?:;|$)/i.test(blob.type)||!blob.size||blob.size>700000)throw Error();files.push({name:'sofia-'+id+'.jpg',bytes:new Uint8Array(await blob.arrayBuffer()),blob});if(version!==batchVersion)return;}
-        if(version!==batchVersion||!dialog.isConnected)return;const shareFiles=typeof File!=='undefined'?files.map(x=>new File([x.blob],x.name,{type:'image/jpeg'})):[];prepared={files:shareFiles,zip:photoArchive(files)};downloadMany.disabled=false;selectionStatus.textContent=files.length+' Fotos ausgewählt.';
+      try {const files=[];for(const id of selected){const image=galleryItems.get(id);if(!image||!retained(image))throw Error();const response=await fetch('/api/chat?image='+id,{credentials:'same-origin',cache:'no-store'});if(!response.ok)throw Error();const blob=await response.blob();if(!/^image\/(?:jpeg|png)(?:;|$)/i.test(blob.type)||!blob.size||blob.size>(blob.type==='image/png'?3200000:700000))throw Error();files.push({name:'sofia-'+id+(blob.type==='image/png'?'.png':'.jpg'),bytes:new Uint8Array(await blob.arrayBuffer()),blob});if(version!==batchVersion)return;}
+        if(version!==batchVersion||!dialog.isConnected)return;const shareFiles=typeof File!=='undefined'?files.map(x=>new File([x.blob],x.name,{type:x.blob.type})):[];prepared={files:shareFiles,zip:photoArchive(files)};downloadMany.disabled=false;selectionStatus.textContent=files.length+' Fotos ausgewählt.';
       }catch{if(version===batchVersion)selectionStatus.textContent='Die Auswahl konnte nicht vollständig vorbereitet werden. Bitte neu auswählen.';}
     }
     downloadMany.onclick=async()=>{if(!prepared)return;const current=prepared;downloadMany.disabled=true;try{if(current.files.length&&typeof navigator.share==='function'&&typeof navigator.canShare==='function'&&navigator.canShare({files:current.files})){await navigator.share({files:current.files});selectionStatus.textContent='';}else{batchUrl ||= URL.createObjectURL(current.zip);const link=document.createElement('a');link.href=batchUrl;link.download='sofia-fotos.zip';document.body.append(link);link.click();link.remove();selectionStatus.textContent='Die ausgewählten Fotos wurden als ZIP heruntergeladen.';}}catch(e){selectionStatus.textContent=e?.name==='AbortError'?'':'Die Auswahl konnte nicht gespeichert werden.';}finally{downloadMany.disabled=!prepared;}};

@@ -1,4 +1,4 @@
-import { dataPrefix, testModeRequested, publicTestMode, guardTestRequest } from "../lib/environment.js";
+import { authorizeSession, dataPrefix, testModeRequested, publicTestMode, guardTestRequest } from "../lib/environment.js";
 import { companionState, recordMemoryConflict, filterCompanionMemories, persistMemorySnapshot, guardPermanentMemory, permanentMemoryCandidate, safeDiagnostic, learnSofiaLife, getSofiaLife } from '../lib/character-image.js';
 import crypto from "node:crypto";
 
@@ -323,7 +323,7 @@ export default async function handler(
     });
   }
 
-  if (!isAuthorized(req)) {
+  if (!await authorizeSession(req)) {
     return res.status(401).json({
       error: "Nicht autorisiert."
     });

@@ -1,4 +1,4 @@
-import { dataPrefix, testModeRequested, publicTestMode, guardTestRequest } from "../lib/environment.js";
+import { authorizeSession, dataPrefix, testModeRequested, publicTestMode, guardTestRequest } from "../lib/environment.js";
 import crypto from "node:crypto";
 
 const KEY = dataPrefix() + 'identity';
@@ -34,7 +34,7 @@ async function getItems() {
 }
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
-  if (!authorized(req)) return res.status(401).json({ error: "Nicht autorisiert." });
+  if (!await authorizeSession(req)) return res.status(401).json({ error: "Nicht autorisiert." });
   if(!await guardTestRequest(req,res,"identity"))return;
 
   try {
@@ -80,3 +80,4 @@ export default async function handler(req, res) {
     return res.status(200).json({ saved: false });
   }
 }
+

@@ -1,4 +1,4 @@
-import { dataPrefix, testModeRequested, publicTestMode, guardTestRequest } from "../lib/environment.js";
+import { authorizeSession, dataPrefix, testModeRequested, publicTestMode, guardTestRequest } from "../lib/environment.js";
 import { participantLocationContext, conversationReferenceContext, conversationReferenceClarification, shortAgendaReply, visibleConversation } from '../lib/message-context.js';
 import { filterCompanionMemories, companionState, companionContext, executeProjectCommand, executeMemoryCommand, projectState, projectContext, projectBinding, linkProjectResult, appearanceChoice, taskReceipt, hamburgReferenceTime, portraitPreparationReply, preparePortrait, getSofiaLife, currentSituationCorrection, synchronizeSituation, lifeContext, selectedPhotoContext, prepareProactivePortrait, PROACTIVE_PHOTO_ANNOUNCEMENT } from '../lib/character-image.js';
 import crypto from "node:crypto";
@@ -98,7 +98,7 @@ function taskContextOf(taskAction) {
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
-  if (!authorized(req)) return res.status(401).json({ error: "Nicht autorisiert." });
+  if (!await authorizeSession(req)) return res.status(401).json({ error: "Nicht autorisiert." });
   if(!await guardTestRequest(req,res,"context"))return;
 
 
