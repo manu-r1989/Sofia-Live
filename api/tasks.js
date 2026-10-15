@@ -1,4 +1,4 @@
-import { dataPrefix, testModeRequested, publicTestMode, guardTestRequest } from "../lib/environment.js";
+import { authorizeSession, dataPrefix, testModeRequested, publicTestMode, guardTestRequest } from "../lib/environment.js";
 import crypto from "node:crypto";
 import { nextRecurringDates, normalizeTaskDate, validateTaskPatch } from "../lib/task-dates.js";
 import { withTaskMutationLock } from "./action-engine.js";
@@ -50,7 +50,7 @@ function normalizeTask(input, existing=null) {
 }
 export default async function handler(req,res) {
   res.setHeader("Cache-Control","no-store");
-  if(!authorized(req))return res.status(401).json({error:"Nicht autorisiert."});
+  if(!await authorizeSession(req))return res.status(401).json({error:"Nicht autorisiert."});
   if(!await guardTestRequest(req,res,"chat"))return;
 
   if(!process.env.KV_REST_API_URL||!process.env.KV_REST_API_TOKEN)return res.status(500).json({error:"Redis-Konfiguration fehlt."});
@@ -91,3 +91,4 @@ export default async function handler(req,res) {
     console.error("Tasks API:",error);return res.status(500).json({ok:false,status:"execution_failed",error:"Die Aufgabenaktion konnte nicht sicher bestätigt werden. Bitte prüfe den Aufgabenstand vor einem erneuten Versuch."});
   }
 }
+

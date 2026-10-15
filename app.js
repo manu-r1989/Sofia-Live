@@ -800,7 +800,7 @@ async function askSofia(userMessage, imageDataUrl = null, options = {}) {
       }
     }
 
-    if(options.voiceMessage)window.dispatchEvent(new CustomEvent('sofia-voice-reply',{detail:{text:reply,audioReply:options.audioReply===true}}));
+    window.dispatchEvent(new CustomEvent('sofia-voice-reply',{detail:{text:reply,voiceMessage:options.voiceMessage===true,audioReply:options.audioReply===true}}));
     else if(!data.imageRequest || !/^Gib mir einen kleinen Moment[.!]?$/i.test(reply.trim()))speak(reply);
 
   } catch (error) {

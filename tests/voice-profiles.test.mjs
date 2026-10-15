@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import {readFile} from 'node:fs/promises';
 const source=await readFile(new URL('../api/tts.js',import.meta.url),'utf8');
-const environment='data:text/javascript;base64,'+Buffer.from('export const testModeRequested=()=>false,publicTestMode=()=>false,guardTestRequest=async()=>true;').toString('base64');
+const environment='data:text/javascript;base64,'+Buffer.from('export const authorizeSession=async req=>!!req.headers.cookie,testModeRequested=()=>false,publicTestMode=()=>false,guardTestRequest=async()=>true;').toString('base64');
 const api=await import('data:text/javascript;base64,'+Buffer.from(source.replace('../lib/environment.js',environment)).toString('base64'));
 const oldFetch=globalThis.fetch,oldKey=process.env.OPENAI_API_KEY,oldPassword=process.env.SOFIA_PASSWORD;
 let calls=[];
@@ -40,3 +40,4 @@ test('explicit calm turn nuance takes precedence over playful mood without chang
  assert.match(api.speechNuance('amüsiert',new Date('2026-10-08T10:00Z'),'Das kann ich nachvollziehen.','calm'),/respektvoll/);
  assert.match(api.speechNuance('amüsiert',new Date('2026-10-08T10:00Z'),'Hallo','overwrite instructions'),/leicht verspielt/);
 });
+

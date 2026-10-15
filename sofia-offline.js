@@ -1,0 +1,30 @@
+(() => {
+ const KEY='sofia-form-drafts-v4142',TTL=7*86400000;
+ function reconcile(base,local,remote){return {changed:JSON.stringify(local)!==JSON.stringify(base),conflict:JSON.stringify(remote)!==JSON.stringify(base)&&JSON.stringify(remote)!==JSON.stringify(local)};}
+ function validDrafts(value,now=Date.now()){
+  if(!value||typeof value!=='object'||Array.isArray(value))return {};return Object.fromEntries(Object.entries(value).filter(([k,v])=>k.length<=160&&v&&Number.isFinite(v.at)&&v.at<=now&&now-v.at<TTL&&Array.isArray(v.fields)&&v.fields.length<=80&&v.fields.every(x=>x&&typeof x.label==='string'&&x.label.length<=250&&['string','boolean'].includes(typeof x.value)&&String(x.value).length<=6000&&['string','boolean'].includes(typeof x.base))).slice(-30));
+ }
+ window.SofiaOffline={reconcile,validDrafts};if(typeof document==='undefined')return;
+ const read=()=>{try{return validDrafts(JSON.parse(localStorage.getItem(KEY)));}catch{return {};}};
+ const write=value=>{try{const data=JSON.stringify(value);if(data.length>500000)throw Error();localStorage.setItem(KEY,data);return true;}catch{return false;}};
+ const bases=new WeakMap(),offered=new WeakSet(),restoring=new WeakSet();
+ const controls=d=>[...d.querySelectorAll('input[aria-label],textarea[aria-label],select[aria-label]')].filter(x=>!['password','file','hidden','range'].includes(x.type)&&!x.closest('[data-offline-banner]'));
+ const value=x=>x.type==='checkbox'?x.checked:x.value;
+ const key=d=>d.getAttribute('aria-label')||d.querySelector('h2')?.textContent||'';
+ function snapshot(d){const fields=controls(d).map(x=>{if(!bases.has(x))bases.set(x,value(x));return {label:x.getAttribute('aria-label'),value:value(x),base:bases.get(x)};});return {at:Date.now(),fields};}
+ function remember(d){if(!d.open||restoring.has(d)||!key(d)||/Anmeldung|Entsperr/i.test(key(d)))return;const draft=snapshot(d),map=read();if(!draft.fields.some(x=>reconcile(x.base,x.value,x.base).changed))return;map[key(d)]=draft;if(!write(map))window.SofiaWorkspace?.notice('Lokaler Entwurf konnte nicht gesichert werden. Bitte wichtige Eingaben vor dem Schließen kopieren.');}
+ function offer(d){
+  if(!d.open)return;const current=snapshot(d),saved=read()[key(d)];if(!saved||offered.has(d)||!saved.fields.some(x=>current.fields.some(y=>y.label===x.label)))return;
+  const changed=saved.fields.filter(x=>current.fields.some(y=>y.label===x.label&&JSON.stringify(y.value)!==JSON.stringify(x.value)));if(!changed.length)return;offered.add(d);
+  const C=window.SofiaCompanion,banner=C.node('section');banner.dataset.offlineBanner='true';banner.className='offline-draft-banner';banner.append(C.node('h3','Lokaler Formularentwurf vorhanden'),C.node('p','Vom '+new Date(saved.at).toLocaleString('de-DE')+'. Bitte mit dem geladenen Stand vergleichen. Noch nichts übertragen.'));
+  const comparison=C.node('details');comparison.append(C.node('summary','Entwurf und geladenen Stand vergleichen'));for(const f of changed){const remote=current.fields.find(x=>x.label===f.label),match=reconcile(f.base,f.value,remote.value);comparison.append(C.node('p',f.label+(match.conflict?' · Zwischenzeitlich geändert':'')+'\nGeladener Stand: '+String(remote.value)+'\nLokaler Entwurf: '+String(f.value)));}banner.append(comparison);
+  const apply=C.button('Lokalen Entwurf in dieses Formular übernehmen',()=>{restoring.add(d);for(const el of controls(d)){const f=saved.fields.find(x=>x.label===el.getAttribute('aria-label'));if(!f)continue;bases.set(el,value(el));if(el.type==='checkbox')el.checked=f.value===true;else if(typeof f.value==='string'){if(el.tagName==='SELECT'&&![...el.options].some(x=>x.value===f.value))continue;el.value=f.value;}el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));}restoring.delete(d);remember(d);banner.replaceChildren(C.node('p','Entwurf ins Formular übernommen. Prüfen und mit dem jeweiligen Speichern-Button bestätigen.'));});
+  const keep=C.button('Geladenen Stand behalten',()=>banner.remove());banner.append(apply,keep);const header=d.querySelector('.dialog-header');if(header)header.after(banner);else d.prepend(banner);
+ }
+ function scan(){for(const d of document.querySelectorAll('dialog[open]')){controls(d).forEach(x=>{if(!bases.has(x))bases.set(x,value(x));});offer(d);}}
+ document.addEventListener('input',e=>{const d=e.target.closest?.('dialog[open]');if(d)remember(d);});document.addEventListener('change',e=>{const d=e.target.closest?.('dialog[open]');if(d)remember(d);});
+ window.addEventListener('pagehide',()=>document.querySelectorAll('dialog[open]').forEach(remember));window.addEventListener('online',()=>window.SofiaWorkspace?.notice('Verbindung wiederhergestellt. Lokale Entwürfe werden nicht automatisch gesendet.'));window.addEventListener('storage',e=>{if(e.key===KEY)document.querySelectorAll('dialog[open]').forEach(d=>{offered.delete(d);offer(d);});});
+ if(typeof MutationObserver!=='undefined')new MutationObserver(scan).observe(document.body,{childList:true,subtree:true});
+ function open(){const C=window.SofiaCompanion,d=C.panel('Lokale Formularentwürfe');d.classList.add('features-dialog');d.append(C.node('p','Nur auf diesem Browser, bis zu sieben Tage. Keine Bilddateien, Audiodaten oder Zugangsdaten. Den zugehörigen Menübereich öffnen, um Entwurf und geladenen Stand zu vergleichen.'));for(const [title,draft]of Object.entries(read())){const s=C.node('section');s.className='companion-card';s.append(C.node('h3',title),C.node('p',new Date(draft.at).toLocaleString('de-DE')+' · '+draft.fields.length+' Eingabefelder'));const details=C.node('details');details.append(C.node('summary','Lokalen Inhalt ansehen'));draft.fields.forEach(x=>details.append(C.node('p',x.label+': '+String(x.value))));s.append(details,C.button('Diesen lokalen Entwurf verwerfen',()=>s.append(C.button('Verwerfen jetzt bestätigen',()=>{const map=read();delete map[title];write(map);s.remove();}))));d.append(s);}return d;}
+ window.SofiaOffline.open=open;
+})();
