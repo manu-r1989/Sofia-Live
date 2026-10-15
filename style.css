@@ -1388,3 +1388,12 @@ body:has(#sofia-test-banner) .app .chatPanel[data-chat-size="compact"]{top:auto!
 .workbench-style-sample {width:100%;max-height:240px;object-fit:contain;border-radius:12px;}
 .workbench-dialog fieldset {border:1px solid #ffffff28;border-radius:12px;min-width:0;}
 @media(max-width:480px){.workbench-dialog {padding:14px;}.workbench-dialog .companion-card{padding:12px;}.sofia-main-nav{gap:4px;}.sofia-main-nav button{min-width:36px;}}
+
+/* 4.178: shared source selection, mind map and reader */
+.studio-dialog .studio-source-list{max-height:18rem;overflow:auto;padding:.6rem;border:1px solid #ffffff30;border-radius:12px;margin:.7rem 0}
+.studio-dialog .studio-source-list label{display:flex;gap:.6rem;align-items:center;padding:.4rem 0}
+.studio-dialog input[type=checkbox]{width:auto;flex:none}
+.studio-dialog svg{display:block;width:100%;height:auto;max-height:70vh;overflow:visible;color:var(--text,#eee)}
+.studio-dialog .studio-reading-current{outline:3px solid #bc91c9;outline-offset:2px}
+.studio-dialog audio{width:100%;margin:.7rem 0}
+.studio-dialog p{white-space:pre-wrap;overflow-wrap:anywhere}
