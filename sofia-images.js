@@ -421,11 +421,12 @@
       if (!successful.some(x=>x.id===referenceId)){referenceId=null;try{localStorage.removeItem('sofia-photo-reference');}catch{}}
       if (!referenceId && successful.length) rememberReference(successful.at(-1).id);
     },
-    generate(request) {
+    generate(request, options = {}) {
       if (!valid(request?.id)||typeof navigator!=='undefined'&&navigator.onLine===false) return Promise.resolve();
       if(rejected.has(request.id)){show({...request,status:'failed',failureCode:'portrait_reference_mismatch'});updatePhotoStatus();return Promise.resolve();}
-      if (active.has(request.id)) return active.get(request.id);
-      if(completed.has(request.id))return Promise.resolve();
+      if (active.has(request.id)) return options.resume===true?active.get(request.id).then(result=>result?.resumeSafe?window.SofiaImages.generate(request,{resume:true}):result):active.get(request.id);
+      if(completed.has(request.id)&&options.resume!==true)return Promise.resolve();
+      if(options.resume===true)completed.delete(request.id);
       const selectionAtStart=selectionVersion;
       pending.add(request.id);
       updatePhotoStatus();
@@ -436,7 +437,7 @@
           const response = await fetch('/api/chat',{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json'},body:JSON.stringify({operation:'generate_image',requestId:request.id}),signal:typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function' ? AbortSignal.timeout(250000) : undefined});
           const data = await response.json();
           if (!response.ok || !valid(data.image?.id) || data.image.id!==request.id || request.expectedSourceId && data.image.sourceId!==request.expectedSourceId) {const error=new Error('portrait_failed');error.code=data.image?.id===request.id && request.expectedSourceId && data.image.sourceId!==request.expectedSourceId?'portrait_reference_mismatch':data.code;throw error;}
-          show(data.image); if(selectionVersion===selectionAtStart)rememberReference(data.image.id);
+          show(data.image); if(selectionVersion===selectionAtStart)rememberReference(data.image.id); return data.image;
         } catch (error) {
           if(error?.code==='portrait_reference_mismatch')rejectRequest(request.id);
           // A lost response may follow a successful write: reconcile by GET only.
@@ -447,6 +448,7 @@
           }catch{}
           if(recovered){show({...recovered,failureCode:recovered.failureCode||error?.code});if(recovered.status==='pending'){remotePending.add(request.id);if(recovered.jobStatus!=='processing')uncertain.add(request.id);}else if(recovered.status!=='failed' && selectionVersion===selectionAtStart)rememberReference(recovered.id);}
           else show({...request,anchorId:request.id,status:'failed',failureCode:error?.code});
+          return {...(recovered||{status:'failed'}),failureCode:error?.code,resumeSafe:recovered?.status==='pending'&&recovered.jobStatus==='ready'&&error?.code==='test_busy'};
         } finally {
           pending.delete(request.id);
           updatePhotoStatus();

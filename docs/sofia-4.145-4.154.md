@@ -38,7 +38,7 @@ Neue persönliche Bereiche werden im validierten persönlichen Backup mitgesiche
 
 Bis zu 30 Sitzungen mit je 40 Abschnitten und insgesamt 500 KB Erweiterungsdaten; keine unbegrenzte Langzeitablage. Archivieren blendet Einträge aus und löscht sie nicht. Foto-Merkhilfen sind keine automatische Erkennung von Kleidungsstücken oder technische Garantie visueller Übereinstimmung. Fotos behalten ihre bestehende Aufbewahrungszeit. Bildaufträge, die bereits angenommen wurden, lassen sich durch Serien-Stopp nicht zurücknehmen. Unbestätigte Starts werden nicht automatisch kostenpflichtig wiederholt.
 
-902 automatisierte Tests bestanden, einschließlich Zustand/Backup, Versionskonflikten, Sitzungszweigen, echten abgeschirmten Quizprompts, Vokabel-Deduplizierung, Kontaktregeln, zeitabhängigen Fokusgrenzen sowie doppelten Foto-/Serienfreigaben. Keine subjektive Modellqualitätsgarantie und kein physischer iPhone-Test.
+904 automatisierte Tests bestanden, einschließlich Zustand/Backup, Versionskonflikten, Sitzungszweigen, echten abgeschirmten Quizprompts, Vokabel-Deduplizierung, Kontaktregeln, zeitabhängigen Fokusgrenzen sowie doppelten Foto-/Serienfreigaben. Keine subjektive Modellqualitätsgarantie und kein physischer iPhone-Test.
 
 ## Ergänzende Releaseprüfung
 
@@ -49,3 +49,14 @@ Bis zu 30 Sitzungen mit je 40 Abschnitten und insgesamt 500 KB Erweiterungsdaten
 - Situationsauswahl zeigt den aktuell gültigen Modus; abgelaufene Modi werden nicht als aktiv angezeigt.
 
 - Nach angenommenen Fotoaufträgen wird der gespeicherte Serienstand erneut geladen, damit Fortschrittsanzeige und anschließender Stopp die aktuelle Revision verwenden.
+
+
+## Abnahme am 15. Oktober 2026
+
+- Die frühere offene Auslieferungsprüfung von 4.144 wurde nachgeholt: alle 26 im HTML eingebundenen JavaScript-/CSS-Dateien stimmen bytegenau mit dem Produktiv-Commit überein.
+- Auf Test: Wochenrückblick erstellen, bewusst bearbeiten und speichern; Fokus starten, gespeicherten Timer anzeigen, Reflexion speichern und Einheit abschließen; Fotovorgabe speichern; Vorschau nach Motivänderung verwerfen; zwei Serienmotive planen, erstes Motiv ausdrücklich annehmen und zweites Motiv stoppen.
+- Ein echtes Serienbild (Sofia am Fenster mit Buch) wurde innerhalb des vorhandenen Kontingents erzeugt. Die Serienanzeige aktualisiert sich auf 1/2; der anschließende Stopp bleibt erhalten.
+- Die Fotoabnahme deckte eine Wiederaufnahme-Lücke auf: Ein vor der endgültigen Bestätigung abgewiesener Generierungsversuch konnte denselben angenommenen Auftrag im Browser als bereits behandelt markieren. Ausdrücklich bestätigte Companion-Aufträge dürfen dieselbe ID erneut prüfen; bei bereits laufendem Versuch wird nur nach bestätigter Vorabblockade `test_busy` genau einmal fortgesetzt. Kein automatischer Neuauftrag und kein Wiederholen nach unklarem Providerergebnis.
+- Unter Aufträge und Status ist für angenommene, noch nicht gestartete Aufträge ein ausdrückliches Fortsetzen verfügbar. Erfolgreiche/gestartete Aufträge werden serverseitig weiterhin unter derselben ID abgeglichen; kein zweites Serienmotiv wird dadurch gestartet.
+- 904 Tests einschließlich Simulation der Vorabblockade und gleichzeitig eintreffender Bestätigung bestanden; alle JavaScript-Dateien und Inline-Skripte auf Syntax geprüft.
+- Hosting-Runtime-Logs konnten mit dem verfügbaren Zugang nicht abgefragt werden (403); keine Aussage über vollständige Server-Fehlerfreiheit. Physischer iPhone-/Mikrofontest sowie subjektive Langzeit-Dialog- und Bildqualität bleiben offen.
