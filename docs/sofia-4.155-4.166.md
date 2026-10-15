@@ -27,7 +27,7 @@ Kontaktpause gilt während einer laufenden Fokus-Etappe; bei abgelaufener oder p
 
 ## Prüfung vor Browser-Abnahme
 
-920 Tests bestanden, einschließlich Profile/Ablauf, Fokus-Restzeit und Etappen, Backup ohne aktivierte Importtimer, Sprachkontext, Figurenübernahme bei Zweigen, Ritualpausen, Entscheidungsszenarien, Ideenfreigaben, Quizkorrektur/einmaliger Lernübernahme, atomarer Hauptchatübernahme sowie vorhandenen Foto-/Live-/Kalender-Regressionsprüfungen. Neue Zwei-Schlüssel-Übernahme zusätzlich mit tatsächlicher Lua-Ausführung gegen konkurrierende History-Änderungen und Doppelübernahmen geprüft. Alle ausgelieferten JavaScript-Dateien/Inline-Skripte werden auf Syntax geprüft.
+921 Tests bestanden, einschließlich Profile/Ablauf, Fokus-Restzeit und Etappen, Backup ohne aktivierte Importtimer, Sprachkontext, Figurenübernahme bei Zweigen, Ritualpausen, Entscheidungsszenarien, Ideenfreigaben, Quizkorrektur/einmaliger Lernübernahme, atomarer Hauptchatübernahme sowie vorhandenen Foto-/Live-/Kalender-Regressionsprüfungen. Neue Zwei-Schlüssel-Übernahme zusätzlich mit tatsächlicher Lua-Ausführung gegen konkurrierende History-Änderungen und Doppelübernahmen geprüft. Alle ausgelieferten JavaScript-Dateien/Inline-Skripte werden auf Syntax geprüft.
 
 
 ## Browserprüfung auf Test
@@ -37,3 +37,8 @@ Kontaktpause gilt während einer laufenden Fokus-Etappe; bei abgelaufener oder p
 - Strukturierte Sprachsitzung Spanisch/A2 mit Ziel „Im Café bestellen“ angelegt. Echte Modellantwort in Spanisch empfangen, drei Vokabelpaare vor Übernahme geprüft und als Lernkarten gespeichert. Kein automatischer Hauptchatversand oder Audiostart.
 - Fotokarte aus zwei vorhandenen Fotos mit Layout untereinander und eigenem Text erstellt, PNG tatsächlich heruntergeladen und visuell geprüft: 1200 × 1000 Pixel, beide ausgewählten Fotos und kompletter Text vorhanden. Keine KI-Bildgenerierung.
 - Nachbesserungen: konsistente Minuten-/Sekundenanzeige, deutsche Profilbeschreibungen und verständlicher gespeicherter Ausgangspunkt von Chat-Zweigen. Situationshinweis passt auch zu einem Profil außerhalb des Arbeitsmodus.
+
+- Quiz-Schnellzugriff ausgewählt und in geänderter Startreihenfolge gespeichert. Echte Quizantworten aus übernommenen Vokabelkarten erzeugt; eine ausführliche, inhaltlich richtige Modellantwort manuell als richtig bewertet, Punkte angepasst und Lernstand zunächst unverändert belassen.
+- Gesprächszweig aus einer konkreten Testnachricht mit sichtbarem Sprecher und Ausgangsdatum erstellt. Eigene Antwort gespeichert, Zweigzusammenfassung erzeugt, vor Übernahme bearbeitet und atomar in den Test-Hauptchat übernommen. Backendbeleg und gespeicherte Hauptchatnachricht stimmen überein.
+- Bei bereits laufendem älterem Verlaufslesen konnte die sichtbare Hauptchataktualisierung zunächst verzögert sein. Eine ausdrückliche Aktualisierung nach einer externen Änderung wartet jetzt auf einen frischen Read; zwei parallele Aktualisierungswünsche teilen diesen Read. Regressionstest prüft genau diese Reihenfolge.
+- Modellvorlagen präzisiert: Vokabelkarten erhalten kurze deutsche Bedeutungen ohne Anfrage nach einer weiteren Frage; Zweig-/Kapitelzusammenfassungen bekommen explizite Sprecherrollen. Generierte Texte bleiben zur eigenen Prüfung bearbeitbar.
