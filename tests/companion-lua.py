@@ -249,4 +249,18 @@ class AtomicTests(unittest.TestCase):
         self.assertEqual(json.loads(db['index'])[0]['id'],'a')
         self.assertEqual(execute('session_revoke',['index'],['a','session:']),1)
         self.assertEqual(db['index'],'[]')
+    def test_branch_merge_compares_both_snapshots_and_changes_neither_on_conflict(self):
+        db['companion']='{"revision":0}'
+        db['history']='[{"role":"user","content":"original"}]'
+        args=[db['companion'],db['history'],'{"revision":1}','[{"role":"user","content":"original"},{"role":"assistant","content":"approved"}]']
+        db['history']='[{"role":"user","content":"newer"}]'
+        self.assertEqual(execute('branch_merge',['companion','history'],args),0)
+        self.assertEqual(db['companion'],args[0])
+        self.assertIn('newer',db['history'])
+        db['history']=args[1]
+        self.assertEqual(execute('branch_merge',['companion','history'],args),1)
+        self.assertEqual(db['companion'],args[2])
+        self.assertEqual(len(json.loads(db['history'])),2)
+        self.assertEqual(execute('branch_merge',['companion','history'],args),0)
+        self.assertEqual(len(json.loads(db['history'])),2)
 unittest.main(argv=['atomic-tests'])

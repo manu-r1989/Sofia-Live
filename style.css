@@ -1374,3 +1374,17 @@ body:has(#sofia-test-banner) .app .chatPanel[data-chat-size="compact"]{top:auto!
  .expansion-dialog { width:calc(100% - 20px); max-height:calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 24px); }
  .expansion-dialog input,.expansion-dialog select,.expansion-dialog textarea { font-size:16px; min-width:0; max-width:100%; }
 }
+
+/* Personal workspace: shared compact controls, readable cards on phones. */
+.workbench-dialog { width:min(740px,calc(100vw - 24px)); }
+.workbench-dialog label {display:flex;flex-direction:column;gap:6px;margin:12px 0;}
+.workbench-dialog label:has(input[type=checkbox]) {flex-direction:row;align-items:center;}
+.workbench-dialog input:not([type=checkbox]),.workbench-dialog textarea,.workbench-dialog select {width:100%;min-height:44px;font-size:16px;box-sizing:border-box;}
+.workbench-dialog textarea {min-height:100px;resize:vertical;}
+.workbench-dialog button {min-height:44px;max-width:100%;white-space:normal;margin:4px 6px 4px 0;}
+.workbench-dialog p {white-space:pre-wrap;overflow-wrap:anywhere;}
+.workbench-home-grid {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:12px;}
+.workbench-home-grid .companion-card {margin:0;}
+.workbench-style-sample {width:100%;max-height:240px;object-fit:contain;border-radius:12px;}
+.workbench-dialog fieldset {border:1px solid #ffffff28;border-radius:12px;min-width:0;}
+@media(max-width:480px){.workbench-dialog {padding:14px;}.workbench-dialog .companion-card{padding:12px;}.sofia-main-nav{gap:4px;}.sofia-main-nav button{min-width:36px;}}
