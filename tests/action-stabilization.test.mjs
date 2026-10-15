@@ -6,7 +6,7 @@ const environmentSource=await nativeReadFile(new URL('../lib/environment.js',imp
 const environmentUrl='data:text/javascript;base64,'+Buffer.from(environmentSource).toString('base64');
 const messageContextSource=await nativeReadFile(new URL('../lib/message-context.js',import.meta.url),'utf8');
 const messageContextUrl='data:text/javascript;base64,'+Buffer.from(messageContextSource).toString('base64');
-async function readFile(...args){const value=await nativeReadFile(...args);return typeof value==='string'?value.replaceAll('../lib/environment.js',environmentUrl).replaceAll('../lib/message-context.js',messageContextUrl):value;}
+async function readFile(...args){const value=await nativeReadFile(...args);return typeof value==='string'?value.replaceAll('./expansion-state.js',new URL('../lib/expansion-state.js',import.meta.url).href).replaceAll('../lib/environment.js',environmentUrl).replaceAll('../lib/message-context.js',messageContextUrl):value;}
 
 // No credentials or services are used: all HTTP calls are intercepted.
 const root = new URL('../', import.meta.url);
