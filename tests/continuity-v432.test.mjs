@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readFile} from 'node:fs/promises';
+import {readFile as nativeReadFile} from 'node:fs/promises';
+async function readFile(...args){const value=await nativeReadFile(...args);return typeof value==='string'?value.replaceAll('./expansion-state.js',new URL('../lib/expansion-state.js',import.meta.url).href):value;}
 import crypto from 'node:crypto';
 const url=s=>'data:text/javascript;base64,'+Buffer.from(s).toString('base64');
 const envUrl=url(await readFile(new URL('../lib/environment.js',import.meta.url),'utf8'));

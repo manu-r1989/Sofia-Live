@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readFile} from 'node:fs/promises';
+import {readFile as nativeReadFile} from 'node:fs/promises';
+async function readFile(...args){const value=await nativeReadFile(...args);return typeof value==='string'?value.replaceAll('./expansion-state.js',new URL('../lib/expansion-state.js',import.meta.url).href):value;}
 const encode=s=>'data:text/javascript;base64,'+Buffer.from(s).toString('base64');
 const env=encode(await readFile(new URL('../lib/environment.js',import.meta.url),'utf8'));
 const source=(await readFile(new URL('../lib/character-image.js',import.meta.url),'utf8')).replace('../lib/environment.js',env);
@@ -94,3 +95,4 @@ test('new situation details require all meaningful words in Sofias actual answer
 test('quoted own-looking statements are not current situation evidence',()=>{
  assert.equal(api.situationEvidence('im Café','Du sagst „Ich bin im Café“. Das ist ein Beispiel.'),false);
 });
+
