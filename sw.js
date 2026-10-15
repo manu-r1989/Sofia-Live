@@ -2,7 +2,7 @@
    SOFIA V4.144.0 — SERVICE WORKER
    ========================================================= */
 
-const CACHE = "sofia-live-v414400v1";
+const CACHE = "sofia-live-v414400v2";
 
 
 const ASSETS = [
@@ -11,39 +11,39 @@ const ASSETS = [
 
   "./index.html",
 
-  "./style.css?v=414400v1",
+  "./style.css?v=414400v2",
 
-  "./sofia-ui.js?v=414400v1",
-  "./sofia-workspace.js?v=414400v1",
-  "./sofia-companion.js?v=414400v1",
-  "./sofia-growth.js?v=414400v1",
-  "./sofia-features.js?v=414400v1",
-  "./sofia-region.js?v=414400v1",
-  "./sofia-upgrade.js?v=414400v1",
-  "./sofia-photo-workbench.js?v=414400v1",
-  "./sofia-offline.js?v=414400v1",
-  "./sofia-next.js?v=414400v1",
-  "./sofia-evolution.js?v=414400v1",
-  "./action-feedback.js?v=414400v1",
-  "./sofia-timeline.js?v=414400v1",
-  "./sofia-images.js?v=414400v1",
-  "./sofia-today.js?v=414400v1",
-  "./sofia-projects.js?v=414400v1",
-  "./sofia-social.js?v=414400v1",
-  "./sofia-navigation.js?v=414400v1",
-  "./app.js?v=414400v1",
+  "./sofia-ui.js?v=414400v2",
+  "./sofia-workspace.js?v=414400v2",
+  "./sofia-companion.js?v=414400v2",
+  "./sofia-growth.js?v=414400v2",
+  "./sofia-features.js?v=414400v2",
+  "./sofia-region.js?v=414400v2",
+  "./sofia-upgrade.js?v=414400v2",
+  "./sofia-photo-workbench.js?v=414400v2",
+  "./sofia-offline.js?v=414400v2",
+  "./sofia-next.js?v=414400v2",
+  "./sofia-evolution.js?v=414400v2",
+  "./action-feedback.js?v=414400v2",
+  "./sofia-timeline.js?v=414400v2",
+  "./sofia-images.js?v=414400v2",
+  "./sofia-today.js?v=414400v2",
+  "./sofia-projects.js?v=414400v2",
+  "./sofia-social.js?v=414400v2",
+  "./sofia-navigation.js?v=414400v2",
+  "./app.js?v=414400v2",
 
-  "./live.js?v=414400v1",
+  "./live.js?v=414400v2",
 
   "./sofia-avatar.js?v=4192c1",
 
   "./avatar-presence.js?v=4193p3",
   "./avatar-gesture.js?v=4197m1",
-  "./avatar-expression.js?v=414400v1",
+  "./avatar-expression.js?v=414400v2",
   "./avatar/sofia-friendly-mouth.png?v=4194e1",
   "./avatar/sofia-thoughtful-mouth.png?v=4194e2",
 
-  "./avatar-gaze.js?v=414400v1",
+  "./avatar-gaze.js?v=414400v2",
 
   "./avatar/sofia-gaze-left.png?v=4192g3",
 
