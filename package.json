@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "dependencies": {
+    "pdfjs-dist": "6.4.299",
     "web-push": "3.6.7"
   }
 }

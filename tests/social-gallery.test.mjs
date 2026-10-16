@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import crypto from 'node:crypto';
 import {readFile as nativeReadFile} from 'node:fs/promises';
-async function readFile(...args){const value=await nativeReadFile(...args);return typeof value==='string'?value.replaceAll('./expansion-state.js',new URL('../lib/expansion-state.js',import.meta.url).href):value;}
+async function readFile(...args){const value=await nativeReadFile(...args);return typeof value==='string'?value.replaceAll('./expansion-state.js',new URL('../lib/expansion-state.js',import.meta.url).href).replaceAll('./studio-state.js',new URL('../lib/studio-state.js',import.meta.url).href):value;}
 const url=s=>'data:text/javascript;base64,'+Buffer.from(s).toString('base64');
 const env=url(await readFile(new URL('../lib/environment.js',import.meta.url),'utf8'));
 const portrait=url((await readFile(new URL('../lib/character-image.js',import.meta.url),'utf8')).replace('../lib/environment.js',env));
