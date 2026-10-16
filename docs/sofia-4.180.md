@@ -7,4 +7,4 @@
 - Chat am unteren App-Rand angedockt, auf kleinen Displays ohne seitlichen Außenspalt. Die Nachrichtenliste nimmt den verfügbaren Raum ein; das Eingabeformular bleibt darunter am unteren Rand. Der iPhone-Home-Indikator wird einmal berücksichtigt. Bei geöffneter Tastatur bleibt die vorhandene Visual-Viewport-Ankerung bestehen.
 - Keine Änderung an Kalender, Inhalten oder kostenpflichtigen Anbieteraktionen.
 
-Prüfung: bisherige Suite sowie zusätzliche Startgrößen- und Updateprüfungen. Browserabnahme und finaler Dateiabgleich vor Veröffentlichung. Ein physischer iPhone-/Tastaturtest ist weiterhin nicht durch die Desktopprüfung ersetzt.
+Prüfung: 947 automatisierte Tests erfolgreich. Browserabnahme: Standard Vollbild, gespeicherter Wechsel auf halbe Größe und zurück, Entwurf bleibt beim Neuladen erhalten, Panelunterkante entspricht dem App-Rand. Ein physischer iPhone-/Tastaturtest ist weiterhin nicht durch die Desktopprüfung ersetzt.

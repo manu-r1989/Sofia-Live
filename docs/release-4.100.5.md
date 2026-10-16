@@ -5,3 +5,9 @@
 - Exclude refusals, scheduled tasks, quotations and explanations from forced routing.
 - Suppress unsupported photo preparation promises in generated text responses before storing the dialogue; announce only actual backend-created jobs.
 - Shared routing covers text and Live; cache 41005v1.
+
+## Validation
+- 736 automated tests passed, including planner-none fallbacks, exclusions, request tracking, Text/Live endpoint routing and grounded reply persistence.
+- Syntax checks passed for changed backend and inline scripts.
+- Test deployment 498988a90fc87e1e2911d4140340b602147a0b02 READY.
+- Browser end-to-end: submitting “zeig dich mal” generated and displayed photo 77b759f0-1304-4baa-975b-fb03b539d9a6 in the chat.

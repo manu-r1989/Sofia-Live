@@ -1305,7 +1305,7 @@ body:has(#sofia-test-banner) .app .chatPanel[data-chat-size="compact"]{top:auto!
 .sofia-dialog .menu-header{display:flex!important;align-items:center!important;justify-content:space-between!important;gap:10px;flex-shrink:0;padding:10px 0!important;margin:0 0 12px;border-bottom:1px solid var(--ui-border);background:var(--ui-surface);z-index:5}
 .menu-header h2{font-size:18px;margin:0;min-width:0}
 .menu-nav-actions{display:flex;align-items:center;gap:6px;flex:none}
-.sofia-dialog .menu-nav-actions>.menu-nav-action{display:flex;align-items:center;justify-content:center;flex:none;width:40px!important;min-width:40px!important;height:40px!important;min-height:40px!important;margin:0!important;padding:0!important;border-radius:10px!important;font-size:25px!important;line-height:1!important}
+.sofia-dialog .menu-nav-actions>.menu-nav-action{display:flex;align-items:center;justify-content:center;flex:none;width:44px!important;min-width:44px!important;height:44px!important;min-height:44px!important;margin:0!important;padding:0!important;border-radius:10px!important;font-size:25px!important;line-height:1!important}
 .menu-nav-action:disabled{opacity:.3;cursor:default}
 #sofiaMemoryOverlay .menu-header{padding:12px 14px!important;margin:0!important}
 #sofiaMemoryOverlay .memory-close-bottom{display:none!important}
@@ -1445,3 +1445,13 @@ body:has(#sofia-test-banner) .app .chatPanel[data-chat-size="compact"]{top:auto!
 .journey-dialog .companion-card p{white-space:pre-wrap;overflow-wrap:anywhere}
 .journey-dialog details{margin:14px 0}.journey-dialog summary{padding:12px 0;cursor:pointer}
 .journey-dialog a[download]{display:block;padding:12px 0;overflow-wrap:anywhere}
+
+/* 4.190.1: readable action groups and robust narrow dialog forms. */
+.sofia-dialog .dialog-header h2{flex:1 1 auto;line-height:1.35}
+.sofia-dialog :is(button,a,input,select,textarea,summary):focus-visible{outline:2px solid var(--accent,#d9c3a3);outline-offset:3px}
+.sofia-dialog :is(label,legend){overflow-wrap:anywhere}
+.journey-dialog .companion-card>label{flex:1 1 100%;min-width:0}
+.journey-dialog .companion-card>label:has(input[type=checkbox]){min-height:44px;margin:0}
+.journey-dialog input[type=file]{padding:8px;min-width:0;max-width:100%}
+.journey-dialog .menu-section:first-of-type{margin-top:16px}
+.journey-dialog details>summary{min-height:44px;box-sizing:border-box;line-height:1.45}

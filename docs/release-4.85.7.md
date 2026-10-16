@@ -23,3 +23,13 @@ Asset-/Cachekennung: 4857v1. Test behält den Stimmenvergleich; Produktiv übern
 
 ## Grenzen der Abnahme
 Reale mobile Tastatur/Touchgesten, Mikrofon-/Audiogeräte und Mehrtagesbeobachtung verbleiben für die Nutzerabnahme im laufenden Betrieb. Modellabhängige Gesprächsqualität lässt sich nicht durch Prompttests garantieren. Konservative Prüfhinweise erkennen keine beliebigen semantischen Widersprüche und entscheiden keine Korrektur für den Nutzer. Keine zusätzlichen Fotokosten oder Kontaktbudgetänderungen.
+
+## Reale Testprüfung am 10.10.2026
+Testcommit e749f54695a0014b27dfcc6e134d0613f9f08239, Vercel dpl_3C2xyPEpmbLwuyWe7N3LV93Uh6iM READY, kanonischer Testalias bestätigt.
+- PWA-Update über „Neue Version laden“ auf 4.85.7; tatsächlich geladene Assets 4857v1. Sechs geänderte öffentliche Dateien vom Testalias bytegleich mit dem geprüften Stand.
+- Kontaktpause-Direktzugang fokussiert den Pausenbereich; Ruhezeit-Direktzugang fokussiert „Ruhezeit beginnt“. Öffnen allein erzeugt keine Pause.
+- „Heute weniger“ änderte den sichtbaren Richtwert von 3–7 auf 1–5. Tageswahl wieder auf „Wie gewohnt“. Eine Stunde Pause mit sichtbarem Hamburger Ende/Bestätigung geprüft, danach beendet; vorherige Werte wiederhergestellt.
+- Erinnerungsübersicht mit leerem Testbestand lädt; Suche/Kategorie/Prüfhinweisfilter und „Über Sofia“ sichtbar. Zeit-/Versionsschutz und Konflikthinweise an synthetischen Daten automatisiert geprüft; keine echten Nutzererinnerungen verändert.
+- Fotoreihe im echten vorhandenen Variantenpaar: fünf Familienfotos statt aller acht; Vor-/Zurück behält Reihenmodus. Änderungsquelle wählbar exakt auf Vorgänger-ID 70e5102c-d198-46a8-9daa-a5cb968c983f, während betrachtetes Foto ID 336d47cb-47b1-4416-bc52-ba25aa91181a bleibt. Preview-URL und Auswahl stimmen überein.
+- Kompass und kombinierter Editor zeigen Schutzmerkmale; Auswahl/Abbrechen erzeugt keinen Fotoauftrag. Änderungsvorschau aktualisiert auf „Kamera: 90° links“. Vergleich 0/50/100 Prozent und Rückkehr zum Viewer geprüft.
+- Galerie bleibt nach Datum/Zeit gruppiert. Datumsfilter 10.10.2026 und Sortierung „Älteste zuerst“ bleiben beim Schließen/Öffnen erhalten; anschließend Filter zurückgesetzt. Keine bezahlte Fotoerzeugung.

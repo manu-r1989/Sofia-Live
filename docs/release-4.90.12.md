@@ -22,11 +22,13 @@ Die Versionsrunden bilden einen gemeinsamen Release. Bereits vorhandene Funktion
 
 ## Reale Abnahme vor Veröffentlichung
 
-Noch ausstehend beim Anlegen dieses Release-Dokuments:
-1. Exakten Testcommit/READY/Alias und geladene `49012v1`-Assets prüfen.
-2. Technische Übersicht, Einstellungen, leerer Erinnerungsfilter, Fotoaktionen auf großem/schmalem Fenster, exakte Quelle/Vorschau, Vergleich und Rückkehr in den Chat.
-3. Entwurf und Zitat nach Öffnen/Schließen/Reload; Absenden darf keinen Entwurf zurücklassen. Keine automatischen Nachrichten oder Fotoaufträge aus GET.
-4. Ein gezielter echter Fototest innerhalb des bestehenden Budgets, Ergebnis und genaue Quelle prüfen. Provider-Ausfälle ehrlich dokumentieren; höchstens zwei Provider-Versuche pro UTC-Tag.
-5. Erst danach main mit Branch-Lease aktualisieren, Test-only Stimmen-vergleichen-Link nur auf test-web erhalten; exakten Produktivcommit/READY/Alias und Versionsassets prüfen.
+Am 11.10.2026 auf dem kanonischen Testalias überprüft:
+- Testcommit `c2853e6d1f25214f8f8e2df07e9f5d8e215848f2`, Deployment `dpl_A1qj62C7KpCjTRvGwwDJsL2kd8iz`: READY, Git-SHA und Alias bestätigt. Geladene Assets `49012v1`; sieben öffentliche Assets bytegleich zum lokalen geprüften Kandidaten.
+- Technische Übersicht zeigt richtigen Assetstand, online und keine erfundene Guthabenauskunft. Erinnerungs-Suchtext und Prüfhinweisfilter bleiben nach Schließen/Öffnen erhalten; leere Ansicht zählt korrekt null.
+- Neue Fotoaktion „Anderes Licht“ aus den aufgeklappten Zusatzaktionen ausgelöst. Neues Resultat `d25e580b-5490-46d8-804b-7ffc36f48aee` erscheint im Chat. Vorschau „Vorheriges Ausgangsfoto“ zeigt exakt `336d47cb-47b1-4416-bc52-ba25aa91181a`, nicht die Serienwurzel. Rear-Ansicht, graues Oberteil, dunkle Haarfarbe, Sofa und nächtliche Umgebung bleiben sichtbar erhalten; Beleuchtungsänderung dezent. Das Gesicht ist in dieser Rückansicht nicht sichtbar und daher mit diesem Foto allein nicht visuell geprüft. Kein zweiter eigenständiger Fotoauftrag gestartet.
+- Reales Variantenpaar im Vergleich: 0/50/100 Prozent Variante korrekt; alter Aufnahmezeitpunkt bleibt vom neuen Versanddatum getrennt. Fotoaktionen unter großer Schrift: einheitlich 52 px hoch, kein horizontaler Textüberlauf; ursprüngliche Schriftgröße wiederhergestellt.
+- Ausdrückliches Zitat einer Nutzernachricht vom 10.10.2026 und Entwurf über Reload erhalten. Nach Senden beantwortet Sofia Ort und relative Zeit richtig: „Lübeck, 9. Oktober 2026“ statt Sofias Station oder dem neuen Tagesdatum. Nach erneutem Reload bleibt das Sendefeld leer. Keine automatische Wiederholung.
+- Nach Test-Abnahme wird dieser geprüfte Code auf main übernommen. Produktiv behält den eigenen index.html ohne Test-only Stimmen-Link. Abschließend exakten READY/Alias/SHA und öffentliche Assets prüfen.
+- Schmale CSS-Ansichten werden durch die vorhandenen UI-Tests geprüft; dieser reale Browserlauf ersetzt keine physische iPhone-/PWA-/Mikrofontestung.
 
 Reale Mikrofon-/Audio-Geräteprüfung und mehrtägige Beobachtung erfolgen durch den Nutzer im laufenden Betrieb. Simulierte Tests sind kein Beleg einer erfolgreichen physischen Mikrofonprüfung.

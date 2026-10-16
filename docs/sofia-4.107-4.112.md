@@ -14,3 +14,7 @@ This scope implements the six approved roadmap stages. Voice messages, a shared 
 All new menus reuse existing Back/Close navigation and safe-area layout. Restore preserves JSON array shapes and checks companion, memory, project and task snapshots together. Task links are retained only when the referenced task currently exists. Imported rituals remain disabled until explicitly reactivated.
 
 Memory conflict detection includes structured facts (home, profession, preferences, favorite color) and all proposed classifier updates. It is a review aid, not a claim to detect every semantic contradiction. Quiz banks currently cover Spanish, nature and travel at two difficulty levels. Generated stories and writing drafts depend on provider availability and are structurally validated before saving.
+
+## Verification
+
+787 automated tests passed (zero failures/skips), including actual Lua CAS execution and mocked backend/provider flows. Test deployment a7ee3963e55c53dd3416474f7b2e4bd8c46fe327 reached READY. Browser checks verified topic save/activation/archive, preference persistence, saved writing paragraphs after reopening, source-bound photo-plan save without generation, factual project-step progress/review, Back/Close navigation and selected-area backup preview plus confirmed restoration using an empty synthetic memory backup. Test-only records were archived. Physical iPhone/audio and paid live story/writing/photo generation were not exercised; provider behavior is covered with mocks.

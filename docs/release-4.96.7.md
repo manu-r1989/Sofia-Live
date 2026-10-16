@@ -28,3 +28,12 @@ Eine beim Verlassen offene Galerie samt Viewer wird nach dem ersten Bilderladen 
 - Anschließend aktuellen main-Kopf und Datei-SHAs erneut prüfen, Main-Basis und unabhängige Dateien erhalten, Test-only Stimmen-vergleichen-Link nicht übernehmen. Produktivcommit, READY, Alias und tatsächlich ausgelieferte Versionsdateien verifizieren.
 
 Keine Änderung an stabiler Voice-/Avatar-/Lipsync-Pipeline, Secrets, Zugangsschutz, Budgets, Namespace oder Projektkonfiguration. Bestehende Funktionen werden ausdrücklich erhalten und geprüft; keine zusätzliche Umsetzung der nur als spätere Ideen genannten Einstellungssammlung oder dauerhaften Erinnerungskorrektur in dieser Runde.
+
+## Reale Testabnahme am 11.10.2026, 21:45–21:49 Hamburg
+
+- Exakter Testcommit `349daf96a2e7829cd6e895c53dc122505c8815ac`, automatischer Git-Deploy `dpl_BGP168d6SaWyLhYRoXdzUk2cwvrd`: READY, kanonischer Testalias und sichtbare TESTVERSION 4.96.7 bestätigt. Kein redundanter Deploy. Acht öffentliche Assetdateien bytegleich mit dem geprüften Stand.
+- Galerie zeigt neun vorhandene Fotos. Lichtänderung am Foto `d25e580b-5490-46d8-804b-7ffc36f48aee` öffnet ausschließlich die neue Vorschau mit genau dieser Quelle und dem ursprünglichen Aufnahmezeitpunkt. Abbrechen kehrt zum Viewer zurück; kein Auftrag und kein neues Foto.
+- Bevorzugtes Ergebnis auf diesem Gerät markiert. Vergleichsauswahl enthält genau die sechs Bilder derselben Reihe, keine fremden Fotos. Frei gewähltes Paar `0c4c6620-9d00-4d91-9e68-c7552408945a` / `70e5102c-d198-46a8-9daa-a5cb968c983f` wird korrekt verwendet; 100% zeigt das rechte Vergleichsfoto. Anschließender Reload stellt Galerie und exakt den Viewer `d25e…` wieder her; Bevorzugung bleibt gespeichert. Normales Schließen und nächster Reload zeigen keinen Galerie-Dialog.
+- Älteres Zitat aufgerufen und Leseposition gesichert. Nach Reload bleiben die beiden sichtbaren Nachrichtentimestamps und ihre Pixelabstände exakt gleich (`2026-10-10T11:53:25.724Z`, −69.34375px; `2026-10-10T11:59:30.742Z`, 31.15625px). Kein ungefragter Sprung zur neuesten Nachricht.
+- Echter Textauftrag „Gute Nacht. Bitte keine Rückfrage und kein Foto.“ beantwortet mit „Gute Nacht und schlaf gut.“ Keine Frage und kein Fotoauftrag. Eingabefeld anschließend leer.
+- Main-Kopf und alle 13 vorhandenen geänderten Pfade vor der Übernahme erneut geladen und unverändert bestätigt. Test-only Stimmenvergleich bleibt nur auf Test. Veröffentlichung mit anschließender Nutzerabnahme ist autorisiert; echte neue Bildqualität und reale Mikrofon-/iPhone-Prüfung bleiben ausdrücklich offen.

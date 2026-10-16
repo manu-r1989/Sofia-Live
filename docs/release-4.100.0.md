@@ -6,3 +6,5 @@
 - Daten, Speicherkeys, Budgets, Quellenvertrag und Voice-/WebRTC-/Avatar-Pipeline bleiben erhalten. Assets und Service Worker verwenden 41000v2.
 
 Automatisierte und Browser-Abnahme werden vor Produktivübernahme durchgeführt. Native iPhone-Tastatur bleibt Geräteabnahme.
+
+Abnahme: 719 Tests sowie Syntax- und Inline-Prüfungen bestanden. Browser auf Test prüft alle sieben Ziele, getrennte Gesprächs-/Fotokontrollen, gespeicherte Eigeninitiative, Gerätebereich, Erinnerungen, Darstellung, App-Hilfe und Chatwerkzeuge. PWA-Reload erhält den Entwurf. Fotoquelle, Änderungsfokus, Auftragsvorschau/Abbrechen und Variantenvergleich geprüft; kein kostenpflichtiger Bildauftrag ausgelöst. Testcommit fbc34dca19ab9b7157e7aaf06d956cdf6e93bc3d ist READY. iPhone-Tastatur bleibt reale Geräteprüfung.

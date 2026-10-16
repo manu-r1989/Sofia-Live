@@ -8,4 +8,4 @@
 - Persönlich, Gespräch, Fotostudio sowie Alltag/Planung sind gegliedert. Ergänzende Gedächtnis-, Foto- und Planungswerkzeuge liegen aufklappbar auf derselben Seite. Vorhandene Werkzeuge und Rückwege bleiben erreichbar.
 - Keine Änderung an Daten, Kalenderintegration, Anbieteraufrufen oder der Freigabe kostenpflichtiger Aktionen.
 
-Prüfung: 939 vorhandene Tests bestanden. Sichtprüfung der Testversion und Produktionsabgleich erfolgen vor dem Abschluss.
+Prüfung: 939 Tests bestanden, keine Fehler oder übersprungenen Tests. In der Testversion alle acht Hauptmenübuttons mit identischer Breite und 56 px Höhe, linksbündig und mit zugeordnetem Hinweis bestätigt. Alle acht Symbole der Hauptaktionsleiste haben dieselbe y-Position und 44 px Höhe. Direkte Notizbuchnavigation, aufklappbare Planungs- und Fotowerkzeuge sowie Rückwege zum jeweils eigenen Menü geprüft. Keine appbezogenen Browserfehler in den geprüften Ansichten. Produktionsdateien werden vor Abschluss gegen diesen Stand abgeglichen.

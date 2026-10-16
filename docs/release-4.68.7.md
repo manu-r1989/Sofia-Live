@@ -39,3 +39,8 @@ Release implements the agreed 4.66–4.68 stages as one reviewable change. No vo
 Two paid Test image attempts for UTC 2026-10-09 were already consumed by the preceding release; no additional paid images, retries or budget resets are used for this release. Real output quality, corrected 90-degree camera geometry, physical microphone/audio and multi-day behavior remain user acceptance in Productiv, as explicitly requested. Previous visible 180-degree chain and exact source selection were verified in 4.65.7; this does not constitute new 4.68 image acceptance.
 
 Production preserves its index without the Test-only voice comparison link; Test retains that link. Deployments use the exact known project IDs without redundant team filters. Publish only the tested changes with current branch leases; verify READY, commit, canonical alias and 4687v1 assets before reporting publication.
+
+
+## Test browser acceptance, 2026-10-09
+
+Test commit 652f8705cfe654d382f284b31d2f50644f69353b is READY in deployment dpl_GXFZvpQmLMMCwHNTxnrYzPQBVSzN. Canonical Test browser shows TESTVERSION 4.68.7, the Test-only voice link and versioned assets 4687v1. Today loads two retained variants with exact links and counts. Combined editor displays six independent selectors and capture time; selecting camera/expression and cancelling returns without a job. Comparison source/50%/variant shortcuts expose 0/50/100 percent variant correctly. Returning to gallery retains six photos and German date/time groups. No new paid image was requested. Physical narrow-device/large-type behavior and real audio remain user checks; responsive rules and regression harness cover layout and navigation. Production promotes only these reviewed changes and keeps its index without the Test-only link.

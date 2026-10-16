@@ -19,3 +19,7 @@ Keine Änderungen an stabiler Voice-/WebRTC-/Lipsync-/Avatar-Pipeline. Kein Rese
 - Foto-Detailauswahl Oberteil füllt den Änderungswunsch ohne Generierung; direktes Antworten auf das konkret geöffnete Galeriefoto öffnet den richtigen Antwortbezug.
 - Keine kostenpflichtige neue Bildgenerierung: Das bestehende Test-Tagesbudget vom 10.10.2026 war bereits verbraucht. Die neue Generierungsqualität wird daher nicht als visuell abgenommen behauptet. Geräte-Audio und Mehrtagesbeobachtung verbleiben bei der Abnahme im laufenden Betrieb.
 - Test/Produktiv bleiben getrennt: der Stimmenvergleich-Link ist ausschließlich in der Testversion vorhanden.
+
+## Veröffentlichung
+
+Finaler vollständiger Teststand: 906d348f3ad1988d095d6adee374c6366d10536d, READY und kanonischer Testalias am 10.10.2026 bestätigt. Ein zwischenzeitlich unvollständiger Testdeploy wurde vor der Produktivpromotion korrigiert; Dateivollständigkeit und alle geänderten Blob-SHAs wurden zusätzlich geprüft. Produktiv übernimmt nur die 23 Releasepfade auf dem aktuellen Main-Baum; sonstige Main-Dateien und Test-only-Unterschiede bleiben erhalten.

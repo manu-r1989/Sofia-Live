@@ -1,4 +1,4 @@
-# Sofia 4.65.7 — Test candidate
+# Sofia 4.65.7 — Production release
 
 ## Scope
 
@@ -59,3 +59,12 @@ The final 4657v2 Test UI generated a chained source → variant → variant sequ
 The chained 180° result kept the same sofa, grey top, night environment and hair color and visibly showed the subject from behind. The first requested 90° result preserved identity and scene but changed the camera axis too little and remained substantially front-facing. It is therefore not accepted as a passed 90° geometry result. The live comparison also exposed reversed slider semantics: the accessible value claimed variant share while 0/100 visibly selected the opposite image.
 
 Follow-up candidate 4657v3 corrects the comparison mapping/accessible value and strengthens both the generation instruction and paired review rule for clear 90° side/profile/parallax evidence. No additional provider attempt is made on the same UTC day. Productiv remains unchanged until the corrected Test candidate is deployed and a later budget window confirms the 90° behavior. The device microphone/audio portion remains a user check; stable Voice/WebRTC/lipsync code is unchanged.
+
+
+## Production authorization, 09.10.2026
+
+The user explicitly requested publishing the current 4657v3 candidate to Productiv and took over the outstanding visual acceptance in ongoing production use. This supersedes the earlier requirement to wait for a corrected paid 90-degree Test image before promotion. The first 90-degree result remains unaccepted; the strengthened prompt/review has automated coverage but has not yet passed a new real-image test. Source chaining and the actual 180-degree rear result were visually verified. The corrected comparison boundaries and 4657v3 Test assets were verified in the browser. Real microphone/audio and multi-day behavior remain user checks. No additional paid Test images are generated and no budget or protection is changed.
+
+The production commit is based on the current main head 89d80e0b8f9beb86b61ab4f9cc63fe2fc6d14aaa, with the reviewed release changes from Test commit 00e44eba8395153cf5e9472a74c057fd58d3af25. Production index differences are preserved: no Test-only voice comparison link. Final assets/cache use 4657v3.
+
+Pre-publication verification on this merged production state: all 521 regression tests passed, plus syntax checks for 33 JavaScript files and HTML inline scripts. Deployment READY, exact commit and alias/version verification are checked after publication; publication is not claimed from an attempted deployment alone.
