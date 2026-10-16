@@ -181,7 +181,8 @@ function addMessage(text, who = 'sofia', imageRequestId = null, contactId = null
 
   if(contactId)div.dataset.contactId=contactId;
   div.className = 'msg ' + who;
-  div.textContent = text;
+  div.dataset.messageText = text;
+  if(who==='sofia'&&window.SofiaMessageText)window.SofiaMessageText.render(div,text);else div.textContent = text;
 
   messages.appendChild(div);
 

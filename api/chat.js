@@ -8,6 +8,16 @@ const HISTORY_KEY = dataPrefix() + 'history';
 const HIDDEN_MESSAGES_KEY=dataPrefix()+'chat-hidden-messages';
 const MEMORY_KEY = dataPrefix() + 'longterm';
 const IDENTITY_KEY = dataPrefix() + 'identity';
+
+// Never turn an incomplete provider envelope into a visible chat message.
+export function parseChatResponse(data) {
+  if ((data?.status && data.status !== 'completed') || data?.error) throw new Error('chat_response_incomplete');
+  const raw = (data?.output || []).flatMap(item => item.type && item.type !== 'message' ? [] : item.content || []).filter(item => item.type === 'output_text').map(item => item.text || '').join('');
+  let parsed;
+  try { parsed = JSON.parse(raw); } catch { throw new Error('chat_response_invalid'); }
+  if (!parsed || Array.isArray(parsed) || typeof parsed.reply !== 'string' || !parsed.reply.trim()) throw new Error('chat_response_invalid');
+  return parsed;
+}
 const TASKS_KEY = dataPrefix() + 'tasks';
 
 const MAX_HISTORY_MESSAGES = 40;
@@ -1736,7 +1746,7 @@ Kein Markdown außerhalb des JSON-Objekts.
               tool_choice: "auto",
 
               max_output_tokens:
-                800
+                3000
 
             })
         }
@@ -1755,52 +1765,12 @@ Kein Markdown außerhalb des JSON-Objekts.
     }
 
 
-    const raw =
-      data.output
-        ?.flatMap(
-          item =>
-            item.content || []
-        )
-        ?.find(
-          item =>
-            item.type ===
-            "output_text"
-        )
-        ?.text || "";
-
-
     let parsed;
-
-
-    try {
-
-      parsed =
-        JSON.parse(raw);
-
-    } catch {
-
-      console.error(
-        "Ungültige Sofia JSON-Antwort",
-        {code:"chat_response_invalid"}
-      );
-
-      parsed = {
-
-        reply:
-          raw ||
-          "Hm. Da ist gerade etwas schiefgelaufen.",
-
-        mood:
-          "entspannt",
-
-        memory_action: {
-          action: "none",
-          old_memory: null,
-          new_memory: null
-        }
-
-      };
-
+    try { parsed = parseChatResponse(data); }
+    catch (error) {
+      const code = error.message === 'chat_response_incomplete' ? 'chat_response_incomplete' : 'chat_response_invalid';
+      console.warn('Sofia request', {code});
+      return res.status(502).json({error:'Meine Antwort wurde nicht vollständig übertragen. Bitte frage noch einmal nach. Ich habe den unvollständigen Text nicht als Antwort gespeichert.',code,...(completedTaskAction?{taskAction:completedTaskAction}:{})});
     }
 
 
