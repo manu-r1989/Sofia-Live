@@ -640,6 +640,9 @@ function chatFailureFeedback(status,code,actionPossible,resultReceived,retryAt=n
  const busy=status===429&&code==='test_busy',knownRejected=status===429;
  const uncertainAction=!busy&&actionPossible&&!resultReceived&&!knownRejected;
  const descriptions={test_busy:['Bitte kurz warten','Es läuft noch eine Anfrage. Bitte warte kurz.'],test_rate_limit:['Anfragegrenze','Es wurden gerade zu viele Anfragen gestellt.'],test_daily_limit:['Test-Tageslimit','Das Tageslimit der Testversion ist erreicht.'],test_limit_unknown:['Testlimit','Die Test-Nutzungsgrenze ist erreicht; die genaue Ursache ist nicht bekannt.'],api_credit_exhausted:['API-Guthaben aufgebraucht','Der KI-Anbieter meldet aufgebrauchtes API-Guthaben. Bitte prüfe die API-Abrechnung.'],api_spend_limit:['API-Ausgabenlimit','Der KI-Anbieter meldet ein erreichtes Ausgabenlimit. Bitte prüfe die API-Limits.'],api_usage_limit:['API-Nutzungslimit','Der KI-Anbieter meldet ein erreichtes Nutzungslimit. Bitte prüfe die API-Limits.'],api_billing_limit:['API-Abrechnung prüfen','Der KI-Anbieter meldet ein Abrechnungs- oder Kontingentproblem. Der genaue Grund ist nicht bestätigt.'],api_rate_limit:['Anfragegrenze','Der KI-Anbieter begrenzt gerade weitere Anfragen.'],api_overloaded:['Dienst ausgelastet','Der KI-Dienst ist gerade ausgelastet.']};
+ descriptions.chat_response_incomplete=['Antwort abgebrochen','Meine Antwort wurde beim Erstellen abgebrochen. Der unvollständige Antworttext wurde nicht gespeichert. Bitte prüfe mögliche Aufgabenbelege vor einer erneuten Anfrage.'];
+ descriptions.chat_response_invalid=['Antwort nicht lesbar','Meine Antwort konnte nicht vollständig gelesen werden. Bitte prüfe mögliche Aufgabenbelege vor einer erneuten Anfrage.'];
+ descriptions.reply_source_unavailable=['Originalantwort fehlt','Die ausgewählte Originalantwort ist nicht mehr verfügbar. Bitte wähle sie erneut im Chat aus.'];
  const description=descriptions[code]||[status===429?'Anfrage abgewiesen':'Verbindungsfehler',status===429?'Die Anfrage wurde begrenzt. Die genaue Ursache ist nicht bekannt.':uncertainAction?'Die Verbindung ist unterbrochen. Bitte prüfe zuerst den Aufgabenstand, bevor du die Aktion wiederholst.':'Meine Verbindung ist gerade unterbrochen. Bitte prüfe vor einer Wiederholung den Verlauf.'];
  const at=Date.parse(retryAt),wait=Number.isFinite(at)&&at>Date.now()?' Erneut möglich ab '+new Date(at).toLocaleString('de-DE',{timeZone:'Europe/Berlin',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'})+' (Hamburg).':'';
  return {uncertainAction,statusLabel:description[0],message:description[1]+wait};
@@ -715,6 +718,7 @@ async function askSofia(userMessage, imageDataUrl = null, options = {}) {
           message: userMessage,
           conversationMode:window.SofiaCompanion?.mode?.(),
           replyTo: options.replyTo || null,
+          ...(options.replyTransform?{replyTransform:options.replyTransform}:{}),
           history: historyForAPI,
           image: imageDataUrl,
           referenceImageId,
@@ -821,7 +825,7 @@ async function askSofia(userMessage, imageDataUrl = null, options = {}) {
     window.SofiaWorkspace?.failSubmission(userMessage,{uncertain:!Number.isInteger(error?.status)||error.status>=500});
     const failureNode=addMessage(errorMessage,'sofia');
     window.SofiaDiagnostics={lastError:{at:new Date().toISOString(),status:Number.isInteger(error?.status)?error.status:null,code:/^[a-z_]{1,60}$/.test(error?.code||'')?error.code:'request_failed',label:failure.statusLabel}};
-    window.SofiaWorkspace?.failed(failureNode,userMessage,{uncertain:failure.uncertainAction,image:!!imageDataUrl,knownRejected:error?.status===429,replyTo:options.replyTo||null,referenceImageId,retryAt:error?.retryAt});
+    window.SofiaWorkspace?.failed(failureNode,userMessage,{uncertain:failure.uncertainAction,image:!!imageDataUrl,knownRejected:error?.status===429,replyTo:options.replyTo||null,referenceImageId,replyTransform:options.replyTransform||null,retryAt:error?.retryAt});
 
     if (thought) {
       thought.textContent =
