@@ -26,3 +26,9 @@ Die in 4.180.2 bestätigte iPhone-Verankerung und Schreibzeile werden nicht ver�
 ## Prüfung
 
 Neue Integrationsprüfungen decken Suchsichtbarkeit/Zeitzone, Seitennummern und Textdiff, echte PDF-Strukturprüfung vor OCR, korrigierte Seitenübernahme ohne Rohdatei, verifizierte Zitate, einmalige Vorhabenschritte, Revisionskonflikte, kopierte Vorlagen, Schrittfolge/Pause, Backup ohne automatisches Fortsetzen, Lernantworten/Wiederholung, belegtes Trainingsfeedback, Faktenkonflikte und Fotoreferenzen ab. Browserabnahme und Produktiv-Dateiabgleich folgen vor Abschluss.
+
+Stand 16. Oktober 2026: 965 automatisierte Tests bestanden, keine Fehler oder übersprungenen Tests. Bereitstellung auf test-web erfolgreich. Menüeinträge sind im Browser vorhanden; die Werkzeugübersicht kann wegen des Datenspeichers nicht geladen werden. Auch der bisherige 4.180.2-Teststand scheitert beim vorhandenen studio_overview mit demselben Speicherfehler.
+
+Eine vorübergehende, nur im Testbetrieb zugängliche, ausschließlich lesende Diagnose bestätigte beim Speicherdienst: `ERR max requests limit exceeded. Limit: 500000, Usage: 500000.` Die Upstash-Dokumentation ordnet dies dem monatlichen Anfragekontingent zu. Der Testverbindungsstatus wurde ohne gespeicherte Datensätze oder Zugangsdaten ausgegeben. Die Diagnose ist aus dem abschließenden Quellstand entfernt.
+
+Die geplante reale Modell-/Browserabnahme einschließlich OCR und heruntergeladenem Fotogeschichten-Export ist deshalb noch offen. Das Fixture-Skript scheiterte bereits beim ersten lesenden Aufruf; keine neuen Testdaten wurden damit angelegt und keine KI-Aufrufe zur Live-Abnahme gestartet. Produktiv verbleibt auf 4.180.2, bis der Testdatenspeicher wieder verfügbar ist und diese Abnahme durchgeführt werden kann. Keine Tarif-/Zugangsdatenänderung und keine Ersatzdatenbank angelegt.
