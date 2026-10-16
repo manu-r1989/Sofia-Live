@@ -10,7 +10,29 @@
  }
  function field(form,title,value='',choices=null){const label=node('label',title),input=node(choices?'select':'input');input.setAttribute('aria-label',title);if(choices)for(const [key,text]of choices){const option=node('option',text);option.value=key;input.append(option);}else input.maxLength=1200;input.value=value;label.append(input);form.append(label);return input;}
  function next(parent,open,reopen){if(window.SofiaUI?.navigateFrom)return window.SofiaUI.navigateFrom(parent,open,reopen);parent.close();return open();}
- function personal(){const d=panel('Persönlich');d.append(button('Gemeinsames Tagebuch',()=>next(d,()=>window.SofiaNext.diary(),personal)),button('Gedächtnis und Kontrolle',()=>next(d,()=>window.SofiaGrowth.memory(),personal)),button('Langzeiterinnerungen und Vorhaben',()=>next(d,()=>window.SofiaCharacterSettings.open('memory'),personal)),button('Gesprächsprofil',()=>next(d,profile,personal)),button('Über uns',()=>next(d,()=>collection('moments','Über uns'),personal)),button('Erinnerungen prüfen',()=>next(d,memoryReview,personal)),button('Gedächtnisprüfung',()=>next(d,()=>window.SofiaEvolution.memory(),personal)),button('Gespeicherte Gesprächsthemen',()=>next(d,()=>window.SofiaEvolution.topics(),personal)));return d;}
+ function menuGroup(d,title,hint,entries,back){
+  const rows=entries.map(([label,hint,open])=>({label,hint,run:()=>next(d,open,back)}));
+  if(window.SofiaUI?.menuSection)return window.SofiaUI.menuSection(d,title,hint,rows);
+  for(const row of rows)d.append(button(row.label,row.run));
+ }
+ function personal(){const d=panel('Persönlich');
+  menuGroup(d,'Eigene Inhalte','Persönliches sammeln und pflegen.',[
+   ['Notizbücher','Eigene Notizen, Chat-Ausschnitte und Fotos.',()=>window.SofiaStudio.notes()],
+   ['Gemeinsames Tagebuch','Erlebnisse und Rückblicke festhalten.',()=>window.SofiaNext.diary()],
+   ['Über uns','Interessen, besondere Momente und Insider.',()=>collection('moments','Über uns')],
+   ['Gesprächsprofil','Ansprache, Grundton und Standardmodus.',profile]
+  ],personal);
+  menuGroup(d,'Gedächtnis','Gespeicherte Angaben ansehen und kontrollieren.',[
+   ['Gedächtnis und Kontrolle','Herkunft prüfen, Angaben korrigieren oder Kategorien pausieren.',()=>window.SofiaGrowth.memory()],
+   ['Gespeicherte Gesprächsthemen','Eigene Themen für spätere Gespräche.',()=>window.SofiaEvolution.topics()]
+  ],personal);
+  const more=node('details');more.className='menu-more';more.append(node('summary','Weitere Gedächtniswerkzeuge'));d.append(more);
+  menuGroup(more,'','Zusätzliche Prüfungen für einzelne Erinnerungen.',[
+   ['Langzeiterinnerungen und Vorhaben','Die ausführliche Erinnerungsverwaltung öffnen.',()=>window.SofiaCharacterSettings.open('memory')],
+   ['Erinnerungen prüfen','Einzelne gespeicherte Angaben bestätigen.',memoryReview],
+   ['Gedächtnisprüfung','Widersprüche und Gültigkeit untersuchen.',()=>window.SofiaEvolution.memory()]
+  ],personal);return d;
+ }
  let temporaryMode='';try{temporaryMode=sessionStorage.getItem('sofia-conversation-mode')||'';}catch{}
  async function profile(){const d=panel('Gesprächsprofil'),status=node('p','Profil wird geladen …'),form=node('form');status.setAttribute('role','status');d.append(status,form);try{
   let state=(await request()).state;const p=state.profile;
@@ -26,7 +48,29 @@
   render();status.textContent='Diese gemeinsamen Bezüge kannst du selbst pflegen.';
  }catch(e){status.textContent=e.message;}return d;}
  async function memoryReview(){const d=panel('Erinnerungen prüfen'),status=node('p','Erinnerungen werden geladen …'),list=node('div');status.setAttribute('role','status');d.append(status,list);try{let state=(await request()).state;const r=await fetch('/api/memory',{credentials:'same-origin',cache:'no-store'});const data=await r.json();if(!r.ok)throw Error(data.error||'Erinnerungen nicht verfügbar.');for(const item of data.items||[]){const card=node('section');card.className='companion-card';const review=state.memoryReviews.find(x=>!x.archived&&x.reference===item.id);card.append(node('p',item.text),node('small','Herkunft: '+(item.provenance?.label||'Nicht hinterlegt')+(item.provenance?.at?' · '+new Date(item.provenance.at).toLocaleDateString('de-DE'):'')));if(item.source?.message)card.append(node('p','Aus dem Gespräch: '+item.source.message));if(item.review?.length)card.append(node('p',item.review.join(' · ')));const verified=node('small',review?'Zuletzt bestätigt: '+new Date(review.updatedAt).toLocaleDateString('de-DE'):'Noch nicht vom Nutzer bestätigt');card.append(verified,button('Als korrekt bestätigen',async()=>{try{state=(await request('edit',{edit:{revision:state.revision,operation:'upsert',collection:'memoryReviews',id:review?.id,value:{title:'Erinnerung bestätigt',text:item.text,kind:'confirmed',reference:item.id}}})).state;verified.textContent='Heute vom Nutzer bestätigt.';status.textContent='Bestätigung gespeichert. Erinnerung bleibt erhalten.';}catch(e){status.textContent=e.message;}}));list.append(card);}status.textContent=(data.items||[]).length+' Erinnerungen. Änderungen am Inhalt bleiben in der bestehenden Erinnerungsverwaltung möglich.';}catch(e){status.textContent=e.message;}return d;}
- function studio(){const d=panel('Fotostudio');d.append(button('Stilgalerie und Bildauswahl',()=>next(d,()=>window.SofiaWorkbench.styles(),studio)),button('Fotovorgaben, Outfits und Serien',()=>next(d,()=>window.SofiaExpansion.photos(),studio)),button('Fotokarten und Collagen',()=>next(d,()=>window.SofiaPhotoCards.open(),studio)),button('Foto-Versionen und Zweige',()=>next(d,()=>window.SofiaPhotoWorkbench.open(),studio)),button('Foto gezielt bearbeiten',()=>next(d,()=>window.SofiaRegion.open(),studio)),button('Fotoprojekte und Motivsuche',()=>next(d,()=>window.SofiaGrowth.photos(),studio)),button('Eigene Fotos besprechen',()=>next(d,()=>window.SofiaNext.uploads(),studio)),button('Fotoplan und Merkmalsprüfung',()=>next(d,()=>window.SofiaEvolution.photos(),studio)));for(const [key,title]of [['wardrobe','Kleiderschrank'],['wishes','Fotowünsche'],['albums','Alben']])d.append(button(title,()=>next(d,()=>photoCollection(key,title),studio)));return d;}
+ function studio(){const d=panel('Fotostudio');
+  menuGroup(d,'Ansehen und gestalten','Vorhandene Fotos öffnen und gestalten.',[
+   ['Galerie','Gespeicherte Bilder ansehen und auswählen.',()=>window.SofiaImages.openGallery()],
+   ['Stilgalerie und Bildauswahl','Verschiedene Bildstile vergleichen.',()=>window.SofiaWorkbench.styles()],
+   ['Fotokarten und Collagen','Aus vorhandenen Fotos eine Karte erstellen.',()=>window.SofiaPhotoCards.open()],
+   ['Foto-Versionen und Zweige','Bearbeitungsverläufe und Varianten ansehen.',()=>window.SofiaPhotoWorkbench.open()]
+  ],studio);
+  menuGroup(d,'Fotos bearbeiten','Eine Änderung zuerst beschreiben und prüfen.',[
+   ['Foto gezielt bearbeiten','Einen Bereich oder ein Merkmal auswählen.',()=>window.SofiaRegion.open()],
+   ['Eigene Fotos besprechen','Ein eigenes Bild hochladen, besprechen oder bearbeiten.',()=>window.SofiaNext.uploads()]
+  ],studio);
+  menuGroup(d,'Planen und sammeln','Motive, Vorgaben und Sammlungen verwalten.',[
+   ['Fotoprojekte und Motivsuche','Ideen und Motive zu einem Projekt ordnen.',()=>window.SofiaGrowth.photos()],
+   ['Fotovorgaben, Outfits und Serien','Wiederverwendbare Vorgaben und einzelne Serienmotive.',()=>window.SofiaExpansion.photos()],
+   ['Alben','Eigene Fotosammlungen pflegen.',()=>photoCollection('albums','Alben')]
+  ],studio);
+  const more=node('details');more.className='menu-more';more.append(node('summary','Weitere Fotovorgaben'));d.append(more);
+  menuGroup(more,'','Zusätzliche Wünsche und Prüfungen.',[
+   ['Kleiderschrank','Gespeicherte Outfitideen verwalten.',()=>photoCollection('wardrobe','Kleiderschrank')],
+   ['Fotowünsche','Persönliche Motivwünsche festhalten.',()=>photoCollection('wishes','Fotowünsche')],
+   ['Fotoplan und Merkmalsprüfung','Geplante Merkmale vor der Bilderstellung prüfen.',()=>window.SofiaEvolution.photos()]
+  ],studio);return d;
+ }
  async function photoCollection(key,title){
   const d=panel(title),status=node('p','Wird geladen …'),form=node('form'),list=node('div');status.setAttribute('role','status');d.append(status,form,list);
   try{let state=(await request()).state,currentId=null,archived=false;const titleInput=field(form,'Titel'),description=field(form,'Beschreibung'),selectedIds=new Set();let photoKind,outfit,scene,favorite,photoChoices;
@@ -72,5 +116,5 @@
   const inputs={};for(const [key,title,max]of [['images','Bildversuche pro Monat (0 = ohne eigenes Limit)',10000],['liveMinutes','Live-Minuten pro Monat (0 = ohne eigenes Limit)',100000],['imagePrice','Geschätzter Preis je Bildversuch in Euro (0 = unbekannt)',1000],['minutePrice','Geschätzter Preis je Live-Minute in Euro (0 = unbekannt)',1000]]){const input=field(form,title,String(limits[key]||0));input.type='number';input.min=0;input.max=max;input.step=key.endsWith('Price')?'0.001':'1';inputs[key]=input;}
   form.append(button('Limits und Preise speichern',async()=>{try{state=(await request('edit',{edit:{revision:state.revision,operation:'limits',value:Object.fromEntries(Object.entries(inputs).map(([key,input])=>[key,Number(input.value)]))}})).state;paint();status.textContent='Gespeichert. Bestehende Anbieter- und Testlimits gelten zusätzlich.';}catch(e){status.textContent=e.message;}}));paint();status.textContent='Persönliche Limits begrenzen neue Bildversuche und Live-Starts. Bereits laufende Gespräche behalten ihre reservierte Dauer.';
  }catch(e){status.textContent=e.message;}return d;}
- window.SofiaCompanion={jobs,request,panel,node,button,field,next,personal,profile,collection,memoryReview,studio,activities,initiative,milestones,liveControls,usage,mode:()=>temporaryMode||undefined};
+ window.SofiaCompanion={menuGroup,jobs,request,panel,node,button,field,next,personal,profile,collection,memoryReview,studio,activities,initiative,milestones,liveControls,usage,mode:()=>temporaryMode||undefined};
 })();

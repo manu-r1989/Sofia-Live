@@ -2,6 +2,20 @@
   const motion=()=>window.matchMedia?.('(prefers-reduced-motion: reduce)').matches?'auto':'smooth';
   let pendingReturnMenu=null;
   const surfaces=new Set();
+  let menuHintSequence=0;
+  function menuSection(parent,title,hint,entries){
+    const section=document.createElement('section');section.className='menu-section';
+    if(title){const h=document.createElement('h3');h.textContent=title;section.append(h);}
+    if(hint){const p=document.createElement('p');p.className='menu-hint';p.textContent=hint;section.append(p);}
+    const actions=document.createElement('div');actions.className='menu-action-list';
+    for(const entry of entries){
+      const row=document.createElement('div');row.className='menu-entry';
+      const b=document.createElement('button');b.type='button';b.className=entry.root?'settings-entry menu-action':'menu-action';b.textContent=entry.label;b.onclick=entry.run;
+      if(entry.hint){const p=document.createElement('p');p.className='menu-hint';p.id='sofia-menu-hint-'+(++menuHintSequence);p.textContent=entry.hint;b.setAttribute('aria-describedby',p.id);row.append(p);}
+      row.append(b);actions.append(row);
+    }
+    section.append(actions);parent.append(section);return section;
+  }
   async function closeToChat(element){
     if(window.SofiaCharacterSettings?.flush&&!await window.SofiaCharacterSettings.flush())return false;
     pendingReturnMenu=null;
@@ -109,7 +123,7 @@
     editor.getBoundingClientRect?.();
     editor.focus?.({preventScroll:true});
   }
-  window.SofiaUI={enhanceDialog,navigateFrom,closeToChat,resizeComposer,refreshDays,motion,bindSendButton,focusEditor};
+  window.SofiaUI={menuSection,enhanceDialog,navigateFrom,closeToChat,resizeComposer,refreshDays,motion,bindSendButton,focusEditor};
   const input=document.getElementById('input');input?.addEventListener('input',()=>resizeComposer(input));resizeComposer(input);
   const viewport=window.visualViewport;
   let layoutHeight=Math.max(window.innerHeight||0,document.documentElement.clientHeight||0,viewport?.height||0);
