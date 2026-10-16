@@ -11,7 +11,7 @@
  function field(form,title,value='',choices=null){const label=node('label',title),input=node(choices?'select':'input');input.setAttribute('aria-label',title);if(choices)for(const [key,text]of choices){const option=node('option',text);option.value=key;input.append(option);}else input.maxLength=1200;input.value=value;label.append(input);form.append(label);return input;}
  function next(parent,open,reopen){if(window.SofiaUI?.navigateFrom)return window.SofiaUI.navigateFrom(parent,open,reopen);parent.close();return open();}
  function menuGroup(d,title,hint,entries,back){
-  const rows=entries.map(([label,hint,open])=>({label,hint,run:()=>next(d,open,back)}));
+  const rows=entries.map(([label,hint,open])=>({label,hint,run:()=>next(d.closest?.('dialog')||d,open,back)}));
   if(window.SofiaUI?.menuSection)return window.SofiaUI.menuSection(d,title,hint,rows);
   for(const row of rows)d.append(button(row.label,row.run));
  }
