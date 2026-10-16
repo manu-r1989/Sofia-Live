@@ -212,7 +212,7 @@
   let updateAvailable=false;
   let controlled=!!navigator.serviceWorker?.controller;
   navigator.serviceWorker?.addEventListener?.('controllerchange',()=>{
-    if(controlled){updateAvailable=true;notice('Eine neue Version ist verfügbar. Du kannst sie in den Einstellungen laden; dein Entwurf bleibt erhalten.');}
+    if(controlled&&!window.SofiaStartup){updateAvailable=true;notice('Eine neue Version ist verfügbar. Du kannst sie in den Einstellungen laden; dein Entwurf bleibt erhalten.');}
     controlled=true;
   });
   async function applyUpdate({automatic=false}={}){
@@ -233,6 +233,7 @@
   function paintPhase(){if(!mode)return;const text=mode.textContent.trim();mode.dataset.phase=/Foto/.test(text)?'photo':/denkt/.test(text)?'thinking':/hört/.test(text)?'listening':/spricht/.test(text)?'speaking':/fehl|Fehler|Pause|warten|limit|grenze|prüfen|Guthaben|abgewiesen|ausgelastet/i.test(text)?'attention':'ready';}
   if(mode&&typeof MutationObserver!=='undefined')new MutationObserver(paintPhase).observe(mode,{childList:true,characterData:true,subtree:true});paintPhase();
   window.SofiaWorkspace={applyUpdate,get draftReferenceId(){return draftPhotoId;},hiddenMessages:()=>hiddenMessages,acceptHidden,isHidden,filterHistory,taskFromMessage,selectReply,takeReply,decorateReply,replyReference:()=>replyTo,acknowledgeContacts,messages:()=>turnNodes().map(nodeTurn),unreadMessages:()=>[...unread.values()],showMessage:turn=>{window.SofiaChatViewport?.reveal?.();return jump(turn);},motion,clearDraft,beginSubmission,confirmSubmission,failSubmission,reconcileSubmission,pendingSubmission,saveDraft,hasReceipt,refresh,reconcile,added,readVisible,notice,failed,settings,presentation,appHelp,chatTools,search,pinned,normalize,keyFor,safeRetry};
+  window.SofiaWorkspace.updateReady=()=>{updateAvailable=true;notice('Neue Version bereit. Unter App und Hilfe kannst du sie laden.');};
   if(pendingDraft)notice('Letzter Versand noch unbestätigt. Du kannst ihn in den Einstellungen prüfen; es erfolgt kein automatisches Senden.');
   mergeDelivery();refresh();
 })();
