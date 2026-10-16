@@ -1459,4 +1459,6 @@ body:has(#sofia-test-banner) .app .chatPanel[data-chat-size="compact"]{top:auto!
 @media(max-width:360px){.sofia-dialog .menu-entry>.menu-action{min-height:66px!important}}
 
 #sofia-test-banner>span{flex:1 1 240px;min-width:0;overflow-wrap:anywhere}
+#form~.message-integrity-note,.msg .message-integrity-note{display:block;margin-top:12px;font-size:.85em;color:var(--ui-muted,#b2b7c2);line-height:1.45}
+.msg .message-body a{color:inherit;text-decoration:underline;text-underline-offset:3px;overflow-wrap:anywhere}
 #sofia-test-banner>button,#sofia-test-banner>a{display:flex;align-items:center;justify-content:center;min-height:44px;box-sizing:border-box;padding:8px;text-align:center;flex:0 1 auto}

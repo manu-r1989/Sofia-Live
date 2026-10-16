@@ -228,7 +228,7 @@ test('image delivery is private JPEG with download attachment and validated IDs'
 });
 test('UI integration loads shared renderer before app and does not alter avatar assets',async()=>{
  const root=new URL('../',import.meta.url);const index=await readFile(new URL('index.html',root),'utf8');
- assert.ok(index.indexOf('sofia-images.js?v=419001v3')<index.indexOf('app.js?v=419001v3'));
+ assert.ok(index.indexOf('sofia-images.js?v=419002v1')<index.indexOf('app.js?v=419002v1'));
  const chat=await readFile(new URL('api/chat.js',root),'utf8');
  assert.ok(chat.indexOf('!safeEqual(')<chat.indexOf('await servePortrait'));
  const ui=await readFile(new URL('sofia-images.js',root),'utf8');assert.match(ui,/dialog.showModal/);assert.match(ui,/link.download=/);assert.doesNotMatch(ui,/spinner|generating-status/);
@@ -713,6 +713,20 @@ test('text chat stores no unsupported photo preparation promise from the languag
  await handler({method:'POST',headers:{cookie:'sofia_session='+session},body:{message:'Hallo'}},res);
  assert.equal(status,200);assert.equal(data.imageRequest,undefined);assert.equal(data.reply,'Möchtest du ein Foto von mir sehen?');
  assert.equal(JSON.parse(db.get('sofia:main:history')).at(-1).content,data.reply);
+});
+test('truncated text chat returns a safe error without saving raw JSON or retrying the provider',async()=>{
+ reset();process.env.SOFIA_PASSWORD='test-only';
+ const moduleUrl=s=>'data:text/javascript;base64,'+Buffer.from(s).toString('base64'),root=new URL('../',import.meta.url);
+ const dates=moduleUrl(await readFile(new URL('lib/task-dates.js',root),'utf8'));
+ const tasks=moduleUrl((await readFile(new URL('api/task-action.js',root),'utf8')).replace('../lib/task-dates.js',dates));
+ const engine=moduleUrl((await readFile(new URL('api/action-engine.js',root),'utf8')).replace('./task-action.js',tasks));
+ const code=(await readFile(new URL('api/chat.js',root),'utf8')).replace('../lib/character-image.js',moduleUrl(source)).replace('./action-engine.js',engine),handler=(await import(moduleUrl(code))).default;
+ const original=globalThis.fetch;let calls=0,status,data;
+ globalThis.fetch=async(url,options)=>{if(url==='https://api.openai.com/v1/responses'&&JSON.parse(options.body).model==='gpt-5.6'){calls++;return {ok:true,json:async()=>({status:'incomplete',incomplete_details:{reason:'max_output_tokens'},output:[{type:'message',content:[{type:'output_text',text:'{"reply":"Antwort bis 22'}]}]})};}return original(url,options);};
+ const session=crypto.createHmac('sha256','test-only').update('sofia-authorized-session-v1').digest('hex');
+ try{await handler({method:'POST',headers:{cookie:'sofia_session='+session},body:{message:'Hallo'}},{setHeader(){},status(n){status=n;return this;},json(d){data=d;return d;}});
+  assert.equal(status,502);assert.equal(data.code,'chat_response_incomplete');assert.equal(data.reply,undefined);assert.equal(calls,1);assert.ok(!String(db.get('sofia:main:history')).includes('Antwort bis 22'));
+ }finally{globalThis.fetch=original;}
 });
 test('job retry returns an existing active request and never creates a second planner call',async()=>{
  reset();const request=await api.preparePortrait('Selfie bitte');const callsBefore=plannerInputs.length;assert.equal((await api.retryCompanionJob(request.id)).id,request.id);assert.equal(plannerInputs.length,callsBefore);
