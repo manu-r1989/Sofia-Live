@@ -44,11 +44,11 @@
     controls.append(back,exit);header.append(controls);element.scrollTop=0;
     const list=element.querySelector('#sofia-memory-list');if(list)list.scrollTop=0;
   }
-  function navigateFrom(parent,open,reopen,close){
+  function navigateFrom(parent,open,reopen,close,replace=false){
     const ancestor=parent._returnMenu||null;
     parent.dataset ||= {};
     parent.dataset.menuForward='true';
-    const proceed=ok=>{if(ok===false){delete parent.dataset.menuForward;return false;}pendingReturnMenu=()=>{pendingReturnMenu=ancestor;reopen();};open();return true;};
+    const proceed=ok=>{if(ok===false){delete parent.dataset.menuForward;return false;}pendingReturnMenu=replace?ancestor:()=>{pendingReturnMenu=ancestor;reopen();};open();return true;};
     const result=close?close():parent.close();
     return result?.then?result.then(proceed):proceed(result);
   }
@@ -123,7 +123,7 @@
     editor.getBoundingClientRect?.();
     editor.focus?.({preventScroll:true});
   }
-  window.SofiaUI={menuSection,enhanceDialog,navigateFrom,closeToChat,resizeComposer,refreshDays,motion,bindSendButton,focusEditor};
+  window.SofiaUI={menuSection,enhanceDialog,navigateFrom,replaceFrom:(parent,open)=>navigateFrom(parent,open,null,undefined,true),closeToChat,resizeComposer,refreshDays,motion,bindSendButton,focusEditor};
   const input=document.getElementById('input');input?.addEventListener('input',()=>resizeComposer(input));resizeComposer(input);
   // iOS home-screen mode needs its full layout canvas, not a fixed-bottom viewport.
   document.documentElement.dataset.iosStandalone=String(window.navigator?.standalone===true);

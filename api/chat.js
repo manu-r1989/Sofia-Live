@@ -18,6 +18,14 @@ export function parseChatResponse(data) {
   if (!parsed || Array.isArray(parsed) || typeof parsed.reply !== 'string' || !parsed.reply.trim()) throw new Error('chat_response_invalid');
   return parsed;
 }
+export function chatResearchSources(data,at=new Date().toISOString()) {
+  const searched=(data?.output||[]).some(x=>x.type==='web_search_call'&&x.status==='completed'),seen=new Set(),sources=[];
+  for(const message of data?.output||[])for(const part of message.content||[])for(const a of part.annotations||[]){
+    if(a.type!=='url_citation'||typeof a.url!=='string'||a.url.length>2000)continue;
+    try{const url=new URL(a.url);if(!['https:','http:'].includes(url.protocol)||url.username||url.password||seen.has(url.href))continue;seen.add(url.href);sources.push({url:url.href,title:String(a.title||url.hostname).slice(0,200),retrievedAt:searched?at:null});}catch{}
+    if(sources.length===12)return sources;
+  }return sources;
+}
 const TASKS_KEY = dataPrefix() + 'tasks';
 
 const MAX_HISTORY_MESSAGES = 40;
@@ -649,20 +657,23 @@ export default async function handler(req, res) {
     const hiddenMessages=await redisGetJSON(HIDDEN_MESSAGES_KEY,[]);
     const quoteHistory=visibleConversation(await redisGetJSON(HISTORY_KEY,[]),hiddenMessages);
     const quoteReference=resolveReplyReference(req.body?.replyTo,quoteHistory)||replyPhotoReference(req.body?.replyTo,req.body?.replyTo?.imageId?await portraitGallery():[]);
+    const requestedTransform=['shorter','expand'].includes(req.body?.replyTransform)?req.body.replyTransform:null;
+    const transform=requestedTransform||(quoteReference?.role==='assistant'?(message==='Bitte erkläre die zitierte Antwort kürzer.'?'shorter':message==='Bitte führe die zitierte Antwort verständlich weiter aus.'?'expand':null):null);
+    if((req.body?.replyTransform&&!requestedTransform)||(transform&&(quoteReference?.role!=='assistant'||image)))return res.status(409).json({error:'Die Originalantwort ist nicht mehr verfügbar. Bitte erneut im Chat auswählen.',code:'reply_source_unavailable'});
     if(req.body?.replyTo?.imageId&&!quoteReference)return res.status(409).json({error:'Das zitierte Foto ist nicht mehr verfügbar. Bitte wähle ein anderes Foto.',code:'portrait_source_unavailable'});
     const selectedReferenceId=quoteReference?.imageId||req.body?.referenceImageId;
-    if(currentSituationCorrection(message))await synchronizeSituation(message,new Date(),req.body?.mood);
+    if(!transform&&currentSituationCorrection(message))await synchronizeSituation(message,new Date(),req.body?.mood);
 
-    const directCommand=await executeMemoryCommand(message) || await executeProjectCommand(message);
+    const directCommand=transform?null:await executeMemoryCommand(message) || await executeProjectCommand(message);
     if(directCommand){const createdAt=await appendPortraitAcknowledgment(message,directCommand.reply);const life=await getSofiaLife();return res.status(200).json({reply:directCommand.reply,createdAt,life,mood:life.mood,taskAction:{ok:true,action:'none'}});}
 
-    const agendaClarification=conversationReferenceClarification(quoteHistory,message,quoteReference);
+    const agendaClarification=transform?null:conversationReferenceClarification(quoteHistory,message,quoteReference);
     if(agendaClarification){const createdAt=await appendPortraitAcknowledgment(message,agendaClarification,'',quoteReference);const life=await getSofiaLife();return res.status(200).json({reply:agendaClarification,createdAt,life,mood:life.mood,taskAction:{ok:true,action:'none'}});}
 
     try {
-      const appearance=await appearanceChoice(message,new Date(),req.body?.mood);
+      const appearance=transform?null:await appearanceChoice(message,new Date(),req.body?.mood);
       if(appearance?.reply){const createdAt=await appendPortraitAcknowledgment(message,appearance.reply);return res.status(200).json({reply:appearance.reply,createdAt,life:appearance.life,mood:appearance.life.mood,taskAction:{ok:true,action:'none'}});}
-      const imageRequest = appearance?.imageRequest || await preparePortrait(message, selectedReferenceId, new Date(), req.body?.mood);
+      const imageRequest = transform?null:appearance?.imageRequest || await preparePortrait(message, selectedReferenceId, new Date(), req.body?.mood);
       if (imageRequest) {
         let taskAction={ok:true,action:"none"},calendarAction=null;
         if(imageRequest.taskMessage) {
@@ -1682,7 +1693,7 @@ Kein Markdown außerhalb des JSON-Objekts.
 
     let taskAction = { ok: true, action: "none" };
     try {
-      const unifiedAction = projectTask?.missing ? {taskAction:{ok:false,action:"none",status:"project_missing",error:"Dieses aktive Vorhaben wurde nicht gefunden. Keine Aufgabe erstellt."}} : await executeUnifiedAction(projectTask?.taskMessage || message.trim(), hamburgNow, { mode: "text" });
+      const unifiedAction = transform?{taskAction:{ok:true,action:'none'}}:projectTask?.missing ? {taskAction:{ok:false,action:"none",status:"project_missing",error:"Dieses aktive Vorhaben wurde nicht gefunden. Keine Aufgabe erstellt."}} : await executeUnifiedAction(projectTask?.taskMessage || message.trim(), hamburgNow, { mode: "text" });
       taskAction = await linkProjectResult(projectTask,unifiedAction.taskAction);
       completedTaskAction=taskAction;
     } catch (taskError) {
@@ -1732,7 +1743,7 @@ Kein Markdown außerhalb des JSON-Objekts.
                 "gpt-5.6",
 
               instructions:
-                SOFIA_PROMPT,
+                SOFIA_PROMPT+(transform?'\nDIESER TURN IST NUR EINE TEXTERKLÄRUNG DER AUSDRÜCKLICH ZITIERTEN ASSISTENTENANTWORT. '+(transform==='shorter'?'Fasse sie kürzer und verständlich zusammen.':'Führe sie verständlich weiter aus; fehlende Angaben nicht erfinden.')+' Keine Aufgaben, Erinnerungen, Fotos, Gedächtnisänderungen oder Kalenderaktionen. Setze memory_action.action auf none und calendar_action auf null. Behaupte keine neue Ausführung früherer Aktionen.':''),
 
               input,
 
@@ -1772,6 +1783,7 @@ Kein Markdown außerhalb des JSON-Objekts.
       console.warn('Sofia request', {code});
       return res.status(502).json({error:'Meine Antwort wurde nicht vollständig übertragen. Bitte frage noch einmal nach. Ich habe den unvollständigen Text nicht als Antwort gespeichert.',code,...(completedTaskAction?{taskAction:completedTaskAction}:{})});
     }
+    const researchSources=chatResearchSources(data);
 
 
     /* ========================================
@@ -1808,7 +1820,7 @@ Kein Markdown außerhalb des JSON-Objekts.
 
 
     let calendarAction = null;
-    if (taskAction?.ok && taskAction.action === "none" && parsed.calendar_action && typeof parsed.calendar_action === "object") {
+    if (!transform && taskAction?.ok && taskAction.action === "none" && parsed.calendar_action && typeof parsed.calendar_action === "object") {
       const title = typeof parsed.calendar_action.title === "string" ? parsed.calendar_action.title.trim().slice(0, 160) : "";
       const start = typeof parsed.calendar_action.start === "string" ? parsed.calendar_action.start.trim() : "";
       const duration = Number(parsed.calendar_action.duration_minutes);
@@ -1824,7 +1836,7 @@ Kein Markdown außerhalb des JSON-Objekts.
       }
     }
 
-    if (!calendarAction && taskAction?.ok && taskAction.action === "none") {
+    if (!transform && !calendarAction && taskAction?.ok && taskAction.action === "none") {
       calendarAction = await extractCalendarActionFallback(message, hamburgNow);
     }
 
@@ -1948,6 +1960,7 @@ Kein Markdown außerhalb des JSON-Objekts.
     }
 
 
+    if(transform)memoryAction={action:'none',old_memory:null,new_memory:null,category:null};
     const proposedMemory=memoryAction;
     memoryAction=guardPermanentMemory(message,memoryAction,memories);
     if(proposedMemory.action!=="none" && memoryAction.action==="none" && /(?:habe|hab|ist|wurde).{0,45}(?:dauerhaft gespeichert|im langzeitgedächtnis|als erinnerung gespeichert)/i.test(reply))reply="Das behalte ich zunächst nur für dieses Gespräch im Blick.";
@@ -1961,7 +1974,7 @@ Kein Markdown außerhalb des JSON-Objekts.
     sofiaLife = await learnSofiaLife(message, reply, new Date(), mood, sofiaLife.revision);
     let spontaneousImageRequest = null;
     if (taskAction?.ok && taskAction.action === "none" && !calendarAction && !image) {
-      spontaneousImageRequest = await prepareProactivePortrait(message, sofiaLife, reply);
+      spontaneousImageRequest = transform?null:await prepareProactivePortrait(message, sofiaLife, reply);
       if (spontaneousImageRequest) reply += " " + PROACTIVE_PHOTO_ANNOUNCEMENT;
     }
 
@@ -1982,6 +1995,7 @@ Kein Markdown außerhalb des JSON-Objekts.
       {
         role: "assistant",
         memoryTraceVersion:1,
+        ...(researchSources.length?{researchSources}:{}),
         memoryReferences:memoryReplyReferences(parsed.memory_used,relevantMemories),
         createdAt: new Date().toISOString(),
         ...(replyReference?{replyTo:replyReference}:{}),

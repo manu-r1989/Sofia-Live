@@ -1462,3 +1462,16 @@ body:has(#sofia-test-banner) .app .chatPanel[data-chat-size="compact"]{top:auto!
 #form~.message-integrity-note,.msg .message-integrity-note{display:block;margin-top:12px;font-size:.85em;color:var(--ui-muted,#b2b7c2);line-height:1.45}
 .msg .message-body a{color:inherit;text-decoration:underline;text-underline-offset:3px;overflow-wrap:anywhere}
 #sofia-test-banner>button,#sofia-test-banner>a{display:flex;align-items:center;justify-content:center;min-height:44px;box-sizing:border-box;padding:8px;text-align:center;flex:0 1 auto}
+
+/* 4.191-4.200: linked workspaces, clear primary actions and book pages. */
+.sofia-dialog .primary-action{border-color:var(--ui-accent,#d9c3a3)!important;box-shadow:inset 3px 0 var(--ui-accent,#d9c3a3)}
+.sofia-dialog .companion-card>label{flex-basis:100%;min-width:0}
+.sofia-dialog .message-source-link{display:block;box-sizing:border-box;min-height:44px;padding:12px 0;overflow-wrap:anywhere;color:inherit;text-decoration:underline;text-underline-offset:3px}
+.continuity-dialog .companion-card p{white-space:pre-wrap;overflow-wrap:anywhere}
+.continuity-dialog .companion-card>label:has(input[type=checkbox]){min-height:44px}
+.continuity-dialog details{margin:14px 0;max-width:100%}
+.continuity-dialog summary{box-sizing:border-box;min-height:44px;padding:12px 0;cursor:pointer;overflow-wrap:anywhere}
+.continuity-compare{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;width:100%;min-width:0}
+.continuity-compare>.companion-card{display:block;min-width:0;max-height:28rem;overflow:auto;margin:0}
+.continuity-dialog .book-preview-page{display:block;width:100%;height:auto;border:1px solid var(--ui-border);border-radius:10px;margin:12px 0}
+@media(max-width:640px){.continuity-compare{grid-template-columns:minmax(0,1fr)}}

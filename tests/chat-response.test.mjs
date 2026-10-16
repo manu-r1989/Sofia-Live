@@ -29,3 +29,7 @@ test('formatting uses DOM text and safe clickable sources without HTML injection
  const {api,node}=harness();api.render(node,'**Heute** [Quelle](https://example.org/termine) <img src=x onerror=alert(1)> [falsch](javascript:alert(1))');
  const body=node.children[0];assert.equal(body.children.filter(x=>x.tagName==='strong').length,1);const links=body.children.filter(x=>x.tagName==='a');assert.equal(links.length,1);assert.equal(links[0].href,'https://example.org/termine');assert.equal(links[0].rel,'noopener noreferrer');assert.match(node.textContent,/<img src=x/);assert.equal(body.children.filter(x=>x.tagName==='img').length,0);
 });
+test('research metadata accepts only actual safe citations and marks retrieval only after completed web search',async()=>{
+ const {chatResearchSources}=await import('../api/chat.js');const data={output:[{type:'message',content:[{type:'output_text',annotations:[{type:'url_citation',url:'https://example.org/a',title:'Quelle'},{type:'url_citation',url:'https://example.org/a'},{type:'url_citation',url:'javascript:alert(1)'},{type:'url_citation',url:'https://user:secret@example.org'}]}]}]};
+ assert.equal(chatResearchSources(data).length,1);assert.equal(chatResearchSources(data)[0].retrievedAt,null);data.output.unshift({type:'web_search_call',status:'completed'});assert.equal(chatResearchSources(data,'2026-10-16T12:00:00Z')[0].retrievedAt,'2026-10-16T12:00:00Z');
+});

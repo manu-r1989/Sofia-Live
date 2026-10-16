@@ -228,7 +228,7 @@ test('image delivery is private JPEG with download attachment and validated IDs'
 });
 test('UI integration loads shared renderer before app and does not alter avatar assets',async()=>{
  const root=new URL('../',import.meta.url);const index=await readFile(new URL('index.html',root),'utf8');
- assert.ok(index.indexOf('sofia-images.js?v=419002v1')<index.indexOf('app.js?v=419002v1'));
+ assert.ok(index.indexOf('sofia-images.js?v=420000v3')<index.indexOf('app.js?v=420000v3'));
  const chat=await readFile(new URL('api/chat.js',root),'utf8');
  assert.ok(chat.indexOf('!safeEqual(')<chat.indexOf('await servePortrait'));
  const ui=await readFile(new URL('sofia-images.js',root),'utf8');assert.match(ui,/dialog.showModal/);assert.match(ui,/link.download=/);assert.doesNotMatch(ui,/spinner|generating-status/);
@@ -734,4 +734,15 @@ test('job retry returns an existing active request and never creates a second pl
 });
 test('job overview exposes safe metadata and confirmed action receipts without image bytes',async()=>{
  reset();db.set(prefix+'jobs',JSON.stringify([{id:'a',jobStatus:'processing',requestMessage:'Selfie',requestedAt:new Date().toISOString(),base64:'private-bytes'}]));db.set('sofia:main:action-state',JSON.stringify({lastActionSummary:'Aufgabe gespeichert',secret:'not-public'}));const data=await api.companionJobs();assert.equal(data.jobs[0].phase,'processing');assert.equal(data.action,'Aufgabe gespeichert');assert.equal(data.jobs[0].base64,undefined);assert.equal(data.secret,undefined);
+});
+test('quoted shorter or expanded explanations cannot execute task, memory, calendar or photo actions',async()=>{
+ const moduleUrl=s=>'data:text/javascript;base64,'+Buffer.from(s).toString('base64'),root=new URL('../',import.meta.url);
+ const dates=moduleUrl(await readFile(new URL('lib/task-dates.js',root),'utf8')),tasks=moduleUrl((await readFile(new URL('api/task-action.js',root),'utf8')).replace('../lib/task-dates.js',dates)),engine=moduleUrl((await readFile(new URL('api/action-engine.js',root),'utf8')).replace('./task-action.js',tasks));
+ const code=(await readFile(new URL('api/chat.js',root),'utf8')).replace('../lib/character-image.js',moduleUrl(source)).replace('./action-engine.js',engine),handler=(await import(moduleUrl(code))).default;
+ for(const [kind,message]of [['shorter','Bitte erkläre die zitierte Antwort kürzer.'],['expand','Bitte führe die zitierte Antwort verständlich weiter aus.']]){
+  reset();process.env.SOFIA_PASSWORD='test-only';const turn={role:'assistant',content:'Ich habe die Aufgabe gespeichert.',createdAt:new Date().toISOString()};db.set('sofia:main:history',JSON.stringify([turn]));const original=globalThis.fetch;let requests=0,status,data;
+  globalThis.fetch=async(url,options)=>{if(url==='https://api.openai.com/v1/responses'&&JSON.parse(options.body).model==='gpt-5.6'){requests++;return {ok:true,json:async()=>({status:'completed',output:[{type:'message',content:[{type:'output_text',text:JSON.stringify({reply:'Hier ist die Erklärung.',mood:'entspannt',memory_action:{action:'add',new_memory:'Nicht speichern'},calendar_action:{action:'create',title:'Nicht anlegen',start:'2026-10-17T10:00:00'}})}]}]})};}return original(url,options);};
+  const session=crypto.createHmac('sha256','test-only').update('sofia-authorized-session-v1').digest('hex');
+  try{await handler({method:'POST',headers:{cookie:'sofia_session='+session},body:{message,replyTo:turn,...(kind==='shorter'?{replyTransform:kind}:{})}},{setHeader(){},status(n){status=n;return this;},json(d){data=d;return d;}});assert.equal(status,200);assert.equal(data.reply,'Hier ist die Erklärung.');assert.equal(requests,1);assert.equal(data.taskAction.action,'none');assert.ok(data.calendarAction==null);assert.equal(data.imageRequest,undefined);assert.equal(imageCalls.length,0);assert.equal(plannerInputs.length,0);assert.equal(db.has('sofia:main:tasks'),false);assert.ok(!String(db.get('sofia:main:longterm')).includes('Nicht speichern'));assert.ok(!String(db.get('sofia:main:calendar')).includes('Nicht anlegen'));}finally{globalThis.fetch=original;}
+ }
 });
