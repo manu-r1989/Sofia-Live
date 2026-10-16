@@ -3,13 +3,13 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {readFile} from 'node:fs/promises';
 const source=await readFile(new URL('../sofia-startup.js',import.meta.url),'utf8');
-function harness({target='420000v1',allowed=true,stored=null,offline=false,delayed=false}={}){
+function harness({target='420000v2',allowed=true,stored=null,offline=false,delayed=false}={}){
  const events={},calls=[],storage=new Map(stored?[['sofia_auto_update_target',stored]]:[]);let message;
  class Channel{constructor(){this.port1={close(){},onmessage:null};this.port2={respond:data=>this.port1.onmessage?.({data})};}}
  const controller={postMessage:(_data,ports)=>{message=()=>ports[0].respond({version:target});if(!delayed)message();}},registration={update:async()=>calls.push('update'),waiting:null};
  const window={addEventListener:(name,fn)=>events[name]=fn,SofiaWorkspace:{notice:text=>calls.push(text),applyUpdate:async options=>{calls.push(options.automatic?'automatic':'manual');return allowed;}}};
  const navigator={serviceWorker:{controller,addEventListener:(name,fn)=>events[name]=fn,register:async(path,options)=>{calls.push({path,options});if(offline)throw Error('offline');return registration;}}};
- const document={readyState:'complete',querySelector:()=>({getAttribute:()=> './app.js?v=420000v1'}),addEventListener:(name,fn)=>events[name]=fn};
+ const document={readyState:'complete',querySelector:()=>({getAttribute:()=> './app.js?v=420000v2'}),addEventListener:(name,fn)=>events[name]=fn};
  vm.runInNewContext(source,{window,document,navigator,MessageChannel:Channel,sessionStorage:{getItem:k=>storage.get(k),setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)},Date,setTimeout,clearTimeout});
  return {events,calls,storage,respond:()=>message?.()};
 }

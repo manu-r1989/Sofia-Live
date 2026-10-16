@@ -82,3 +82,5 @@ test('reopening a reused memory surface recreates enabled navigation controls',a
  h.window.SofiaUI.navigateFrom(menu(h,'Einstellungen'),open,()=>menu(h,'Einstellungen'));
  const third=header.children.at(-1);assert.notEqual(third,second);assert.equal(third.children[0].disabled,false);assert.notEqual(third.children[1].disabled,true);
 });
+
+test('saving and refreshing a work surface preserves one back target instead of adding old progress screens',()=>{const h=harness();let child,returned=0;h.window.SofiaUI.navigateFrom(menu(h,'Lernpläne'),()=>child=menu(h,'Lernrunde'),()=>{returned++;return menu(h,'Lernpläne');});for(let i=0;i<3;i++)h.window.SofiaUI.replaceFrom(child,()=>child=menu(h,'Lernrunde'));child.close();assert.equal(returned,1);});
