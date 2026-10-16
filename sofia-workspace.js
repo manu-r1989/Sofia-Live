@@ -137,25 +137,73 @@
     const d=panel('Chatbereinigung bestätigen'),status=statusNode(d),summary=document.createElement('p');summary.textContent=result.label+': '+result.messageCount+(result.messageCount===1?' Nachricht und ':' Nachrichten und ')+result.photoCount+(result.photoCount===1?' Fotoeintrag':' Fotoeinträge')+' aus dem Chat entfernen? Erinnerungen, Aufgaben und Galerie bleiben erhalten.';
     const confirm=button('Jetzt aus dem Chat entfernen',async()=>{confirm.disabled=true;try{const data=await cleanupRequest('apply_chat_cleanup',{id:result.id,confirm:true});put('sofia-chat-cleanup-last',result.id);acceptHidden(data.hiddenMessages);window.SofiaImages?.restore(data.images);await window.SofiaChatCleanupRefresh?.();status.textContent='Chat bereinigt. Erinnerungen, Aufgaben und Galerie bleiben erhalten.';}catch(e){status.textContent=e.message;confirm.disabled=false;}});confirm.disabled=!result.messageCount&&!result.photoCount;d.append(summary,confirm,button('Abbrechen',()=>d.close()));return d;
   }
+  function menuEntries(d,title,hint,entries,back,root=false){
+    const rows=entries.map(([label,hint,open])=>({label,hint,root,run:()=>menuNext(d,open,back)}));
+    if(window.SofiaUI?.menuSection)return window.SofiaUI.menuSection(d,title,hint,rows);
+    for(const row of rows){const b=button(row.label,row.run);if(root)b.className='settings-entry';d.append(b);}
+  }
   function settings(){
     const d=panel('Einstellungen');d.classList.add('settings-hub');
-    const hint=document.createElement('p');hint.textContent='Wähle den Bereich, den du einstellen möchtest.';d.append(hint);
-    const entries=[
-      ['Entdecken und Suchen','Neue Funktionen, Notizbücher und Aktivitäten',()=>window.SofiaStudio.home()],
-      ['Mein Startbereich','Schnellzugriffe und letzte Aktivitäten',()=>window.SofiaWorkbench.home()],
-      ['Persönlich','Profil, Tagebuch und Gedächtnis',()=>window.SofiaCompanion?.personal()],
-      ['Gespräch','Antwortstil, Chat und Sprachnachrichten',conversationMenu],
-      ['Alltag und Planung','Routinen, Kalender und gemeinsame Projekte',()=>window.SofiaGrowth.planning()],
-      ['Fotostudio','Galerie, Fotoprojekte und Bildbearbeitung',()=>window.SofiaCompanion?.studio()],
-      ['Aktivitäten','Spiele, Geschichten und Lernziele',()=>window.SofiaCompanion?.activities()],
-      ['Eigeninitiative','Kontakthäufigkeit, Ruhezeiten und Pausen',()=>window.SofiaSocial?.preferences?.({section:'initiative'})],
+    menuEntries(d,'','Wähle einen Bereich. Deinen persönlichen Start erreichst du jederzeit über das Haussymbol.',[
+      ['Aktivitäten und Wissen','Suche, Notizbücher, Lernen, Spiele und Ideen',activityMenu],
+      ['Persönlich','Profil, Tagebuch und Gedächtnis',()=>window.SofiaCompanion.personal()],
+      ['Gespräch','Chat, Sprache und Gesprächseinstellungen',conversationMenu],
+      ['Alltag und Planung','Vorhaben, Fokus, Routinen und Kalender',()=>window.SofiaGrowth.planning()],
+      ['Fotostudio','Fotos ansehen, bearbeiten und gestalten',()=>window.SofiaCompanion.studio()],
+      ['Eigeninitiative','Kontakte, Ruhezeiten und Pausen',()=>window.SofiaSocial.preferences({section:'initiative'})],
       ['Darstellung und Ton','Schrift, Chatdichte und Tonausgabe',presentation],
-      ['App und Hilfe','Updates, Aufträge, Nutzung und Mitteilungen',appHelp]
-    ];
-    for(const [title,description,action]of entries){const b=button(title,()=>menuNext(d,action,settings));b.className='settings-entry';const sub=document.createElement('small');sub.textContent=description;b.append(sub);d.append(b);}return d;
+      ['App und Hilfe','Updates, Sicherung, Geräte und Aufträge',appHelp]
+    ],settings,true);return d;
   }
-  function conversationMenu(){const d=panel('Gespräch');d.append(button('Eigene Situationsprofile',()=>menuNext(d,()=>window.SofiaWorkbench.profiles(),conversationMenu)),button('Situationsmodus und Fokus',()=>menuNext(d,()=>window.SofiaExpansion.situation(),conversationMenu)),button('Gesprächszweige',()=>menuNext(d,()=>window.SofiaExpansion.sessions('branch'),conversationMenu)),button('Gesprächswünsche und Grenzen',()=>menuNext(d,()=>window.SofiaUpgrade.wishes(),conversationMenu)),button('Sprache und Wiedergabe',()=>menuNext(d,()=>window.SofiaUpgrade.audio(),conversationMenu)),button('Gespräch fortsetzen',()=>menuNext(d,()=>window.SofiaFeatures.continuity(),conversationMenu)),button('Antwortstil und Gesprächsfluss',()=>menuNext(d,()=>window.SofiaGrowth.conversation(),conversationMenu)),button('Gesprächsinitiative',()=>menuNext(d,()=>window.SofiaCharacterSettings?.open?.('conversation'),conversationMenu)),button('Chatverlauf verwalten',()=>menuNext(d,chatSettings,conversationMenu)),button('Sprachnachrichten',()=>menuNext(d,()=>window.SofiaNext.voice(),conversationMenu)),button('Live-Gespräch',()=>menuNext(d,()=>window.SofiaCompanion.liveControls(),conversationMenu)));return d;}
-  function appHelp(){const d=panel('App und Hilfe');const version=document.createElement('p');version.textContent='Sofia 4.178.0';d.append(version,button('Lokale Formularentwürfe',()=>menuNext(d,()=>window.SofiaOffline.open(),appHelp)),button('Daten und Geräte',()=>menuNext(d,()=>window.SofiaFeatures.data(),appHelp)),button('Aufträge und Status',()=>menuNext(d,()=>window.SofiaCompanion.jobs(),appHelp)),button('Nutzung und Limits',()=>menuNext(d,()=>window.SofiaCompanion.usage(),appHelp)),button('Mitteilungen',()=>menuNext(d,()=>window.SofiaSocial.preferences({section:'notifications'}),appHelp)),button('Datensicherung und Wiederherstellung',()=>menuNext(d,()=>window.SofiaEvolution.backup(),appHelp)),button('Technische Übersicht',()=>menuNext(d,diagnostics,appHelp)));if(updateAvailable)d.append(button('Neue Version laden',applyUpdate));if(pendingDraft)d.append(button('Letzten Versand prüfen',()=>menuNext(d,pendingSubmission,appHelp)));
+  function activityMenu(){
+    const d=panel('Aktivitäten und Wissen');
+    menuEntries(d,'Schnell finden','Nach Begriffen suchen oder gespeicherte Aktivitäten fortsetzen.',[
+      ['Funktion suchen und Favoriten', 'Zum Beispiel „Spanisch üben“ oder „PDF lesen“.',()=>window.SofiaStudio.home()],
+      ['Aktivitätsverlauf','Ergebnisse und letzte Sitzungen wieder öffnen.',()=>window.SofiaStudio.history()]
+    ],activityMenu);
+    menuEntries(d,'Lesen und Lernen','Eigene Inhalte sammeln, gemeinsam lesen und üben.',[
+      ['Notizbücher','Notizen, Chat-Ausschnitte und Fotos sammeln.',()=>window.SofiaStudio.notes()],
+      ['Dokumente gemeinsam lesen','PDF oder Text importieren und mit Quellen besprechen.',()=>window.SofiaStudio.documents()],
+      ['Lernmaterial erstellen','Bearbeitbare Karten aus deinen Quellen erstellen.',()=>window.SofiaStudio.learning()],
+      ['Quiz und Lernkarten','Gespeicherte Karten wiederholen oder ein Quiz wählen.',()=>window.SofiaWorkbench.quiz()],
+      ['Vorlesen und weiterlesen','Text auswählen und an der gespeicherten Stelle fortsetzen.',()=>window.SofiaStudio.reader()]
+    ],activityMenu);
+    menuEntries(d,'Spielen und Sprechen','Eine Übung oder Geschichte selbst starten.',[
+      ['Sprachtrainer','Dialoge in der gewählten Sprache und auf deinem Niveau.',()=>window.SofiaWorkbench.sessions('language')],
+      ['Sprechübungen','Beispiel anhören, selbst aufnehmen und Transkript vergleichen.',()=>window.SofiaStudio.speaking()],
+      ['Rätselabenteuer','Gemeinsam rätseln und gespeicherte Spielstände fortsetzen.',()=>window.SofiaStudio.puzzles()],
+      ['Rollenspiel mit mehreren Figuren','Gesprächssituationen mit getrennten Rollen trainieren.',()=>window.SofiaStudio.roles()],
+      ['Geschichtenwelt','Eigene Geschichten und alternative Verläufe.',()=>window.SofiaWorkbench.sessions('story')],
+      ['Kurze Spiele und Lernziele','Kleine Spielrunden und die bisherigen Lernfunktionen.',()=>window.SofiaCompanion.activities()]
+    ],activityMenu);
+    menuEntries(d,'Ideen und Freizeit','Gedanken verbinden und gemeinsame Vorhaben vorbereiten.',[
+      ['Gedankenkarte','Gespeicherte Inhalte mit eigenen Verbindungen ordnen.',()=>window.SofiaStudio.map()],
+      ['Ideenwerkstatt','Ideen sammeln und weiterentwickeln.',()=>window.SofiaWorkbench.ideas()],
+      ['Entscheidungswerkstatt','Optionen anhand deiner Kriterien vergleichen.',()=>window.SofiaWorkbench.decisions()],
+      ['Ausflug planen','Zeit, Interessen und Budget zu einem Entwurf verbinden.',()=>window.SofiaStudio.outing()],
+      ['Passende Aktivität finden','Auf Wunsch Vorschläge für deine Zeit und Stimmung.',()=>window.SofiaStudio.recommend()]
+    ],activityMenu);return d;
+  }
+  function conversationMenu(){
+    const d=panel('Gespräch');
+    menuEntries(d,'Sprechen und hören','Die passende Gesprächsform direkt öffnen.',[
+      ['Sprachnachrichten','Aufnehmen, Transkript prüfen und ausdrücklich senden.',()=>window.SofiaNext.voice()],
+      ['Live-Gespräch','Ein Sprachgespräch selbst starten oder beenden.',()=>window.SofiaCompanion.liveControls()],
+      ['Sprache und Wiedergabe','Wiedergabetempo und Audioantworten einstellen.',()=>window.SofiaUpgrade.audio()]
+    ],conversationMenu);
+    menuEntries(d,'Gespräch gestalten','Antworten und vorübergehende Situationen anpassen.',[
+      ['Eigene Situationsprofile','Gespeicherte Profile für Arbeit, unterwegs oder Freizeit.',()=>window.SofiaWorkbench.profiles()],
+      ['Antwortstil und Gesprächsfluss','Länge, Ton und Gesprächsverhalten anpassen.',()=>window.SofiaGrowth.conversation()],
+      ['Gesprächswünsche und Grenzen','Konkrete Wünsche und vorübergehende Grenzen festhalten.',()=>window.SofiaUpgrade.wishes()],
+      ['Gesprächsinitiative','Sofias Verhalten innerhalb eines Gesprächs einstellen.',()=>window.SofiaCharacterSettings.open('conversation')]
+    ],conversationMenu);
+    menuEntries(d,'Verlauf und Fortsetzung','Gespräche wieder aufnehmen oder getrennt weiterführen.',[
+      ['Gespräch fortsetzen','An gespeicherte Gesprächsfäden anknüpfen.',()=>window.SofiaFeatures.continuity()],
+      ['Gesprächszweige','Einen separaten Verlauf öffnen.',()=>window.SofiaExpansion.sessions('branch')],
+      ['Chatverlauf verwalten','Zeiträume prüfen und Chatnachrichten bereinigen.',chatSettings]
+    ],conversationMenu);return d;
+  }
+  function appHelp(){const d=panel('App und Hilfe');const version=document.createElement('p');version.textContent='Sofia 4.179.0';d.append(version,button('Lokale Formularentwürfe',()=>menuNext(d,()=>window.SofiaOffline.open(),appHelp)),button('Daten und Geräte',()=>menuNext(d,()=>window.SofiaFeatures.data(),appHelp)),button('Aufträge und Status',()=>menuNext(d,()=>window.SofiaCompanion.jobs(),appHelp)),button('Nutzung und Limits',()=>menuNext(d,()=>window.SofiaCompanion.usage(),appHelp)),button('Mitteilungen',()=>menuNext(d,()=>window.SofiaSocial.preferences({section:'notifications'}),appHelp)),button('Datensicherung und Wiederherstellung',()=>menuNext(d,()=>window.SofiaEvolution.backup(),appHelp)),button('Technische Übersicht',()=>menuNext(d,diagnostics,appHelp)));if(updateAvailable)d.append(button('Neue Version laden',applyUpdate));if(pendingDraft)d.append(button('Letzten Versand prüfen',()=>menuNext(d,pendingSubmission,appHelp)));
     if(hiddenMessages.length)d.append(button('Ausgeblendete Nachrichten',()=>{const list=panel('Ausgeblendete Nachrichten');const status=statusNode(list);for(const turn of hiddenMessages.slice(-40).reverse()){const row=document.createElement('div'),text=document.createElement('p');text.textContent=(turn.role==='user'?'Du: ':'Sofia: ')+turn.content.slice(0,300);const restore=button('Wiederherstellen',async()=>{restore.disabled=true;try{await window.SofiaChatDelete(turn,true);row.remove();}catch(e){status.textContent=e.message;restore.disabled=false;}});row.append(text,restore);list.append(row);}}));return d;
   }
   function chatTools(){const d=panel('Chat durchsuchen');d.append(button('Intelligente Suche',()=>menuNext(d,()=>window.SofiaNext.search(),chatTools)),button('Im Chat suchen',()=>menuNext(d,search,chatTools)),button('Angeheftete Nachrichten',()=>menuNext(d,pinned,chatTools)));return d;}

@@ -12,7 +12,29 @@
  const time=x=>new Date(x).toLocaleString('de-DE',{timeZone:'Europe/Berlin',dateStyle:'medium',timeStyle:'short'});
  const edit=(state,action,extra={})=>request('growth_edit',{edit:{revision:state.revision,action,...extra}});
  const download=(filename,text,mime)=>{const url=URL.createObjectURL(new Blob([text],{type:mime})),a=node('a');a.href=url;a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
- function planning(){const d=panel('Alltag und Planung');d.append(button('Mein Startbereich',()=>next(d,()=>window.SofiaWorkbench.home(),planning)),button('Fokus mit Etappen',()=>next(d,()=>window.SofiaWorkbench.focus(),planning)),button('Eigene Situationsprofile',()=>next(d,()=>window.SofiaWorkbench.profiles(),planning)),button('Gemeinsam entscheiden',()=>next(d,()=>window.SofiaWorkbench.decisions(),planning)),button('Ideensammlung',()=>next(d,()=>window.SofiaWorkbench.ideas(),planning)),button('Situationsmodus und Fokus',()=>next(d,()=>window.SofiaExpansion.situation(),planning)),button('Persönlicher Wochenrückblick',()=>next(d,()=>window.SofiaExpansion.week(),planning)),button('Vorhabenbegleitung',()=>next(d,()=>window.SofiaExpansion.followups(),planning)),button('Projektvorlagen',()=>next(d,()=>window.SofiaUpgrade.templates(),planning)),button('Mein Heute',()=>next(d,()=>window.SofiaFeatures.today(),planning)),button('Projektwerkstatt',()=>next(d,()=>window.SofiaFeatures.projects(),planning)),button('Freiwillige Routinen',()=>next(d,routines,planning)),button('Kalender und Zeitplanung',()=>next(d,calendar,planning)),button('Projektübersicht und nächste Schritte',()=>next(d,projects,planning)),button('Gemeinsame Vorhaben verwalten',()=>next(d,()=>window.SofiaProjects.open(),planning)));return d;}
+ function planning(){const d=panel('Alltag und Planung');
+  C.menuGroup(d,'Heute und Zeit','Direkt zu den wichtigsten Alltagsansichten.',[
+   ['Mein Heute','Offene Aufgaben und den heutigen Überblick ansehen.',()=>window.SofiaFeatures.today()],
+   ['Fokus mit Etappen','Eine konzentrierte Einheit mit Pausen planen.',()=>window.SofiaWorkbench.focus()],
+   ['Freiwillige Routinen','Eigene Abläufe und heutige Schritte pflegen.',routines],
+   ['Kalender und Zeitplanung','Die vorhandene Kalenderplanung öffnen.',calendar]
+  ],planning);
+  C.menuGroup(d,'Vorhaben','Projekte und ihre nächsten Schritte verwalten.',[
+   ['Projektübersicht und nächste Schritte','Aktive Vorhaben und konkrete nächste Schritte.',projects],
+   ['Gemeinsame Vorhaben verwalten','Vorhaben anlegen und bearbeiten.',()=>window.SofiaProjects.open()],
+   ['Projektvorlagen','Vorbereitete Schritte für neue Vorhaben.',()=>window.SofiaUpgrade.templates()]
+  ],planning);
+  const more=node('details');more.className='menu-more';more.append(node('summary','Weitere Planungswerkzeuge'));d.append(more);
+  C.menuGroup(more,'','Ergänzende Werkzeuge und persönliche Einstellungen.',[
+   ['Projektwerkstatt','Vorhaben mit Lernzielen und Meilensteinen verbinden.',()=>window.SofiaFeatures.projects()],
+   ['Persönlicher Wochenrückblick','Gespeicherte Fortschritte der Woche ansehen.',()=>window.SofiaExpansion.week()],
+   ['Vorhabenbegleitung','Freiwillige Nachfragen zu Projekten einstellen.',()=>window.SofiaExpansion.followups()],
+   ['Eigene Situationsprofile','Zeitlich begrenzte Profile auswählen.',()=>window.SofiaWorkbench.profiles()],
+   ['Situationsmodus und Fokus','Die bisherige einfache Situationsauswahl.',()=>window.SofiaExpansion.situation()],
+   ['Gemeinsam entscheiden','Optionen anhand eigener Kriterien vergleichen.',()=>window.SofiaWorkbench.decisions()],
+   ['Ideensammlung','Ideen für spätere Vorhaben festhalten.',()=>window.SofiaWorkbench.ideas()]
+  ],planning);return d;
+ }
  async function conversation(){
   const d=panel('Antwortstil und Gesprächsfluss'),p=status(d),form=node('form');d.append(form);
   try{let state=(await request()).state;const c=state.conversationPreferences,length=field(form,'Antwortlänge',c.length,[['brief','Kurz'],['balanced','Ausgewogen'],['detailed','Ausführlich']]),humor=field(form,'Humor im Gespräch',c.humor,[['off','Zurückhaltend ohne Scherze'],['balanced','Situationsgerecht'],['playful','Leicht verspielt']]),questions=field(form,'Rückfragen',c.questions,[['careful','Nur wenn hilfreich oder notwendig'],['normal','Natürlich und sparsam']]),transitions=field(form,'Themenwechsel',c.transitions,[['gentle','Beim Thema bleiben'],['normal','Bei passendem Anlass']]);
