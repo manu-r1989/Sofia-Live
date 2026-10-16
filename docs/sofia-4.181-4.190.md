@@ -1,6 +1,6 @@
 # Sofia 4.181–4.190 · Quellen, Lernwege und persönliche Abläufe
 
-Releaseziel 4.190.0 auf Basis der am iPhone bestätigten 4.180.2. Alle neuen Werkzeuge sind unter Einstellungen → Aktivitäten und Wissen → Neue Werkzeuge und Abläufe erreichbar. Die gemeinsame Suche ist zusätzlich im Suchmenü verfügbar; die Werkzeuge stehen auch im Funktionskatalog und als auswählbare Favoriten bereit.
+Releaseziel 4.190.0 auf Basis der am iPhone bestätigten 4.180.2. Alle neuen Werkzeuge sind unter Einstellungen → Aktivitäten und Wissen → Werkzeuge und Abläufe erreichbar. Die gemeinsame Suche ist zusätzlich im Suchmenü verfügbar; die Werkzeuge stehen auch im Funktionskatalog und als auswählbare Favoriten bereit.
 
 | Version | Umsetzung |
 | --- | --- |
@@ -34,3 +34,12 @@ Der zuvor erschöpfte Testdatenspeicher antwortet wieder. Reale Abnahme mit isol
 Browserprüfung: Werkzeugübersicht, gemeinsame Suche mit zwei Treffern und aktuell geladener Originalstelle sowie gespeicherte Fotogeschichte geöffnet. PNG und vollständige HTML-Fotogeschichte tatsächlich heruntergeladen: zwei eingebettete Bildseiten, PNG 1200 × 1600, erste HTML-Bildseite bytegleich mit dem PNG; Bild und Beschriftung visuell kontrolliert. Die HTML-Datei benötigt keine externen Bildressourcen. Neue physische iPhone-Abnahme wurde hier nicht durchgeführt; die bereits vom Nutzer bestätigte Chat-Geometrie aus 4.180.2 bleibt erhalten.
 
 Temporäre Speicherdiagnose ist aus dem Release entfernt. Keine Tarif-/Zugangsdatenänderung und keine Ersatzdatenbank angelegt.
+
+
+## UI-Nachbesserung 4.190.1
+
+Werkzeugübersicht in drei Themenbereiche gegliedert und Suchstichworte durch verständliche Aktionshinweise ersetzt. Verwendet dieselben linksbündigen Menüeinträge wie die bestehenden Einstellungen. Zurück/Schließen auf 44 × 44 Pixel vergrößert, sichtbaren Tastaturfokus ergänzt und Formularfelder in Fotokapiteln und Weltwissen über die Kartenbreite angeordnet. Menübuttons unter 360 Pixeln erhalten eine einheitliche Mindesthöhe von 66 Pixeln für zweizeilige Titel. Training und neue Geschichtenwelt zeigen nach dem Laden einen echten Hinweis statt dauerhaft „Wird geladen …“.
+
+965 automatisierte Tests bestanden. Responsive Browserprüfung bei 320 und 390 Pixeln: Menütexte, lange Überschriften, Zurücknavigation sowie Trainings- und Fotokapitel-Formulare geprüft, kein horizontaler Dialogüberlauf. Dies ist keine Prüfung auf einem physischen iPhone. Chat-Geometrie und Farben wurden nicht geändert. Die ausschließlich auf dem Testzweig abgelegte UI-Prüfseite wird nicht produktiv veröffentlicht.
+
+Das ausschließlich in der Testversion sichtbare Banner meldet seine tatsächliche Höhe; die Aktionsleiste beginnt darunter, auch wenn der Bannertext umbricht. Die Banneraktionen besitzen ebenfalls mindestens 44 Pixel Höhe.

@@ -849,11 +849,11 @@
 }
 
 @media (orientation:landscape) and (min-width:851px) {
-  body:has(#sofia-test-banner) .actions { top:44px!important; }
+  body:has(#sofia-test-banner) .actions { top:var(--sofia-test-banner-height,44px)!important; }
   body:has(#sofia-test-banner) .chatPanel,
   body:has(#sofia-test-banner) .chatPanel.minimized,
   body:has(#sofia-test-banner) .chatPanel.chat-full,
-  body:has(#sofia-test-banner) .moodPanel { top:110px!important; }
+  body:has(#sofia-test-banner) .moodPanel { top:calc(var(--sofia-test-banner-height,44px) + 66px)!important; }
 }
 /* Sofia 4.34.2: persistent, unobtrusive Hamburg message times. */
 .contact-highlight { outline: 1px solid #b6a387; outline-offset: 3px; }
@@ -1022,7 +1022,7 @@ dialog legend,dialog label{font-size:13px;color:var(--ui-muted)}
 @media (orientation:landscape) and (min-width:851px){
  #toolsToggle{display:inline-flex!important}
  .app.tools-closed .chatPanel{top:max(18px,env(safe-area-inset-top))!important}
- body:has(#sofia-test-banner) .app.tools-closed .chatPanel{top:44px!important}
+ body:has(#sofia-test-banner) .app.tools-closed .chatPanel{top:var(--sofia-test-banner-height,44px)!important}
 }
 /* Keep photo choices aligned despite the generic composer input rules. */
 #sofiaMemoryOverlay fieldset label{display:flex;align-items:center;gap:10px;min-height:44px;line-height:1.35}
@@ -1277,7 +1277,7 @@ html[data-chat-font="large"] .photo-follow-ups{grid-template-columns:repeat(2,mi
 .sofia-photo-view .photo-source-choice{padding:8px;font-size:12px}
 @media(min-width:851px){:root:not([data-keyboard-open="true"]) .app .chatPanel[data-chat-size="full"]{bottom:22px!important;top:18px!important}:root:not([data-keyboard-open="true"]) .app .chatPanel[data-chat-size="compact"]{bottom:22px!important;height:calc((100dvh - 40px)/2)!important;max-height:calc((100dvh - 40px)/2)!important}}
 @media(max-width:360px){.sofia-main-nav{gap:2px}.sofia-main-nav>button{padding:5px!important}.sofia-main-nav svg{width:19px;height:19px}}
-body:has(#sofia-test-banner) .app .chatPanel[data-chat-size="full"]{top:44px!important}
+body:has(#sofia-test-banner) .app .chatPanel[data-chat-size="full"]{top:var(--sofia-test-banner-height,44px)!important}
 body:has(#sofia-test-banner) .app .chatPanel[data-chat-size="compact"]{top:auto!important}
 .sofia-photo-view [aria-label="Vorheriges Foto"],.sofia-photo-view [aria-label="Nächstes Foto"]{min-height:36px!important;padding:6px 10px!important;font-size:12px!important;line-height:1.2!important}
 
@@ -1305,7 +1305,7 @@ body:has(#sofia-test-banner) .app .chatPanel[data-chat-size="compact"]{top:auto!
 .sofia-dialog .menu-header{display:flex!important;align-items:center!important;justify-content:space-between!important;gap:10px;flex-shrink:0;padding:10px 0!important;margin:0 0 12px;border-bottom:1px solid var(--ui-border);background:var(--ui-surface);z-index:5}
 .menu-header h2{font-size:18px;margin:0;min-width:0}
 .menu-nav-actions{display:flex;align-items:center;gap:6px;flex:none}
-.sofia-dialog .menu-nav-actions>.menu-nav-action{display:flex;align-items:center;justify-content:center;flex:none;width:40px!important;min-width:40px!important;height:40px!important;min-height:40px!important;margin:0!important;padding:0!important;border-radius:10px!important;font-size:25px!important;line-height:1!important}
+.sofia-dialog .menu-nav-actions>.menu-nav-action{display:flex;align-items:center;justify-content:center;flex:none;width:44px!important;min-width:44px!important;height:44px!important;min-height:44px!important;margin:0!important;padding:0!important;border-radius:10px!important;font-size:25px!important;line-height:1!important}
 .menu-nav-action:disabled{opacity:.3;cursor:default}
 #sofiaMemoryOverlay .menu-header{padding:12px 14px!important;margin:0!important}
 #sofiaMemoryOverlay .memory-close-bottom{display:none!important}
@@ -1445,3 +1445,18 @@ body:has(#sofia-test-banner) .app .chatPanel[data-chat-size="compact"]{top:auto!
 .journey-dialog .companion-card p{white-space:pre-wrap;overflow-wrap:anywhere}
 .journey-dialog details{margin:14px 0}.journey-dialog summary{padding:12px 0;cursor:pointer}
 .journey-dialog a[download]{display:block;padding:12px 0;overflow-wrap:anywhere}
+
+/* 4.190.1: readable action groups and robust narrow dialog forms. */
+.sofia-dialog .dialog-header h2{flex:1 1 auto;line-height:1.35}
+.sofia-dialog :is(button,a,input,select,textarea,summary):focus-visible{outline:2px solid var(--accent,#d9c3a3);outline-offset:3px}
+.sofia-dialog :is(label,legend){overflow-wrap:anywhere}
+.journey-dialog .companion-card>label{flex:1 1 100%;min-width:0}
+.journey-dialog .companion-card>label:has(input[type=checkbox]){min-height:44px;margin:0}
+.journey-dialog input[type=file]{padding:8px;min-width:0;max-width:100%}
+.journey-dialog .menu-section:first-of-type{margin-top:16px}
+.journey-dialog details>summary{min-height:44px;box-sizing:border-box;line-height:1.45}
+
+@media(max-width:360px){.sofia-dialog .menu-entry>.menu-action{min-height:66px!important}}
+
+#sofia-test-banner>span{flex:1 1 240px;min-width:0;overflow-wrap:anywhere}
+#sofia-test-banner>button,#sofia-test-banner>a{display:flex;align-items:center;justify-content:center;min-height:44px;box-sizing:border-box;padding:8px;text-align:center;flex:0 1 auto}
