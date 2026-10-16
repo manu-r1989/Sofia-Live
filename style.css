@@ -1419,3 +1419,12 @@ body:has(#sofia-test-banner) .app .chatPanel[data-chat-size="compact"]{top:auto!
 .sofia-main-nav{grid-template-columns:repeat(8,minmax(36px,1fr))!important;grid-auto-flow:column;grid-template-rows:44px;gap:4px!important;overflow-x:auto;overflow-y:hidden;scrollbar-width:thin;overscroll-behavior-inline:contain}
 .sofia-main-nav>button{min-width:36px!important;height:44px!important;min-height:44px!important;max-height:44px;margin:0!important;flex:none}
 @media(max-width:480px){.sofia-dialog .menu-section{margin:16px 0}.sofia-dialog .menu-action-list{gap:10px}.sofia-dialog .menu-hint{font-size:12px}.sofia-dialog .menu-entry>.menu-action{padding:12px!important}}
+
+/* 4.180: dock the composer to the app edge; reserve the home-indicator inset once. */
+:root:not([data-keyboard-open="true"]) .app .chatPanel:not(.chat-hidden){bottom:0!important;border-bottom:0!important;border-bottom-left-radius:0!important;border-bottom-right-radius:0!important}
+.chatPanel .messages{flex:1 1 0;min-height:0}
+.chatPanel #form{flex:0 0 auto;margin-bottom:0!important;padding-bottom:0!important;align-self:stretch}
+@media(max-width:850px){
+ :root:not([data-keyboard-open="true"]) .app .chatPanel:not(.chat-hidden){left:0!important;right:0!important;width:auto!important;padding-bottom:max(8px,env(safe-area-inset-bottom))!important}
+ :root[data-keyboard-open="true"] .app .chatPanel:not(.chat-hidden){padding-bottom:8px!important}
+}

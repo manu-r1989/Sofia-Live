@@ -918,7 +918,7 @@ let hiddenChatViewport=null;
 
 function applyChatState(state) {
   if (!chatPanel) return;
-  const next = ['hidden', 'compact', 'full'].includes(state) ? state : 'compact';
+  const next = ['hidden', 'compact', 'full'].includes(state) ? state : 'full';
   const viewport=chatPanel.classList.contains('chat-hidden')?hiddenChatViewport:window.SofiaChatViewport?.capture?.();
   if(next==='hidden')hiddenChatViewport=viewport;
   chatStateStep=CHAT_STATES.indexOf(next);
@@ -973,7 +973,8 @@ window.addEventListener('orientationchange', () => {
 });
 window.addEventListener('resize', enforceLandscapeChat);
 let savedChatSize=null;try{savedChatSize=localStorage.getItem('sofia_chat_size_v41001');}catch{}
-applyChatState(CHAT_STATES.includes(savedChatSize)?savedChatSize:window.matchMedia('(orientation: landscape)').matches?'full':'compact');
+let startChatSize='full';try{const selected=localStorage.getItem('sofia_chat_start_v4180');if([...CHAT_STATES,'last'].includes(selected))startChatSize=selected;}catch{}
+applyChatState(startChatSize==='last'?(CHAT_STATES.includes(savedChatSize)?savedChatSize:'full'):startChatSize);
 
 if (app) {
   let previousLive = app.dataset.live === 'true';
