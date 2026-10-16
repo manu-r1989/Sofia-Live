@@ -11,7 +11,7 @@
  const studio=data=>data.state.featureState.studio;
  const edit=async(data,action,value={},id=null,extra={})=>{const r=await request('studio_edit',{edit:{revision:data.state.revision,action,value,id,...extra}});data.state=r.state;if(r.puzzles)data.puzzles=r.puzzles;return r;};
  const routes={notes,documents,learning,speaking,puzzles,roles,map,outing,reader,recommend,history,language:()=>window.SofiaWorkbench.sessions('language'),focus:()=>window.SofiaWorkbench.focus(),projects:()=>window.SofiaGrowth.projects(),ideas:()=>window.SofiaWorkbench.ideas(),decisions:()=>window.SofiaWorkbench.decisions(),gallery:()=>window.SofiaImages.openGallery(),quiz:()=>window.SofiaWorkbench.quiz(),story:()=>window.SofiaWorkbench.sessions('story'),profiles:()=>window.SofiaWorkbench.profiles()};
- const open=id=>routes[id]?.();
+ const open=id=>routes[id]?.()||window.SofiaJourney?.open(id);
  const fileData=file=>new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=()=>reject(Error('Datei konnte nicht gelesen werden.'));r.readAsDataURL(file);});
  function sourceChoices(parent,data,selected=[]){const list=node('div');list.className='studio-source-list';parent.append(list);const fields=data.sources.filter(s=>['notes','documents'].includes(s.kind)&&s.text).map(s=>({source:s,input:check(list,s.title,selected.includes(s.id))}));if(!fields.length)list.append(node('p','Zuerst eine Notiz oder ein Dokument speichern.'));return ()=>fields.filter(x=>x.input.checked).map(x=>x.source.id);}
  function invalidateOnInputs(parent,fn){parent.querySelectorAll('input,textarea,select').forEach(x=>x.addEventListener('input',fn));}
