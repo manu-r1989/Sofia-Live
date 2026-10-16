@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile as nativeReadFile} from 'node:fs/promises';
-async function readFile(...args){const value=await nativeReadFile(...args);return typeof value==='string'?value.replaceAll('./expansion-state.js',new URL('../lib/expansion-state.js',import.meta.url).href).replaceAll('./studio-state.js',new URL('../lib/studio-state.js',import.meta.url).href):value;}
+async function readFile(...args){const value=await nativeReadFile(...args);return typeof value==='string'?value.replaceAll('./expansion-state.js',new URL('../lib/expansion-state.js',import.meta.url).href).replaceAll('./studio-state.js',new URL('../lib/studio-state.js',import.meta.url).href).replaceAll('./journey-state.js',new URL('../lib/journey-state.js',import.meta.url).href):value;}
 const root=new URL('../',import.meta.url);
 const source=await readFile(new URL('lib/environment.js',root),'utf8');
 const url='data:text/javascript;base64,'+Buffer.from(source).toString('base64');

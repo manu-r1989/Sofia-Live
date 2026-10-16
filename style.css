@@ -1439,3 +1439,9 @@ body:has(#sofia-test-banner) .app .chatPanel[data-chat-size="compact"]{top:auto!
  :root[data-ios-standalone="true"]:not([data-keyboard-open="true"]) .app .chatPanel:not(.chat-hidden){position:absolute!important}
  :root[data-ios-standalone="true"]:not([data-keyboard-open="true"]) .app .chatPanel[data-chat-size="compact"]{height:calc((100vh - max(12px,env(safe-area-inset-top)))/2)!important;max-height:calc((100vh - max(12px,env(safe-area-inset-top)))/2)!important}
 }
+
+/* Activity workspaces keep exported pages and long source text inside dialogs. */
+.journey-dialog canvas{display:block;max-width:100%;height:auto;margin:12px auto;border-radius:12px}
+.journey-dialog .companion-card p{white-space:pre-wrap;overflow-wrap:anywhere}
+.journey-dialog details{margin:14px 0}.journey-dialog summary{padding:12px 0;cursor:pointer}
+.journey-dialog a[download]{display:block;padding:12px 0;overflow-wrap:anywhere}
