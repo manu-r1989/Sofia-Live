@@ -125,6 +125,8 @@
   }
   window.SofiaUI={menuSection,enhanceDialog,navigateFrom,closeToChat,resizeComposer,refreshDays,motion,bindSendButton,focusEditor};
   const input=document.getElementById('input');input?.addEventListener('input',()=>resizeComposer(input));resizeComposer(input);
+  // iOS home-screen mode needs its full layout canvas, not a fixed-bottom viewport.
+  document.documentElement.dataset.iosStandalone=String(window.navigator?.standalone===true);
   const viewport=window.visualViewport;
   let layoutHeight=Math.max(window.innerHeight||0,document.documentElement.clientHeight||0,viewport?.height||0);
   let layoutWidth=window.innerWidth||0,lastHeight=null,lastEditor=null;
