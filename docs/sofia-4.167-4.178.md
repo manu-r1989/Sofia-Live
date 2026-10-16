@@ -25,7 +25,9 @@ KI-Ergebnisse sind zehn Minuten gültige Entwürfe. Bestätigte Speicherung erfo
 
 ## Prüfung
 
-- Gesamte Suite: 937 Tests bestanden, keine übersprungenen Tests (erste vollständige Prüfung).
+- Gesamte Suite: 939 Tests bestanden, keine fehlgeschlagenen oder übersprungenen Tests (abschließende vollständige Prüfung).
 - Neue Integrationstests: echte zweiseitige PDF-Extraktion, keine Textscans; tatsächliche Chatquellen, ungültige Fotos, Archiv/Wiederherstellung, Revisionskonflikte, erfundene Quellen, Kartenübernahme genau einmal, laufende parallele Änderungen, Rätsel bis Abschluss, Rollentrennung und Feedback, Kartenverbindungen, unveränderte Kalenderdaten, Leseposition und geänderte Quellen, optionale Empfehlungen, Backup-Rundlauf und Anbieterfehler.
-- Browserabnahme und serverseitiger PDF-Import auf Testdeployment: vor Veröffentlichung zu ergänzen.
+- Browserabnahme auf getrenntem Testdeployment: Funktionssuche „Spanisch üben“, Favorit, Notiz mit Fotozuordnung, tatsächlicher zweiseitiger PDF-Import, belegte PDF-Antwort mit beiden Originalseiten, bearbeitete Besprechungsnotiz, vier bearbeitete Lernkarten, Rätsel einschließlich Fehlversuch/Hinweis bis Abschluss sowie getrennte Rollenantworten bestätigt.
+- Nach Unterbrechungen der Browserverbindung wurden die tatsächlichen Speicherstände zuerst gelesen; keine unbestätigte Aktion blind wiederholt. Weitere API-Abnahme: bestätigte Rollenspielrunde und Feedback, echte Kartenverbindung, gespeicherte Leseposition, Ausflugsentwurf, optionale Aktivitätsvorschläge und kombinierter Verlauf. Tatsächliche TTS-Ausgabe (55.296 Bytes audio/mpeg) und anschließende Transkription mit erzeugtem spanischem Testaudio bestätigt: „Quiero un café con leche, por favor.“ Kalenderdaten vor und nach der Abnahme unverändert.
+- Quellenprüfung toleriert reine Unterschiede bei Zeilenumbrüchen/Leerraum, gibt jedoch den gefundenen Originalausschnitt zurück. Erfundenen Wortlaut und unbekannte Quellen weist sie zurück. Lernkarten verwenden möglichst kurze Musterantworten und bleiben vor Übernahme bearbeitbar.
 - Physischer Mikrofon-/iPhone-Test bleibt gesondert offen. Server-Runtimeprotokolle sind über die aktuelle Verbindung nicht zugänglich; keine Aussage über einen vollständigen serverseitigen Fehlerscan.
