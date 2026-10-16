@@ -1426,7 +1426,16 @@ body:has(#sofia-test-banner) .app .chatPanel[data-chat-size="compact"]{top:auto!
 .chatPanel #form{flex:0 0 auto;margin-bottom:0!important;padding-bottom:0!important;align-self:stretch}
 @media(max-width:850px){
  :root:not([data-keyboard-open="true"]) .app{position:fixed!important;top:0!important;bottom:auto!important;left:0!important;right:0!important;height:100dvh!important;min-height:0!important;padding-bottom:0!important}
- :root:not([data-keyboard-open="true"]) .app .chatPanel:not(.chat-hidden){left:0!important;right:0!important;bottom:0!important;width:auto!important;padding-bottom:0!important;border-left:0!important;border-right:0!important;border-bottom:0!important;border-bottom-left-radius:0!important;border-bottom-right-radius:0!important;background:var(--ui-surface,#0c1016)!important}
+ :root:not([data-keyboard-open="true"]) .app .chatPanel:not(.chat-hidden){left:0!important;right:0!important;bottom:0!important;width:auto!important;padding-bottom:0!important;border-left:0!important;border-right:0!important;border-bottom:0!important;border-bottom-left-radius:0!important;border-bottom-right-radius:0!important}
  :root:not([data-keyboard-open="true"]) .app .chatPanel #form{padding-bottom:max(8px,env(safe-area-inset-bottom))!important}
  :root[data-keyboard-open="true"] .app .chatPanel:not(.chat-hidden){padding-bottom:8px!important}
+}
+/* 4.180.2: installed iOS uses vh for the full canvas. Remove the fixed body and
+   anchor the idle chat inside that canvas; fixed bottom can omit the status-bar
+   area even when the parent itself has the correct height (WebKit 236445). */
+@media(max-width:850px){
+ :root[data-ios-standalone="true"],:root[data-ios-standalone="true"] body{position:relative!important;inset:auto!important;height:100vh!important;min-height:100vh!important;overflow:hidden!important}
+ :root[data-ios-standalone="true"] .app{position:absolute!important;inset:0 auto auto 0!important;width:100%!important;height:100vh!important;min-height:0!important}
+ :root[data-ios-standalone="true"]:not([data-keyboard-open="true"]) .app .chatPanel:not(.chat-hidden){position:absolute!important}
+ :root[data-ios-standalone="true"]:not([data-keyboard-open="true"]) .app .chatPanel[data-chat-size="compact"]{height:calc((100vh - max(12px,env(safe-area-inset-top)))/2)!important;max-height:calc((100vh - max(12px,env(safe-area-inset-top)))/2)!important}
 }

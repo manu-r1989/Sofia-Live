@@ -9,12 +9,13 @@ test('close to chat dismisses a submenu without reopening its parent',async()=>{
 test('close to chat refuses to discard unacknowledged settings and retains the back route',async()=>{const h=harness(),child=menu(h,'Fotos');h.window.SofiaCharacterSettings={flush:async()=>false};assert.equal(await h.window.SofiaUI.closeToChat(child),false);assert.notEqual(child.dataset.menuForward,'true');});
 test('a failed settings flush keeps the submenu open and does not navigate',async()=>{const h=harness(),d=menu(h,'Fotos');let opened=0;const result=await h.window.SofiaUI.navigateFrom(d,()=>opened++,()=>menu(h,'Einstellungen'),async()=>false);assert.equal(result,false);assert.equal(opened,0);assert.equal(d.dataset.menuForward,undefined);});
 test('an explicit jump to chat does not reopen a menu behind it',()=>{const h=harness(),settings=menu(h,'Einstellungen');let child,returned=0;h.window.SofiaUI.navigateFrom(settings,()=>child=menu(h,'Letzter Versand'),()=>{returned++;return menu(h,'Einstellungen');});child.dataset.returnToLatest='true';child.close();assert.equal(returned,0);});
-function harness(){
+function harness({standalone}={}){
  const events={},variables={},input={tagName:'TEXTAREA',style:{},scrollHeight:210,addEventListener:(t,f)=>events[t]=f};
  const document={activeElement:input,documentElement:{dataset:{},style:{setProperty:(k,v)=>variables[k]=v}},getElementById:()=>input};
  const window={innerHeight:800,addEventListener(){},visualViewport:{height:470,offsetTop:0,addEventListener:(t,f)=>events['viewport-'+t]=f},SofiaChatViewport:{capture:()=>({reading:true}),restore:v=>events.restore=v}};
- vm.runInNewContext(source,{window,document,Intl,Date});return {window,document,input,events,variables};
+ window.navigator={standalone};vm.runInNewContext(source,{window,document,Intl,Date});return {window,document,input,events,variables};
 }
+test('iOS home-screen layout is enabled only by the actual standalone flag',()=>{assert.equal(harness({standalone:true}).document.documentElement.dataset.iosStandalone,'true');assert.equal(harness({standalone:false}).document.documentElement.dataset.iosStandalone,'false');assert.equal(harness().document.documentElement.dataset.iosStandalone,'false');});
 test('composer grows to a bounded height and keyboard inset is removed on blur',()=>{
  const h=harness();assert.equal(h.input.style.height,'144px');assert.equal(h.variables['--sofia-keyboard-inset'],'330px');h.document.activeElement=null;h.events.blur();assert.equal(h.variables['--sofia-keyboard-inset'],'0px');h.input.scrollHeight=20;h.events.input();assert.equal(h.input.style.height,'46px');
 });
