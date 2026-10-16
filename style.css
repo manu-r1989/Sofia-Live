@@ -1455,3 +1455,5 @@ body:has(#sofia-test-banner) .app .chatPanel[data-chat-size="compact"]{top:auto!
 .journey-dialog input[type=file]{padding:8px;min-width:0;max-width:100%}
 .journey-dialog .menu-section:first-of-type{margin-top:16px}
 .journey-dialog details>summary{min-height:44px;box-sizing:border-box;line-height:1.45}
+
+@media(max-width:360px){.sofia-dialog .menu-entry>.menu-action{min-height:66px!important}}
