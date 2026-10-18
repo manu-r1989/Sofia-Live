@@ -1,6 +1,16 @@
 (() => {
  const node=(tag,text)=>{const el=document.createElement(tag);if(text!==undefined)el.textContent=text;return el;};
- async function request(operation,data={}){const started=Date.now(),draft=window.SofiaOffline?.submission?.();const r=await fetch('/api/session?companion=1',{method:operation?'POST':'GET',credentials:'same-origin',cache:'no-store',signal:AbortSignal.timeout(operation==='upload_confirm'?210000:['journey_generate','continuity_generate'].includes(operation)?65000:45000),...(operation?{headers:{'Content-Type':'application/json'},body:JSON.stringify({operation,...data})}:{})});const result=await r.json();if(!r.ok)throw Error(result.error||'Die Ansicht konnte nicht geladen werden.');window.SofiaOffline?.saved?.(operation,data,started,draft);return result;}
+ let activeRequests=0;
+ async function request(operation,data={},options={}){
+  const started=Date.now(),draft=window.SofiaOffline?.submission?.(options.fields);activeRequests++;
+  try{
+   const response=await fetch('/api/session?companion=1',{method:operation?'POST':'GET',credentials:'same-origin',cache:'no-store',signal:AbortSignal.timeout(operation==='upload_confirm'?210000:['journey_generate','continuity_generate','hub_generate'].includes(operation)?65000:45000),...(operation?{headers:{'Content-Type':'application/json'},body:JSON.stringify({operation,...data})}:{})});
+   const result=await response.json();if(!response.ok){const error=Error(result.error||'Die Ansicht konnte nicht geladen werden.');error.rejected=true;throw error;}
+   window.SofiaOffline?.saved?.(operation,data,started,draft);return result;
+  }catch(error){if(error.rejected)throw error;const saving=operation&&(/_edit$|_confirm$|_turn$/.test(operation)||['edit','session_vocabulary'].includes(operation));const failure=Error(saving?'Speicherergebnis nicht bestätigt. Öffne den gespeicherten Stand vor einer Wiederholung neu. Dein lokaler Entwurf bleibt erhalten.':'Verbindung oder Antwort konnte nicht bestätigt werden. Es wird nichts automatisch erneut angefragt.');failure.uncertain=true;throw failure;
+  }finally{activeRequests--;}
+ }
+
  function button(text,action){const b=node('button',text);b.type='button';b.onclick=action;return b;}
  function panel(title){const d=node('dialog');d.className='workspace-dialog companion-dialog';d.addEventListener('submit',event=>event.preventDefault());const head=node('div');head.className='dialog-header';head.append(node('h2',title));d.append(head);document.body.append(d);d.addEventListener('close',()=>d.remove(),{once:true});window.SofiaUI?.enhanceDialog(d,title);d.showModal();return d;}
  async function jobs(){const d=panel('Aufträge und Status'),status=node('p','Aufträge werden geladen …'),list=node('div');status.setAttribute('role','status');d.append(status,button('Aktualisieren',load),list);
@@ -116,5 +126,5 @@
   const inputs={};for(const [key,title,max]of [['images','Bildversuche pro Monat (0 = ohne eigenes Limit)',10000],['liveMinutes','Live-Minuten pro Monat (0 = ohne eigenes Limit)',100000],['imagePrice','Geschätzter Preis je Bildversuch in Euro (0 = unbekannt)',1000],['minutePrice','Geschätzter Preis je Live-Minute in Euro (0 = unbekannt)',1000]]){const input=field(form,title,String(limits[key]||0));input.type='number';input.min=0;input.max=max;input.step=key.endsWith('Price')?'0.001':'1';inputs[key]=input;}
   form.append(button('Limits und Preise speichern',async()=>{try{state=(await request('edit',{edit:{revision:state.revision,operation:'limits',value:Object.fromEntries(Object.entries(inputs).map(([key,input])=>[key,Number(input.value)]))}})).state;paint();status.textContent='Gespeichert. Bestehende Anbieter- und Testlimits gelten zusätzlich.';}catch(e){status.textContent=e.message;}}));paint();status.textContent='Persönliche Limits begrenzen neue Bildversuche und Live-Starts. Bereits laufende Gespräche behalten ihre reservierte Dauer.';
  }catch(e){status.textContent=e.message;}return d;}
- window.SofiaCompanion={menuGroup,jobs,request,panel,node,button,field,next,personal,profile,collection,memoryReview,studio,activities,initiative,milestones,liveControls,usage,mode:()=>temporaryMode||undefined};
+ window.SofiaCompanion={busy:()=>activeRequests>0,menuGroup,jobs,request,panel,node,button,field,next,personal,profile,collection,memoryReview,studio,activities,initiative,milestones,liveControls,usage,mode:()=>temporaryMode||undefined};
 })();
