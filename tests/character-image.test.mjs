@@ -242,7 +242,7 @@ test('image delivery is private JPEG with download attachment and validated IDs'
 });
 test('UI integration loads shared renderer before app and does not alter avatar assets',async()=>{
  const root=new URL('../',import.meta.url);const index=await readFile(new URL('index.html',root),'utf8');
- assert.ok(index.indexOf('sofia-images.js?v=421104v1')<index.indexOf('app.js?v=421104v1'));
+ assert.ok(index.indexOf('sofia-images.js?v=421105v1')<index.indexOf('app.js?v=421105v1'));
  const chat=await readFile(new URL('api/chat.js',root),'utf8');
  assert.ok(chat.indexOf('!safeEqual(')<chat.indexOf('await servePortrait'));
  const ui=await readFile(new URL('sofia-images.js',root),'utf8');assert.match(ui,/dialog.showModal/);assert.match(ui,/link.download=/);assert.doesNotMatch(ui,/spinner|generating-status/);
@@ -819,6 +819,13 @@ test('clothing choices apply once, share the current scene and restore after a t
  const original=api.applyClothingToLife(expired,expired,state,later);assert.equal(original.outfit,life.outfit);
  assert.throws(()=>api.clothingChoice({...api.CLOTHING_DEFAULTS,style:'invalid'}));assert.throws(()=>api.clothingChoice({...api.CLOTHING_DEFAULTS,description:'a'.repeat(401)}));
  assert.throws(()=>api.applyCompanionEdit(state,{revision:3,operation:'currentOutfit',value:{text:'Outfit',hours:100}},now));
+});
+test('the fitted style persists its examples into the shared day and a new photo request',async()=>{
+ reset();const now=new Date();
+ const state=api.applyCompanionEdit(api.defaultCompanionState(),{revision:0,operation:'clothing',value:{...api.CLOTHING_DEFAULTS,style:'fitted'}},now);db.set(prefix+'companion',JSON.stringify(state));
+ const restored=await api.companionState();assert.equal(restored.clothing.style,'fitted');
+ const life=await api.getSofiaLife(new Date('2026-10-19T13:00:00Z'));for(const term of ['figurbetont','Skinny Jeans','kurzer Rock','bauchfrei','tiefem Dekolleté'])assert.ok(life.outfit.includes(term),term);
+ const request=await api.preparePortrait('Mach bitte ein neues Selfie von dir.',null,new Date('2026-10-19T13:00:00Z'));const saved=JSON.parse(db.get(prefix+'request:'+request.id));assert.equal(saved.outfit,life.outfit);assert.equal(imageCalls.length,0);
 });
 test('saving clothing affects new photos while compass variants retain the source outfit',async()=>{
  reset();const now=new Date(),state={...api.defaultCompanionState(),clothing:{...api.CLOTHING_DEFAULTS,style:'sporty'}};db.set(prefix+'companion',JSON.stringify(state));

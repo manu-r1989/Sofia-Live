@@ -71,7 +71,7 @@
    }else{
     form.append(node('p','Der dauerhafte Stil gilt für Chatbeschreibungen und neue Fotos. Bei „Andere Perspektive“ bleibt das Outfit des Ausgangsfotos erhalten. Ein Outfitwechsel muss ausdrücklich angefordert werden.'));
     const c={...originalClothing,...state.clothing};
-    controls.style=field(form,'Grundstil',c.style,[['original','Sofia – Original'],['casual','Lässig'],['sporty','Sportlich'],['elegant','Elegant'],['feminine','Feminin'],['alternative','Alternativ']]);
+    controls.style=field(form,'Grundstil',c.style,[['original','Sofia – Original'],['casual','Lässig'],['sporty','Sportlich'],['elegant','Elegant'],['feminine','Feminin'],['alternative','Alternativ'],['fitted','Figurbetont']]);
     for(const [key,title]of [['garments','Bevorzugte Kleidung'],['palette','Farbpalette'],['accessories','Accessoires'],['description','Eigene Stilbeschreibung']]){controls[key]=field(form,title,c[key]);controls[key].maxLength=400;}
     controls.occasion=field(form,'Anlassabhängigkeit',String(c.occasion),[['true','Automatisch zu Alltag, Tätigkeit und Wetter passend'],['false','Gewählten Grundstil beibehalten']]);
     form.append(button('Kleidungsstil speichern',()=>save('clothing',Object.fromEntries(Object.entries(controls).map(([k,input])=>[k,k==='occasion'?input.value==='true':input.value])))),button('Sofia – Original wiederherstellen',async()=>{if(await save('clothing',{...originalClothing}))for(const [key,input]of Object.entries(controls))input.value=String(originalClothing[key]);}));
