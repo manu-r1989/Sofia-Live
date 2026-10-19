@@ -1,4 +1,4 @@
-import { authorizeSession, dataPrefix, testModeRequested, publicTestMode, guardTestRequest, providerFailure } from "../lib/environment.js";
+import { authorizeSession, dataPrefix, testModeRequested, publicTestMode, guardTestRequest, providerRequestJSON, providerFailure } from "../lib/environment.js";
 import crypto from "node:crypto";
 import {companionState,companionContext,filterCompanionMemories,reserveCompanionLive,finishCompanionLive} from '../lib/character-image.js';
 
@@ -634,7 +634,7 @@ ${historyText}
 
           signal: AbortSignal.timeout(20000),
 
-          body: JSON.stringify({
+          body: providerRequestJSON({
             session: {
               type: "realtime",
 
