@@ -89,3 +89,10 @@ test('legacy plain-string memories retain their audit identity through explicit 
  reset();db.set('sofia:main:longterm',JSON.stringify(['Alte Angabe']));const reference=memoryVersion({text:'Alte Angabe'}),state=defaultCompanionState();state.memoryPolicies=[{reference,scope:'temporary',expiresAt:new Date(Date.now()+86400000).toISOString()}];db.set(prefix+'companion',JSON.stringify(state));
  const result=await correctMemory({reference,text:'Geprüfte neue Angabe',category:'Sonstiges'}),item=JSON.parse(db.get('sofia:main:longterm'))[0];assert.equal(item.text,'Geprüfte neue Angabe');assert.equal(result.state.memoryPolicies[0].reference,memoryVersion(item));
 });
+
+test('personality and permanent clothing survive backups; temporary outfits do not transfer',()=>{
+ let state=defaultCompanionState();state.personality={...state.personality,enabled:true,flirt:0,wit:4};state.clothing={...state.clothing,style:'elegant',palette:'Blau'};state.currentOutfit={text:'Rotes Kleid',until:'2099-01-01T00:00:00Z'};
+ const validated=validateBackup(buildBackup(state,[],{revision:0,items:[]}));
+ assert.deepEqual(validated.settings.personality,state.personality);assert.deepEqual(validated.settings.clothing,state.clothing);assert.equal(validated.settings.currentOutfit,null);
+ const merged=mergeBackup(defaultCompanionState(),[],{revision:0,items:[]},validated,['settings'],[],now);assert.deepEqual(merged.state.personality,state.personality);assert.deepEqual(merged.state.clothing,state.clothing);
+});

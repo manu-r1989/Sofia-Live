@@ -30,6 +30,7 @@
    ['Notizbücher','Eigene Notizen, Chat-Ausschnitte und Fotos.',()=>window.SofiaStudio.notes()],
    ['Gemeinsames Tagebuch','Erlebnisse und Rückblicke festhalten.',()=>window.SofiaNext.diary()],
    ['Über uns','Interessen, besondere Momente und Insider.',()=>collection('moments','Über uns')],
+   ['Persönlichkeit','Charaktereigenschaften und Voreinstellungen.',()=>characterChoices('personality')],
    ['Gesprächsprofil','Ansprache, Grundton und Standardmodus.',profile]
   ],personal);
   menuGroup(d,'Gedächtnis','Gespeicherte Angaben ansehen und kontrollieren.',[
@@ -50,6 +51,37 @@
   const modes=[['normal','Natürlich'],['listen','Zuhören'],['think','Gemeinsam überlegen'],['help','Konkrete Hilfe']];const mode=field(form,'Standard-Gesprächsmodus',p.mode,modes),session=field(form,'Nur für dieses Gespräch',temporaryMode,[['','Profilstandard'],...modes]);session.onchange=()=>{temporaryMode=session.value;try{sessionStorage.setItem('sofia-conversation-mode',temporaryMode);}catch{}status.textContent='Modus für dieses Gespräch übernommen.';};
   const save=button('Profil speichern',async()=>{save.disabled=true;try{state=(await request('edit',{edit:{revision:state.revision,operation:'profile',value:{name:name.value,tone:tone.value,humor:humor.value,directness:directness.value,mode:mode.value}}})).state;status.textContent='Profil gespeichert. Es gilt für Text und Live.';}catch(e){status.textContent=e.message;}finally{save.disabled=false;}});form.append(save);status.textContent='Sofia behält ihre eigene Persönlichkeit. Aktuelle Wünsche haben Vorrang.';
  }catch(e){status.textContent=e.message;}return d;}
+ const originalPersonality={enabled:false,humor:2,wit:2,directness:2,independence:3,warmth:2,flirt:2,initiative:2,length:2};
+ const originalClothing={style:'original',garments:'',palette:'',accessories:'',description:'',occasion:true};
+ async function characterChoices(section='personality'){
+  const personality=section==='personality',d=panel(personality?'Persönlichkeit':'Kleidungsstil'),status=node('p','Einstellungen werden geladen …'),form=node('form');status.setAttribute('role','status');d.append(status,form);
+  try{let state=(await request()).state;const controls={};
+   async function save(operation,value){const buttons=[...d.querySelectorAll('button')];buttons.forEach(b=>b.disabled=true);status.textContent='Wird gespeichert …';try{state=(await request('edit',{edit:{revision:state.revision,operation,value}})).state;status.textContent='Gespeichert. Text und neue Fotos verwenden die Auswahl ab dem nächsten Aufruf. Für Live ein neues Gespräch starten.';return true;}catch(e){status.textContent=e.message+' Deine Auswahl bleibt in dieser Ansicht erhalten.';return false;}finally{buttons.forEach(b=>b.disabled=false);}}
+   if(personality){
+    form.append(node('p','Passe Sofias Verhalten an. Identität und Erinnerungen bleiben erhalten. Die Regler ändern keine Kontaktzeiten und starten keine automatischen Aktionen.'));
+    const presets={original:{...originalPersonality},calm:{...originalPersonality,enabled:true,humor:1,wit:1,directness:1,warmth:3,flirt:0,initiative:1},playful:{...originalPersonality,enabled:true,humor:4,wit:4,warmth:3,flirt:3,initiative:3},focused:{...originalPersonality,enabled:true,humor:0,wit:0,directness:3,warmth:1,flirt:0,initiative:1,length:1}};
+    const preset=field(form,'Voreinstellung','custom',[['custom','Individuell'],['original','Sofia – Original'],['calm','Ruhig & herzlich'],['playful','Frech & verspielt'],['focused','Sachlich & fokussiert']]);
+    let enabled=state.personality?.enabled===true;
+    for(const [key,title,left,right]of [['humor','Humor','Sachlich','Verspielt'],['wit','Schlagfertigkeit','Zurückhaltend','Frech'],['directness','Direktheit','Behutsam','Sehr direkt'],['independence','Eigenständigkeit','Entgegenkommend','Meinungsstark'],['warmth','Nähe','Distanziert','Herzlich'],['flirt','Flirtverhalten','Aus','Ausgeprägt'],['initiative','Initiative','Abwartend','Aktiv'],['length','Antwortlänge','Knapp','Ausführlich']]){
+     const label=node('label',title),input=node('input'),output=node('output'),hint=node('small',left+' bis '+right);input.type='range';input.min='0';input.max='4';input.step='1';input.value=String(state.personality?.[key]??originalPersonality[key]);input.setAttribute('aria-label',title);const paint=()=>{output.textContent=' '+input.value+' / 4';};paint();input.oninput=()=>{enabled=true;preset.value='custom';paint();};label.append(input,output,hint);form.append(label);controls[key]={input,paint};
+    }
+    function fill(p){enabled=p.enabled;for(const [key,c]of Object.entries(controls)){c.input.value=p[key];c.paint();}}
+    preset.value=enabled?'custom':'original';preset.onchange=()=>{if(presets[preset.value])fill(presets[preset.value]);status.textContent='Auswahl vorbereitet. Zum Übernehmen speichern.';};
+    form.append(button('Persönlichkeit speichern',()=>save('personality',{enabled,...Object.fromEntries(Object.entries(controls).map(([k,c])=>[k,Number(c.input.value)]))})),button('Sofia – Original wiederherstellen',async()=>{if(await save('personality',{...originalPersonality})){fill(originalPersonality);preset.value='original';}}));
+   }else{
+    form.append(node('p','Der dauerhafte Stil gilt für Chatbeschreibungen und neue Fotos. Bei „Andere Perspektive“ bleibt das Outfit des Ausgangsfotos erhalten. Ein Outfitwechsel muss ausdrücklich angefordert werden.'));
+    const c={...originalClothing,...state.clothing};
+    controls.style=field(form,'Grundstil',c.style,[['original','Sofia – Original'],['casual','Lässig'],['sporty','Sportlich'],['elegant','Elegant'],['feminine','Feminin'],['alternative','Alternativ']]);
+    for(const [key,title]of [['garments','Bevorzugte Kleidung'],['palette','Farbpalette'],['accessories','Accessoires'],['description','Eigene Stilbeschreibung']]){controls[key]=field(form,title,c[key]);controls[key].maxLength=400;}
+    controls.occasion=field(form,'Anlassabhängigkeit',String(c.occasion),[['true','Automatisch zu Alltag, Tätigkeit und Wetter passend'],['false','Gewählten Grundstil beibehalten']]);
+    form.append(button('Kleidungsstil speichern',()=>save('clothing',Object.fromEntries(Object.entries(controls).map(([k,input])=>[k,k==='occasion'?input.value==='true':input.value])))),button('Sofia – Original wiederherstellen',async()=>{if(await save('clothing',{...originalClothing}))for(const [key,input]of Object.entries(controls))input.value=String(originalClothing[key]);}));
+    const temporary=node('section'),temporaryTitle=node('h3','Aktuelles Outfit – vorübergehend'),outfitStatus=node('p');temporary.append(temporaryTitle,outfitStatus);const text=field(temporary,'Outfit für jetzt','');text.maxLength=400;const hours=field(temporary,'Gültigkeitsdauer','4',[['1','Eine Stunde'],['4','Vier Stunden'],['12','Zwölf Stunden']]);
+    function paint(){const t=state.currentOutfit;outfitStatus.textContent=t&&Date.parse(t.until)>Date.now()?t.text+' · bis '+new Date(t.until).toLocaleString('de-DE',{timeZone:'Europe/Berlin'})+' (Berlin)':'Kein befristetes Outfit aktiv.';}paint();
+    temporary.append(button('Aktuelles Outfit übernehmen',async()=>{if(await save('currentOutfit',{text:text.value,hours:Number(hours.value)})){text.value='';paint();}}),button('Befristetes Outfit beenden',async()=>{if(await save('currentOutfit',{clear:true}))paint();}));form.append(temporary);
+   }
+   status.textContent='Dauerhaft gespeichert auf deinem Sofia-Zugang. Änderungen übernehmen, indem du den jeweiligen Speichern-Button wählst.';
+  }catch(e){status.textContent=e.message;}return d;
+ }
  async function collection(key,title){const d=panel(title),status=node('p','Einträge werden geladen …'),form=node('form'),list=node('div');status.setAttribute('role','status');d.append(status,form,list);try{
   let state=(await request()).state,currentId=null,showArchived=false;const name=field(form,'Titel'),kind=field(form,'Art','moment',[['interest','Gemeinsames Interesse'],['moment','Wichtiger Gesprächsmoment'],['insider','Insider']]);const label=node('label','Inhalt'),text=node('textarea');text.setAttribute('aria-label','Inhalt');text.maxLength=1200;label.append(text);form.append(label);
   async function change(edit){state=(await request('edit',{edit:{revision:state.revision,...edit}})).state;render();}
@@ -76,6 +108,7 @@
   ],studio);
   const more=node('details');more.className='menu-more';more.append(node('summary','Weitere Fotovorgaben'));d.append(more);
   menuGroup(more,'','Zusätzliche Wünsche und Prüfungen.',[
+   ['Kleidungsstil','Dauerhafter Stil und aktuelles Outfit.',()=>characterChoices('clothing')],
    ['Kleiderschrank','Gespeicherte Outfitideen verwalten.',()=>photoCollection('wardrobe','Kleiderschrank')],
    ['Fotowünsche','Persönliche Motivwünsche festhalten.',()=>photoCollection('wishes','Fotowünsche')],
    ['Fotoplan und Merkmalsprüfung','Geplante Merkmale vor der Bilderstellung prüfen.',()=>window.SofiaEvolution.photos()]
@@ -126,5 +159,5 @@
   const inputs={};for(const [key,title,max]of [['images','Bildversuche pro Monat (0 = ohne eigenes Limit)',10000],['liveMinutes','Live-Minuten pro Monat (0 = ohne eigenes Limit)',100000],['imagePrice','Geschätzter Preis je Bildversuch in Euro (0 = unbekannt)',1000],['minutePrice','Geschätzter Preis je Live-Minute in Euro (0 = unbekannt)',1000]]){const input=field(form,title,String(limits[key]||0));input.type='number';input.min=0;input.max=max;input.step=key.endsWith('Price')?'0.001':'1';inputs[key]=input;}
   form.append(button('Limits und Preise speichern',async()=>{try{state=(await request('edit',{edit:{revision:state.revision,operation:'limits',value:Object.fromEntries(Object.entries(inputs).map(([key,input])=>[key,Number(input.value)]))}})).state;paint();status.textContent='Gespeichert. Bestehende Anbieter- und Testlimits gelten zusätzlich.';}catch(e){status.textContent=e.message;}}));paint();status.textContent='Persönliche Limits begrenzen neue Bildversuche und Live-Starts. Bereits laufende Gespräche behalten ihre reservierte Dauer.';
  }catch(e){status.textContent=e.message;}return d;}
- window.SofiaCompanion={busy:()=>activeRequests>0,menuGroup,jobs,request,panel,node,button,field,next,personal,profile,collection,memoryReview,studio,activities,initiative,milestones,liveControls,usage,mode:()=>temporaryMode||undefined};
+ window.SofiaCompanion={busy:()=>activeRequests>0,menuGroup,jobs,request,panel,node,button,field,next,personal,profile,characterChoices,collection,memoryReview,studio,activities,initiative,milestones,liveControls,usage,mode:()=>temporaryMode||undefined};
 })();

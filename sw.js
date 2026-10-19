@@ -2,7 +2,7 @@
    SOFIA V4.180.2 — SERVICE WORKER
    ========================================================= */
 
-const CACHE = "sofia-live-v421000v3";
+const CACHE = "sofia-live-v421100v1";
 // The page compares this installed cache with its own asset revision.
 self.addEventListener('message',event=>{
   if(event.data?.type==='SOFIA_VERSION')event.ports?.[0]?.postMessage({version:CACHE.replace('sofia-live-v','')});
@@ -16,49 +16,49 @@ const ASSETS = [
 
   "./index.html",
 
-  "./style.css?v=421000v3",
+  "./style.css?v=421100v1",
 
-  "./sofia-startup.js?v=421000v3",
-  "./sofia-ui.js?v=421000v3",
-  "./sofia-studio.js?v=421000v3",
-  "./sofia-journey.js?v=421000v3",
-  "./sofia-hub.js?v=421000v3",
-  "./sofia-continuity.js?v=421000v3",
-  "./sofia-book.js?v=421000v3",
-  "./sofia-workbench.js?v=421000v3",
-  "./sofia-workspace.js?v=421000v3",
-  "./sofia-expansion.js?v=421000v3",
-  "./sofia-photo-cards.js?v=421000v3",
-  "./sofia-companion.js?v=421000v3",
-  "./sofia-growth.js?v=421000v3",
-  "./sofia-features.js?v=421000v3",
-  "./sofia-region.js?v=421000v3",
-  "./sofia-upgrade.js?v=421000v3",
-  "./sofia-photo-workbench.js?v=421000v3",
-  "./sofia-offline.js?v=421000v3",
-  "./sofia-next.js?v=421000v3",
-  "./sofia-evolution.js?v=421000v3",
-  "./action-feedback.js?v=421000v3",
-  "./sofia-message-text.js?v=421000v3",
-  "./sofia-timeline.js?v=421000v3",
-  "./sofia-images.js?v=421000v3",
-  "./sofia-today.js?v=421000v3",
-  "./sofia-projects.js?v=421000v3",
-  "./sofia-social.js?v=421000v3",
-  "./sofia-navigation.js?v=421000v3",
-  "./app.js?v=421000v3",
+  "./sofia-startup.js?v=421100v1",
+  "./sofia-ui.js?v=421100v1",
+  "./sofia-studio.js?v=421100v1",
+  "./sofia-journey.js?v=421100v1",
+  "./sofia-hub.js?v=421100v1",
+  "./sofia-continuity.js?v=421100v1",
+  "./sofia-book.js?v=421100v1",
+  "./sofia-workbench.js?v=421100v1",
+  "./sofia-workspace.js?v=421100v1",
+  "./sofia-expansion.js?v=421100v1",
+  "./sofia-photo-cards.js?v=421100v1",
+  "./sofia-companion.js?v=421100v1",
+  "./sofia-growth.js?v=421100v1",
+  "./sofia-features.js?v=421100v1",
+  "./sofia-region.js?v=421100v1",
+  "./sofia-upgrade.js?v=421100v1",
+  "./sofia-photo-workbench.js?v=421100v1",
+  "./sofia-offline.js?v=421100v1",
+  "./sofia-next.js?v=421100v1",
+  "./sofia-evolution.js?v=421100v1",
+  "./action-feedback.js?v=421100v1",
+  "./sofia-message-text.js?v=421100v1",
+  "./sofia-timeline.js?v=421100v1",
+  "./sofia-images.js?v=421100v1",
+  "./sofia-today.js?v=421100v1",
+  "./sofia-projects.js?v=421100v1",
+  "./sofia-social.js?v=421100v1",
+  "./sofia-navigation.js?v=421100v1",
+  "./app.js?v=421100v1",
 
-  "./live.js?v=421000v3",
+  "./live.js?v=421100v1",
 
   "./sofia-avatar.js?v=4192c1",
 
   "./avatar-presence.js?v=4193p3",
   "./avatar-gesture.js?v=4197m1",
-  "./avatar-expression.js?v=421000v3",
+  "./avatar-expression.js?v=421100v1",
   "./avatar/sofia-friendly-mouth.png?v=4194e1",
   "./avatar/sofia-thoughtful-mouth.png?v=4194e2",
 
-  "./avatar-gaze.js?v=421000v3",
+  "./avatar-gaze.js?v=421100v1",
 
   "./avatar/sofia-gaze-left.png?v=4192g3",
 
