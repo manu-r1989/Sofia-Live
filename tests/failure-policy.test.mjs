@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {readFile} from 'node:fs/promises';
-import {providerFailure,retryAfterSeconds} from '../lib/environment.js';
+import {providerFailure,retryAfterSeconds,providerDiagnostic} from '../lib/environment.js';
 const source=await readFile(new URL('../app.js',import.meta.url),'utf8'),context=vm.createContext({Date});
 vm.runInContext(source.slice(source.indexOf('function chatFailureFeedback('),source.indexOf('async function askSofia(')),context);
 const now=new Date('2026-10-11T01:00:00Z');
@@ -12,3 +12,12 @@ test('unknown 429 does not claim empty balance or a fabricated wait',()=>{const 
 test('billing ambiguity differs from confirmed exhausted credits',()=>{assert.match(context.chatFailureFeedback(429,'api_billing_limit',false,false).message,/genaue Grund ist nicht bestätigt/);assert.match(context.chatFailureFeedback(429,'api_credit_exhausted',false,false).message,/aufgebrauchtes API-Guthaben/);});
 test('confirmed provider rejection does not mark a task outcome unconfirmed',()=>assert.equal(context.chatFailureFeedback(429,'api_rate_limit',true,false).uncertainAction,false));
 test('transport interruption preserves uncertainty unless task result already arrived',()=>{assert.equal(context.chatFailureFeedback(undefined,undefined,true,false).uncertainAction,true);assert.equal(context.chatFailureFeedback(500,'chat_provider_failed',true,true).uncertainAction,false);});
+
+test('technical provider rejection is distinct from a connection failure and logs no content',()=>{
+ assert.equal(providerFailure(400,{error:{message:'private'}}).code,'api_request_rejected');
+ assert.equal(providerFailure(400,{error:{code:'context_length_exceeded'}}).code,'api_context_limit');
+ const safe=providerDiagnostic({error:{code:'invalid_value',type:'invalid_request_error',param:'input[2].content[0].text',message:'private'}});
+ assert.deepEqual(safe,{providerCode:'invalid_value',providerType:'invalid_request_error',providerParam:'input[2].content[0].text'});
+ assert.equal(providerDiagnostic({error:{code:'private',param:'private',type:'private'}}).providerParam,'unknown');
+ assert.doesNotMatch(context.chatFailureFeedback(400,'api_request_rejected',false,false).message,/Verbindung/);
+});
