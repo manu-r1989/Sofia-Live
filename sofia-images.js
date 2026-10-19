@@ -17,7 +17,7 @@
   function familyOf(item){if(item.seriesId)return item.seriesId;let cursor=item;const seen=new Set();while(cursor?.sourceId&&!seen.has(cursor.id)){seen.add(cursor.id);const parent=galleryItems.get(cursor.sourceId);if(!parent)return cursor.sourceId;cursor=parent;}return cursor?.id;}
   function storePreferred(){const next=Object.fromEntries(Object.entries(preferredPhotos).filter(([family,id])=>valid(family)&&valid(id)&&retained(galleryItems.get(id)||{status:'expired'})).slice(-100));try{localStorage.setItem('sofia-photo-preferred-v495',JSON.stringify(next));preferredPhotos=next;return true;}catch{return false;}}
   let selectionVersion=0;
-  const failureReply = 'Ich bin gerade nicht in der passenden Umgebung für ein Foto. Frag mich gern gleich noch einmal.';
+  const failureReply = 'Das Foto konnte diesmal nicht erstellt oder bereitgestellt werden. Der genaue Fehlergrund ist nicht bestätigt.';
   let referenceId = null;
   try { referenceId=localStorage.getItem('sofia-photo-reference'); } catch {}
   function rememberReference(id) { referenceId=id;try { localStorage.setItem('sofia-photo-reference',id); } catch {} }
@@ -357,6 +357,7 @@
       const notice=document.createElement('div'); notice.id='portrait-' + image.id;
       notice.className='msg sofia'; notice.dataset.portraitStatus='failed';notice.dataset.presentation=mode; notice.textContent=image.failureCode==='test_image_limit'?'Das Foto-Limit der Testversion ist für heute erreicht. Morgen kann ich wieder ein Foto schicken.':typeof image.message==='string'&&image.message.trim()?image.message.trim().slice(0,500):failureReply;
       if(image.failureCode==='portrait_source_unavailable')notice.textContent='Das Ausgangsfoto ist nicht mehr verfügbar. Bitte wähle ein anderes Foto in der Galerie.';
+      if(image.failureCode==='portrait_moderated')notice.textContent='Der Bildanbieter hat diesen Fotoauftrag bei seiner Sicherheitsprüfung abgelehnt. Bitte beschreibe einen anderen Bildwunsch.';
       if(image.failureCode==='portrait_context_mismatch')notice.textContent='Die gewünschte Änderung wurde im Foto nicht zuverlässig umgesetzt. Du kannst einen neuen Versuch mit diesem Ausgangsfoto starten.';
       if(image.failureCode==='portrait_reference_mismatch')notice.textContent='Die Änderung passt nicht zu dem Foto, das du ausgewählt hast. Bitte öffne es erneut in der Galerie.';
       const retryTime=Date.parse(image.retryAt);if(Number.isFinite(retryTime)&&retryTime>serverNow()){const wait=document.createElement('p');wait.className='photo-retry-time';wait.textContent='Erneut möglich ab '+new Date(retryTime).toLocaleString('de-DE',{timeZone:'Europe/Berlin',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})+' (Hamburg). Kein automatischer neuer Versuch.';notice.append(wait);}
@@ -364,7 +365,7 @@
         if(Number.isFinite(Date.parse(image.retryAt))&&Date.parse(image.retryAt)>Date.now()){window.SofiaWorkspace?.notice?.('Die Wartezeit des Bildgenerators läuft noch. Es wird kein neuer Auftrag gestartet.');return;}
         if(image.reviewOnly){retry.disabled=true;try{const result=await window.SofiaCompanion.request('retry_job',{id:image.id});await window.SofiaImages.generate(result.imageRequest,{resume:true});}catch(error){window.SofiaWorkspace?.notice?.(error.message);}finally{retry.disabled=false;}return;}
         if(window.SofiaPhotoAction?.(image.requestMessage||'nochmal',image.expectedSourceId||image.sourceId||undefined))retry.disabled=true;
-      };notice.append(retry);
+      };if(image.failureCode!=='portrait_moderated')notice.append(retry);
       window.SofiaTimeline?.decorate(notice,image.createdAt||new Date().toISOString());slot.append(notice); slot.hidden=false; window.SofiaChatViewport?.restore(viewport); return;
     }
     if(mode==='archived'||mode==='expired') {

@@ -1,6 +1,6 @@
 import { authorizeSession, dataPrefix, testModeRequested, publicTestMode, guardTestRequest, providerRequestJSON, providerFailure, providerDiagnostic } from "../lib/environment.js";
 import { chatCleanupPlan, CHAT_CLEANUP_SCRIPT, resolveReplyReference, replyReferenceContext, participantLocationContext, visibleConversation, DELETE_MESSAGE_SCRIPT, RESTORE_MESSAGE_SCRIPT, SAVE_VISIBLE_HISTORY_SCRIPT, conversationReferenceContext, conversationReferenceClarification, replyPhotoReference } from '../lib/message-context.js';
-import { trustedMemoryHistory, memoryReplyReferences, companionState, companionContext, recordMemoryConflict, filterCompanionMemories, persistMemorySnapshot, executeProjectCommand, executeMemoryCommand, projectState, projectContext, projectBinding, linkProjectResult, appearanceChoice, conversationClarification, guardPermanentMemory, compactConversationHistory, safeDiagnostic, taskReceipt, hamburgReferenceTime, portraitPreparationReply, groundedPhotoReply, preparePortrait, generatePortrait, servePortrait, portraitGallery, appendPortraitAcknowledgment, PORTRAIT_FAILURE_REPLY, getSofiaLife, currentSituationCorrection, synchronizeSituation, learnSofiaLife, lifeContext, selectedPhotoContext, prepareProactivePortrait, PROACTIVE_PHOTO_ANNOUNCEMENT } from '../lib/character-image.js';
+import { trustedMemoryHistory, memoryReplyReferences, companionState, companionContext, recordMemoryConflict, filterCompanionMemories, persistMemorySnapshot, executeProjectCommand, executeMemoryCommand, projectState, projectContext, projectBinding, linkProjectResult, appearanceChoice, conversationClarification, guardPermanentMemory, compactConversationHistory, safeDiagnostic, taskReceipt, hamburgReferenceTime, portraitPreparationReply, portraitFailureMessage, groundedPhotoReply, preparePortrait, generatePortrait, servePortrait, portraitGallery, appendPortraitAcknowledgment, PORTRAIT_FAILURE_REPLY, getSofiaLife, currentSituationCorrection, synchronizeSituation, learnSofiaLife, lifeContext, selectedPhotoContext, prepareProactivePortrait, PROACTIVE_PHOTO_ANNOUNCEMENT } from '../lib/character-image.js';
 import crypto from "node:crypto";
 import { executeUnifiedAction, getActionState, getResearchState } from "./action-engine.js";
 
@@ -584,7 +584,7 @@ export default async function handler(req, res) {
     if (req.method === "GET" && req.query?.image) return await servePortrait(req, res);
     if (req.method === "POST" && req.body?.operation === "generate_image") {
       try { return res.status(200).json({ image: await generatePortrait(req.body.requestId) }); }
-      catch (error) { return res.status(409).json({ error: PORTRAIT_FAILURE_REPLY,code:safeDiagnostic(error,'portrait_generation_failed').code }); }
+      catch (error) { const code=safeDiagnostic(error,'portrait_generation_failed').code;return res.status(409).json({ error:portraitFailureMessage(code),code }); }
     }
 
     if (req.method === "GET") {
