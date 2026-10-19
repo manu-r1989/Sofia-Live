@@ -30,6 +30,7 @@ globalThis.fetch=async(url,options)=>{
   if(op==='GET')return response({result:db.get(key)||null});
   if(op==='SET'){if(rest.includes('NX')&&db.has(key))return response({result:null});db.set(key,value);return response({result:'OK'});}
   if(op==='DEL'){db.delete(key);return response({result:1});}
+  if(op==='EVAL'&&key.includes('sofia-review-retry')){const target=body[3];if((db.get(target)||'')!==body[4])return response({result:0});db.set(target,body[5]);return response({result:1});}
   if(op==='EVAL'&&key.includes('sofia-companion-usage-reserve'))return response({result:blockPersonalImage?0:1});
   if(op==='EVAL' && key.includes('sofia-gallery-append')) {const target=body[3],item=JSON.parse(body[4]);db.set(target,JSON.stringify([...JSON.parse(db.get(target)||'[]').filter(x=>x.id!==item.id),item]));return response({result:1});}
   if(op==='EVAL' && key.includes('sofia-portrait-jobs')) {const target=body[3],id=body[4];let jobs=JSON.parse(db.get(target)||'[]').filter(x=>x.id!==id);if(body[5])jobs.push(JSON.parse(body[5]));db.set(target,JSON.stringify(jobs.slice(-20)));return response({result:1});}
@@ -37,7 +38,7 @@ globalThis.fetch=async(url,options)=>{
   if(op==='EVAL'){const lock=body[3],id=body[4]; if(lock === 'sofia:main:history') { const history=JSON.parse(db.get(lock)||'[]'); history.push({role:'user',content:body[4],createdAt:body[7]},{role:'assistant',content:body[5],...(body[6]?{imageRequestId:body[6]}:{}),createdAt:body[7]});db.set(lock,JSON.stringify(history.slice(-40))); } else if(db.get(lock)===id)db.delete(lock);return response({result:1});}
   throw Error('Unexpected Redis '+op);
  }
- if(String(url).endsWith('/chat/completions') && Array.isArray(body.messages[1].content)){reviewInputs.push(body.messages);return response({choices:[{message:{content:JSON.stringify(reviewQueue.shift()||{ok:true,confidence:0.95,mismatches:[]})}}]});}
+ if(String(url).endsWith('/chat/completions') && Array.isArray(body.messages[1].content)){reviewInputs.push(body.messages);const result=reviewQueue.shift()||{ok:true,confidence:0.95,mismatches:[]};if(result instanceof Error)throw result;if(result.provider)return response(result.provider,result.httpOK!==false);return response({choices:[{message:{content:JSON.stringify(result)}}]});}
  if(String(url).endsWith('/chat/completions')) { plannerInputs.push(JSON.parse(body.messages[1].content)); return response({choices:[{message:{content:JSON.stringify(plan)}}]}); }
  if(String(url).endsWith('/images/edits')){imageCalls.push(body);return response({data:[{b64_json:'/9j/AA=='}]},!failImage);}
  throw Error('Unexpected URL');
@@ -241,7 +242,7 @@ test('image delivery is private JPEG with download attachment and validated IDs'
 });
 test('UI integration loads shared renderer before app and does not alter avatar assets',async()=>{
  const root=new URL('../',import.meta.url);const index=await readFile(new URL('index.html',root),'utf8');
- assert.ok(index.indexOf('sofia-images.js?v=421103v1')<index.indexOf('app.js?v=421103v1'));
+ assert.ok(index.indexOf('sofia-images.js?v=421104v1')<index.indexOf('app.js?v=421104v1'));
  const chat=await readFile(new URL('api/chat.js',root),'utf8');
  assert.ok(chat.indexOf('!safeEqual(')<chat.indexOf('await servePortrait'));
  const ui=await readFile(new URL('sofia-images.js',root),'utf8');assert.match(ui,/dialog.showModal/);assert.match(ui,/link.download=/);assert.doesNotMatch(ui,/spinner|generating-status/);
@@ -504,6 +505,12 @@ test('head-only changes do not accidentally select body pose from preservation w
  assert.deepEqual(api.variantDimensions('Kopf gerade halten. Körperhaltung und Mimik beibehalten.'),['head-pose']);
  assert.deepEqual(api.variantDimensions('Kamerastandpunkt: 90° nach links. Kopf und Körperhaltung beibehalten.'),['camera-angle']);
 });
+test('the screenshot standing edit changes posture while preserving the selected source and other dimensions',async()=>{
+ reset();const now=new Date(),sourceId=previousPhotograph(now),message='Dieses Foto bitte entsprechend anpassen: Im Stehen. Alle nicht genannten Merkmale beibehalten.';
+ assert.deepEqual(api.variantDimensions(message),['pose']);
+ const job=await api.preparePortrait(message,sourceId,now);const stored=JSON.parse(db.get(prefix+'request:'+job.id));assert.equal(stored.sourceId,sourceId);assert.equal(stored.variant,true);assert.deepEqual(stored.dimensions,['pose']);
+ const contract=api.photoEditContract(stored);assert.ok(!contract.preserve.includes('pose'));assert.ok(contract.preserve.includes('outfit'));assert.ok(contract.preserve.includes('camera-angle'));
+});
 
 test('a clear photo mismatch reports its dimensions and requires explicit retry',async()=>{
  reset();reviewQueue=[{ok:false,confidence:.97,mismatches:['location','daylight']},{ok:true,confidence:.94,mismatches:[]}];const job=await api.preparePortrait('Selfie');await assert.rejects(api.generatePortrait(job.id),/portrait_context_mismatch/);assert.equal(imageCalls.length,1);assert.equal(db.has(prefix+'image:'+job.id),false);assert.deepEqual(JSON.parse(db.get(prefix+'notices'))[0].review.mismatches,['location','daylight']);
@@ -513,6 +520,31 @@ test('a clear mismatch fails honestly without publishing or continuing to bill',
 });
 test('invalid review output never silently publishes an unchecked photograph',async()=>{
  reset();reviewQueue=[{ok:'yes',confidence:.9,mismatches:[]}];const job=await api.preparePortrait('Selfie');await assert.rejects(api.generatePortrait(job.id),/portrait_review_unavailable/);assert.equal(imageCalls.length,1);assert.equal(db.has(prefix+'image:'+job.id),false);
+});
+test('a failed review retries the same retained image without another image generation or duplicate gallery entry',async()=>{
+ reset();reviewQueue=[{ok:'yes',confidence:.9,mismatches:[]}];const job=await api.preparePortrait('Selfie');await api.appendPortraitAcknowledgment('Selfie','Gib mir einen kleinen Moment.',job.id);
+ await assert.rejects(api.generatePortrait(job.id),/portrait_review_unavailable/);
+ assert.equal(JSON.parse(db.get(prefix+'notices'))[0].reviewOnly,true);assert.ok(db.has(prefix+'review-candidate:'+job.id));
+ const retry=await api.retryCompanionJob(job.id);assert.equal(retry.id,job.id);assert.equal(retry.reviewOnly,true);
+ const image=await api.generatePortrait(retry.id);assert.equal(image.id,job.id);assert.equal(imageCalls.length,1);assert.equal(reviewInputs.length,2);
+ assert.equal(db.has(prefix+'review-candidate:'+job.id),false);assert.equal(JSON.parse(db.get(prefix+'notices')).length,0);
+ assert.equal(JSON.parse(db.get(prefix+'gallery')).filter(x=>x.id===job.id).length,1);
+ await api.generatePortrait(job.id);assert.equal(imageCalls.length,1);assert.equal(reviewInputs.length,2);
+});
+test('expired retained review images do not fall back to a paid image generation',async()=>{
+ reset();reviewQueue=[{ok:'yes',confidence:.9,mismatches:[]}];const job=await api.preparePortrait('Selfie');await assert.rejects(api.generatePortrait(job.id));db.delete(prefix+'review-candidate:'+job.id);
+ await assert.rejects(api.retryCompanionJob(job.id),/abgelaufen/);assert.equal(imageCalls.length,1);
+});
+test('review transport errors, truncated JSON and invalid dimensions retain an unpublished image for explicit review',async()=>{
+ for(const failure of [new Error('network'),{provider:{choices:[{finish_reason:'length',message:{content:'{"ok":true'}}]}},{ok:false,confidence:.9,mismatches:['pose']}]){
+  reset();reviewQueue=[failure];const job=await api.preparePortrait('Selfie');await assert.rejects(api.generatePortrait(job.id),/portrait_review_unavailable/);
+  assert.equal(imageCalls.length,1);assert.equal(db.has(prefix+'image:'+job.id),false);assert.equal(JSON.parse(db.get(prefix+'request:'+job.id)).reviewOnly,true);
+ }
+});
+test('review requests use a strict schema and well formed Unicode with no change to saved instructions',async()=>{
+ reset();const original=globalThis.fetch;let sent;
+ globalThis.fetch=async(url,options)=>{if(String(url).endsWith('/chat/completions')&&Array.isArray(JSON.parse(options.body).messages[1].content))sent=JSON.parse(options.body);return original(url,options);};
+ try{const scene='Im Stehen. '+String.fromCharCode(0xd83d);const request={variant:true,sourceId:'11111111-1111-4111-8111-111111111111',dimensions:['pose'],scene};await api.reviewPortrait('/9j/BB==',request,12000,'/9j/AA==');assert.equal(sent.response_format.type,'json_schema');assert.equal(sent.response_format.json_schema.strict,true);assert.equal(sent.messages[1].content.filter(x=>x.type==='image_url').length,2);assert.ok(sent.messages[1].content[0].text.isWellFormed());assert.equal(request.scene,scene);}finally{globalThis.fetch=original;}
 });
 test('current selfies ignore a stale variant decision and invented planner home scene',async()=>{
  reset();const now=new Date(),life=api.defaultSofiaLife(now);life.location='an der Universität in Hamburg';life.activity='lernen';db.set(prefix+'life',JSON.stringify(life));plan.action='variant';plan.scene='Home bedroom at night';const job=await api.preparePortrait('Schick mir ein aktuelles Selfie von dir.',null,now);const request=JSON.parse(db.get(prefix+'request:'+job.id));assert.equal(request.variant,false);assert.equal(request.sourceId,null);assert.doesNotMatch(request.scene,/Home bedroom/);assert.match(api.photoSceneContext(request),/Universität/);assert.match(api.photoSceneContext(request),/hamburgTime/);
