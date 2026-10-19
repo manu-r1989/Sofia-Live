@@ -145,6 +145,7 @@ test('seeing confirmation accepts a stored appearance offer',async()=>{
 test('repeat after a failed photo creates a fresh job without sharing error context',async()=>{
  reset();const now=new Date(),life=api.defaultSofiaLife(now);life.dialogue={at:now.toISOString(),lastUser:'Ich warte'};db.set(prefix+'life',JSON.stringify(life));
  const old='11111111-1111-4111-8111-111111111111';db.set(prefix+'request:'+old,JSON.stringify({id:old,status:'failed',failureCode:'portrait_moderated'}));
+ db.set(prefix+'request:'+old,JSON.stringify({id:old,status:'failed',failureCode:'portrait_provider_failed'}));
  db.set('sofia:main:history',JSON.stringify([{role:'user',content:'Mach bitte ein Selfie von dir'},{role:'assistant',content:'Gib mir einen kleinen Moment.',imageRequestId:old},{role:'user',content:'Ich warte'},{role:'assistant',content:'Es hat nicht geklappt.'}]));
  const job=await api.preparePortrait('Nochmal',null,now);assert.ok(job?.id);assert.notEqual(job.id,old);assert.doesNotMatch(JSON.stringify(plannerInputs.at(-1)),/failed|moderated/);
 });
@@ -242,7 +243,7 @@ test('image delivery is private JPEG with download attachment and validated IDs'
 });
 test('UI integration loads shared renderer before app and does not alter avatar assets',async()=>{
  const root=new URL('../',import.meta.url);const index=await readFile(new URL('index.html',root),'utf8');
- assert.ok(index.indexOf('sofia-images.js?v=421105v1')<index.indexOf('app.js?v=421105v1'));
+ assert.ok(index.indexOf('sofia-images.js?v=421106v1')<index.indexOf('app.js?v=421106v1'));
  const chat=await readFile(new URL('api/chat.js',root),'utf8');
  assert.ok(chat.indexOf('!safeEqual(')<chat.indexOf('await servePortrait'));
  const ui=await readFile(new URL('sofia-images.js',root),'utf8');assert.match(ui,/dialog.showModal/);assert.match(ui,/link.download=/);assert.doesNotMatch(ui,/spinner|generating-status/);
@@ -648,7 +649,24 @@ test('photo failures expose only bounded diagnostic codes and suitable user feed
  assert.deepEqual(api.safeDiagnostic({code:'portrait_timeout',status:504,message:'private provider text'}),{code:'portrait_timeout',status:504});
  assert.deepEqual(api.safeDiagnostic({code:'private_provider_code',status:200,message:'secret'}),{code:'request_failed'});
  assert.match(api.portraitFailureMessage('portrait_context_mismatch'),/Situation/);assert.match(api.portraitFailureMessage('portrait_timeout'),/lange/);
- assert.equal(api.portraitFailureMessage('portrait_moderated'),api.PORTRAIT_FAILURE_REPLY);
+ assert.match(api.portraitFailureMessage('portrait_moderated'),/Sicherheitsprüfung.*anderen Bildwunsch/);
+ assert.doesNotMatch(api.PORTRAIT_FAILURE_REPLY,/Umgebung/);
+});
+test('provider moderation persists an honest failure and repeat consent does not generate another photo',async()=>{
+ reset();const request=await api.preparePortrait('Schick mir ein Selfie.');
+ await api.appendPortraitAcknowledgment('Ja','Gib mir einen kleinen Moment.',request.id);
+ const normal=globalThis.fetch;let attempts=0;
+ globalThis.fetch=async(url,options)=>String(url).endsWith('/images/edits')?(attempts++,{ok:false,status:400,headers:{get:()=>null},json:async()=>({error:{code:'moderation_blocked',message:'private provider details'}})}):normal(url,options);
+ try{
+  await assert.rejects(api.generatePortrait(request.id),e=>e.code==='portrait_moderated');
+  const notice=(await api.portraitGallery()).find(x=>x.id===request.id);
+  assert.equal(notice.failureCode,'portrait_moderated');assert.match(notice.message,/Sicherheitsprüfung/);assert.doesNotMatch(notice.message,/Umgebung|private/);
+  for(const message of ['Ja','Nochmal'])await assert.rejects(api.preparePortrait(message),e=>api.portraitPreparationReply(e)===api.portraitFailureMessage('portrait_moderated'));
+  await assert.rejects(api.retryCompanionJob(request.id),/Sicherheitsprüfung/);
+  assert.equal(attempts,1);assert.equal(plannerInputs.length,1);assert.equal(reviewInputs.length,0);
+  await api.appendPortraitAcknowledgment('Was machen wir?','Möchtest du über deinen Tag sprechen?');
+  assert.equal(await api.preparePortrait('Ja'),null);
+ }finally{globalThis.fetch=normal;}
 });
 test('variants keep a stable series root with original scene and outfit',async()=>{
  reset();const first=await api.preparePortrait('Schick ein Selfie',null,new Date('2026-10-08T12:00:00Z'));const original=await api.generatePortrait(first.id);
@@ -745,6 +763,12 @@ test('Text and Live return an actionable request id for indirect self-photo requ
    assert.equal(status,200);assert.ok(data.imageRequest?.id,endpoint+': '+message);assert.match(data.reply||data.context,/Gib mir einen kleinen Moment/);
    assert.equal(JSON.parse(db.get(prefix+'request:'+data.imageRequest.id)).status,'ready');
    if(endpoint==='chat')assert.ok(JSON.parse(db.get('sofia:main:history')).some(x=>x.imageRequestId===data.imageRequest.id));
+   if(message==='Ja'){
+    const id=data.imageRequest.id,job=JSON.parse(db.get(prefix+'request:'+id));db.set(prefix+'request:'+id,JSON.stringify({...job,status:'failed',failureCode:'portrait_moderated'}));
+    await api.appendPortraitAcknowledgment('Ja','Gib mir einen kleinen Moment.',id);
+    await handler({method:'POST',headers:{cookie:'sofia_session='+session},body:{message:'Ja'}},res);
+    assert.equal(status,200);assert.equal(data.imageRequest,undefined);assert.match(data.reply||data.context,/Sicherheitsprüfung/);
+   }
   }
  }
 });

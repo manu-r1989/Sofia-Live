@@ -78,6 +78,10 @@ test('failed photos offer an explicit retry while quota failures cannot launch a
  const h=harness(),sent=[];h.window.SofiaPhotoAction=text=>{sent.push(text);return true;};h.api.restore([{...image(id),status:'failed',requestMessage:'Schick mir ein Selfie.'}]);let retry=h.document.getElementById('portrait-'+id).all().find(x=>x.textContent==='Erneut versuchen');retry.onclick();assert.deepEqual(sent,['Schick mir ein Selfie.']);assert.equal(retry.disabled,true);
  h.api.restore([{...image(id2),status:'failed',failureCode:'test_image_limit'}]);retry=h.document.getElementById('portrait-'+id2).all().find(x=>x.textContent==='Erneut versuchen');assert.equal(retry.disabled,true);
 });
+test('legacy moderated photo notices explain the provider rejection and offer no identical retry',()=>{
+ const h=harness();h.api.restore([{...image(id),status:'failed',failureCode:'portrait_moderated',message:'Ich bin gerade nicht in der passenden Umgebung für ein Foto.'}]);
+ const notice=h.document.getElementById('portrait-'+id);assert.match(notice.textContent,/Sicherheitsprüfung.*anderen Bildwunsch/);assert.doesNotMatch(notice.textContent,/Umgebung/);assert.equal(notice.all().filter(x=>x.className==='photo-retry').length,0);
+});
 test('gallery swipe changes adjacent photos in current filtered order with safe boundaries',()=>{
  const h=harness(async()=>preparedPhoto());const at=new Date().toISOString();h.api.restore([{...image(id),createdAt:at,kind:'selfie'},{...image(id2),createdAt:at,kind:'selfie'}]);h.api.openGallery(id2);
  const full=h.document.getElementById('sofia-photo-'+id2).all().find(x=>x.tag==='img');
@@ -132,7 +136,7 @@ test('failed filtered or network request displays character reply at original tu
  const h=harness(async()=>({ok:false,json:async()=>({error:'moderation_blocked provider secret detail'})}));
  const ack=h.message('Gib mir einen kleinen Moment.','sofia',id);const job=h.api.generate({id});const later=h.message('Neuer Beitrag','user');await job;
  const slot=h.document.getElementById('portrait-slot-'+id);
- assert.deepEqual(h.messages.children,[ack,slot,later]);assert.match(slot.textContent,/nicht in der passenden Umgebung/);assert.doesNotMatch(slot.textContent,/moderation|provider|secret/);
+ assert.deepEqual(h.messages.children,[ack,slot,later]);assert.match(slot.textContent,/genaue Fehlergrund ist nicht bestätigt/);assert.doesNotMatch(slot.textContent,/moderation|provider|secret/);
  assert.equal(h.api.referenceId,null);
  const next=h.message('Gib mir einen kleinen Moment.','sofia',id2);h.api.restore([image(id2)]);assert.ok(h.document.getElementById('portrait-'+id2));
 });
