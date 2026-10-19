@@ -17,7 +17,13 @@ test('technical provider rejection is distinct from a connection failure and log
  assert.equal(providerFailure(400,{error:{message:'private'}}).code,'api_request_rejected');
  assert.equal(providerFailure(400,{error:{code:'context_length_exceeded'}}).code,'api_context_limit');
  const safe=providerDiagnostic({error:{code:'invalid_value',type:'invalid_request_error',param:'input[2].content[0].text',message:'private'}});
- assert.deepEqual(safe,{providerCode:'invalid_value',providerType:'invalid_request_error',providerParam:'input[2].content[0].text'});
+ assert.deepEqual(safe,{providerCode:'invalid_value',providerType:'invalid_request_error',providerParam:'input[2].content[0].text',providerReason:'unclassified'});
  assert.equal(providerDiagnostic({error:{code:'private',param:'private',type:'private'}}).providerParam,'unknown');
  assert.doesNotMatch(context.chatFailureFeedback(400,'api_request_rejected',false,false).message,/Verbindung/);
+});
+
+test('new provider protocol codes remain diagnosable without logging provider messages',()=>{
+ const result=providerDiagnostic({error:{code:'invalid_prompt',type:'invalid_request_error',message:'Request rejected by safety system. PRIVATE'}});
+ assert.equal(result.providerCode,'invalid_prompt');assert.equal(result.providerReason,'safety_rejection');assert.doesNotMatch(JSON.stringify(result),/PRIVATE/);
+ assert.equal(providerDiagnostic({error:{code:'secret value with spaces'}}).providerCode,'unknown');
 });
