@@ -597,7 +597,7 @@ test('repeated clear perspective or posture failure stays unpublished',async()=>
 });
 test('uncertain camera geometry and an explicitly changed pose do not cause unnecessary regeneration',async()=>{
  reset();reviewQueue=[{ok:false,confidence:.4,mismatches:['camera-angle']}];let result=await api.reviewPortrait('/9j/BB==',{variant:true,dimensions:['camera-angle'],scene:'Kamerastandpunkt: 90° nach links'},12000,'/9j/AA==');assert.equal(result.status,'uncertain');
- reviewQueue=[{ok:false,confidence:.95,mismatches:['posture']}];result=await api.reviewPortrait('/9j/BB==',{variant:true,dimensions:['pose'],scene:'Setz dich bitte'},12000,'/9j/AA==');assert.equal(result.status,'uncertain');assert.deepEqual(result.mismatches,[]);
+ reviewQueue=[{ok:false,confidence:.95,mismatches:['posture']}];result=await api.reviewPortrait('/9j/BB==',{variant:true,dimensions:['pose'],scene:'Setz dich bitte'},12000,'/9j/AA==');assert.equal(result.status,'mismatch');assert.deepEqual(result.mismatches,['posture']);
  reviewQueue=[{ok:false,confidence:.95,mismatches:['camera-angle']}];result=await api.reviewPortrait('/9j/BB==',{variant:false,dimensions:[],scene:'Selfie'},12000);assert.equal(result.status,'uncertain');assert.equal(reviewInputs.at(-1)[1].content.filter(x=>x.type==='image_url').length,1);
 });
 test('camera position overrides are limited to explicit compass variants',()=>{
