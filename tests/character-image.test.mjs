@@ -243,7 +243,7 @@ test('image delivery is private JPEG with download attachment and validated IDs'
 });
 test('UI integration loads shared renderer before app and does not alter avatar assets',async()=>{
  const root=new URL('../',import.meta.url);const index=await readFile(new URL('index.html',root),'utf8');
- assert.ok(index.indexOf('sofia-images.js?v=421106v1')<index.indexOf('app.js?v=421106v1'));
+ assert.ok(index.indexOf('sofia-images.js?v=421107v1')<index.indexOf('app.js?v=421107v1'));
  const chat=await readFile(new URL('api/chat.js',root),'utf8');
  assert.ok(chat.indexOf('!safeEqual(')<chat.indexOf('await servePortrait'));
  const ui=await readFile(new URL('sofia-images.js',root),'utf8');assert.match(ui,/dialog.showModal/);assert.match(ui,/link.download=/);assert.doesNotMatch(ui,/spinner|generating-status/);
@@ -852,11 +852,11 @@ test('the fitted style persists its examples into the shared day and a new photo
  const request=await api.preparePortrait('Mach bitte ein neues Selfie von dir.',null,new Date('2026-10-19T13:00:00Z'));const saved=JSON.parse(db.get(prefix+'request:'+request.id));assert.equal(saved.outfit,life.outfit);assert.equal(imageCalls.length,0);
 });
 test('saving clothing affects new photos while compass variants retain the source outfit',async()=>{
- reset();const now=new Date(),state={...api.defaultCompanionState(),clothing:{...api.CLOTHING_DEFAULTS,style:'sporty'}};db.set(prefix+'companion',JSON.stringify(state));
- const first=await api.preparePortrait('Mach bitte ein Selfie von dir.');const firstRequest=JSON.parse(db.get(prefix+'request:'+first.id));assert.match(firstRequest.outfit,/sportliche Kleidung/);
+ reset();const now=new Date('2026-10-19T13:00:00Z'),state={...api.defaultCompanionState(),clothing:{...api.CLOTHING_DEFAULTS,style:'sporty'}};db.set(prefix+'companion',JSON.stringify(state));
+ const first=await api.preparePortrait('Mach bitte ein Selfie von dir.',null,now);const firstRequest=JSON.parse(db.get(prefix+'request:'+first.id));assert.match(firstRequest.outfit,/sportliche Kleidung/);
  const sourceId='11111111-1111-4111-8111-111111111111';db.set(prefix+'gallery',JSON.stringify([{id:sourceId,kind:'selfie',outfit:'Gelber Pullover',scene:'Am Fenster',createdAt:now.toISOString()}]));db.set(prefix+'image:'+sourceId,JSON.stringify({id:sourceId,createdAt:now.toISOString(),base64:'eA==',kind:'selfie',outfit:'Gelber Pullover',scene:'Am Fenster'}));
  plan={action:'variant',outfit:'Falsches neues Outfit',changeOutfit:true,scene:'Kamera 90 Grad nach links',caption:'Perspektive'};
- const variant=await api.preparePortrait('Andere Perspektive: Kamera 90 Grad nach links',sourceId);const saved=JSON.parse(db.get(prefix+'request:'+variant.id));assert.equal(saved.outfit,'Gelber Pullover');assert.equal(imageCalls.length,0);
+ const variant=await api.preparePortrait('Andere Perspektive: Kamera 90 Grad nach links',sourceId,now);const saved=JSON.parse(db.get(prefix+'request:'+variant.id));assert.equal(saved.outfit,'Gelber Pullover');assert.equal(imageCalls.length,0);
 });
 test('temporary clothing expires correctly after a day-slot transition and does not become the base outfit',()=>{
  const now=new Date('2026-10-19T11:30:00Z'),state={...api.defaultCompanionState(),currentOutfit:{text:'Rotes Kleid',until:'2026-10-19T12:30:00Z'}},base=api.defaultSofiaLife(now);

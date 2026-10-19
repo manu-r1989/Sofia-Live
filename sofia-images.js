@@ -18,6 +18,13 @@
   function storePreferred(){const next=Object.fromEntries(Object.entries(preferredPhotos).filter(([family,id])=>valid(family)&&valid(id)&&retained(galleryItems.get(id)||{status:'expired'})).slice(-100));try{localStorage.setItem('sofia-photo-preferred-v495',JSON.stringify(next));preferredPhotos=next;return true;}catch{return false;}}
   let selectionVersion=0;
   const failureReply = 'Das Foto konnte diesmal nicht erstellt oder bereitgestellt werden. Der genaue Fehlergrund ist nicht bestätigt.';
+  function mismatchReply(image){
+    const variant=!!(image.sourceId||image.expectedSourceId);
+    const text=variant?'Die gewünschte Änderung wurde im Foto nicht zuverlässig umgesetzt. Du kannst einen neuen Versuch mit diesem Ausgangsfoto starten.':'Das neue Foto passte bei der Prüfung nicht zuverlässig zur angefragten Situation und wurde nicht verschickt.';
+    const labels={location:'Ort',daylight:'Tageslicht',weather:'Wetter',posture:'Körperhaltung','camera-angle':'Kameraperspektive',identity:'Identität','hair-color':'Haarfarbe',outfit:'Kleidung','head-pose':'Kopfhaltung',expression:'Gesichtsausdruck',gesture:'Geste',framing:'Bildausschnitt',lighting:'Beleuchtung',hairstyle:'Frisur'};
+    const reasons=image.review?.status==='mismatch'&&Array.isArray(image.review.mismatches)?[...new Set(image.review.mismatches.filter(x=>Object.hasOwn(labels,x)).map(x=>labels[x]))]:[];
+    return text+(reasons.length?' Die Prüfung meldete: '+reasons.join(', ')+'.':'');
+  }
   let referenceId = null;
   try { referenceId=localStorage.getItem('sofia-photo-reference'); } catch {}
   function rememberReference(id) { referenceId=id;try { localStorage.setItem('sofia-photo-reference',id); } catch {} }
@@ -358,7 +365,7 @@
       notice.className='msg sofia'; notice.dataset.portraitStatus='failed';notice.dataset.presentation=mode; notice.textContent=image.failureCode==='test_image_limit'?'Das Foto-Limit der Testversion ist für heute erreicht. Morgen kann ich wieder ein Foto schicken.':typeof image.message==='string'&&image.message.trim()?image.message.trim().slice(0,500):failureReply;
       if(image.failureCode==='portrait_source_unavailable')notice.textContent='Das Ausgangsfoto ist nicht mehr verfügbar. Bitte wähle ein anderes Foto in der Galerie.';
       if(image.failureCode==='portrait_moderated')notice.textContent='Der Bildanbieter hat diesen Fotoauftrag bei seiner Sicherheitsprüfung abgelehnt. Bitte beschreibe einen anderen Bildwunsch.';
-      if(image.failureCode==='portrait_context_mismatch')notice.textContent='Die gewünschte Änderung wurde im Foto nicht zuverlässig umgesetzt. Du kannst einen neuen Versuch mit diesem Ausgangsfoto starten.';
+      if(image.failureCode==='portrait_context_mismatch')notice.textContent=mismatchReply(image);
       if(image.failureCode==='portrait_reference_mismatch')notice.textContent='Die Änderung passt nicht zu dem Foto, das du ausgewählt hast. Bitte öffne es erneut in der Galerie.';
       const retryTime=Date.parse(image.retryAt);if(Number.isFinite(retryTime)&&retryTime>serverNow()){const wait=document.createElement('p');wait.className='photo-retry-time';wait.textContent='Erneut möglich ab '+new Date(retryTime).toLocaleString('de-DE',{timeZone:'Europe/Berlin',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})+' (Hamburg). Kein automatischer neuer Versuch.';notice.append(wait);}
       const retry=document.createElement('button');retry.type='button';retry.className='photo-retry';retry.textContent=image.reviewOnly?'Dasselbe Bild erneut prüfen':'Erneut versuchen';retry.disabled=['test_image_limit','portrait_reference_mismatch','portrait_source_unavailable'].includes(image.failureCode);retry.onclick=async()=>{
