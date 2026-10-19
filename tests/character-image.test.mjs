@@ -228,7 +228,7 @@ test('image delivery is private JPEG with download attachment and validated IDs'
 });
 test('UI integration loads shared renderer before app and does not alter avatar assets',async()=>{
  const root=new URL('../',import.meta.url);const index=await readFile(new URL('index.html',root),'utf8');
- assert.ok(index.indexOf('sofia-images.js?v=421101v1')<index.indexOf('app.js?v=421101v1'));
+ assert.ok(index.indexOf('sofia-images.js?v=421102v1')<index.indexOf('app.js?v=421102v1'));
  const chat=await readFile(new URL('api/chat.js',root),'utf8');
  assert.ok(chat.indexOf('!safeEqual(')<chat.indexOf('await servePortrait'));
  const ui=await readFile(new URL('sofia-images.js',root),'utf8');assert.match(ui,/dialog.showModal/);assert.match(ui,/link.download=/);assert.doesNotMatch(ui,/spinner|generating-status/);
@@ -784,4 +784,10 @@ test('temporary clothing expires correctly after a day-slot transition and does 
  const now=new Date('2026-10-19T11:30:00Z'),state={...api.defaultCompanionState(),currentOutfit:{text:'Rotes Kleid',until:'2026-10-19T12:30:00Z'}},base=api.defaultSofiaLife(now);
  const temporary=api.applyClothingToLife(base,null,state,now),later=new Date('2026-10-19T13:00:00Z'),next={...api.defaultSofiaLife(later),outfit:temporary.outfit};
  const expired=api.applyClothingToLife(next,temporary,state,later);assert.equal(expired.outfit,api.defaultSofiaLife(later).outfit);assert.notEqual(expired.outfit,'Rotes Kleid');
+});
+
+test('conversation compaction never splits an emoji at the recent or older context boundary',()=>{
+ const source='a'.repeat(2999)+'😀';const h=[{role:'user',content:source}];const result=api.compactConversationHistory(h);
+ assert.ok(result.recentHistory[0].content.isWellFormed());assert.equal(h[0].content,source);assert.equal(result.recentHistory[0].content,'a'.repeat(2999));
+ const older=[{role:'user',content:'a'.repeat(219)+'😀'},...Array.from({length:12},()=>({role:'assistant',content:'OK'}))];assert.ok(api.compactConversationHistory(older).olderContext.isWellFormed());
 });

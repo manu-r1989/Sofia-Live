@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {readFile} from 'node:fs/promises';
-import {providerFailure,retryAfterSeconds,providerDiagnostic} from '../lib/environment.js';
+import {providerFailure,retryAfterSeconds,providerDiagnostic,providerRequestJSON} from '../lib/environment.js';
 const source=await readFile(new URL('../app.js',import.meta.url),'utf8'),context=vm.createContext({Date});
 vm.runInContext(source.slice(source.indexOf('function chatFailureFeedback('),source.indexOf('async function askSofia(')),context);
 const now=new Date('2026-10-11T01:00:00Z');
@@ -26,4 +26,11 @@ test('new provider protocol codes remain diagnosable without logging provider me
  const result=providerDiagnostic({error:{code:'invalid_prompt',type:'invalid_request_error',message:'Request rejected by safety system. PRIVATE'}});
  assert.equal(result.providerCode,'invalid_prompt');assert.equal(result.providerReason,'safety_rejection');assert.doesNotMatch(JSON.stringify(result),/PRIVATE/);
  assert.equal(providerDiagnostic({error:{code:'secret value with spaces'}}).providerCode,'unknown');
+});
+
+test('provider JSON repairs split surrogate characters at every nested text boundary without changing stored sources',()=>{
+ const clipped='a'.repeat(2999)+'😀'.slice(0,1),source={instructions:clipped,input:[{role:'user',content:'Hallo'}, {role:'assistant',content:clipped}],valid:'Grüße 👩🏽‍💻',nested:{text:'\uDC00'}};
+ const original=JSON.stringify(source),wire=providerRequestJSON(source),decoded=JSON.parse(wire);
+ assert.ok(decoded.instructions.isWellFormed());assert.ok(decoded.input[1].content.isWellFormed());assert.ok(decoded.nested.text.isWellFormed());
+ assert.equal(decoded.valid,source.valid);assert.equal(JSON.stringify(source),original);assert.doesNotMatch(wire,/\\u[dD][89aAbBcCdDeEfF][0-9a-fA-F]{2}/);
 });
