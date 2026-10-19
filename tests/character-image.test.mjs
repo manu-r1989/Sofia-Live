@@ -228,7 +228,7 @@ test('image delivery is private JPEG with download attachment and validated IDs'
 });
 test('UI integration loads shared renderer before app and does not alter avatar assets',async()=>{
  const root=new URL('../',import.meta.url);const index=await readFile(new URL('index.html',root),'utf8');
- assert.ok(index.indexOf('sofia-images.js?v=421000v3')<index.indexOf('app.js?v=421000v3'));
+ assert.ok(index.indexOf('sofia-images.js?v=421100v1')<index.indexOf('app.js?v=421100v1'));
  const chat=await readFile(new URL('api/chat.js',root),'utf8');
  assert.ok(chat.indexOf('!safeEqual(')<chat.indexOf('await servePortrait'));
  const ui=await readFile(new URL('sofia-images.js',root),'utf8');assert.match(ui,/dialog.showModal/);assert.match(ui,/link.download=/);assert.doesNotMatch(ui,/spinner|generating-status/);
@@ -745,4 +745,43 @@ test('quoted shorter or expanded explanations cannot execute task, memory, calen
   const session=crypto.createHmac('sha256','test-only').update('sofia-authorized-session-v1').digest('hex');
   try{await handler({method:'POST',headers:{cookie:'sofia_session='+session},body:{message,replyTo:turn,...(kind==='shorter'?{replyTransform:kind}:{})}},{setHeader(){},status(n){status=n;return this;},json(d){data=d;return d;}});assert.equal(status,200);assert.equal(data.reply,'Hier ist die Erklärung.');assert.equal(requests,1);assert.equal(data.taskAction.action,'none');assert.ok(data.calendarAction==null);assert.equal(data.imageRequest,undefined);assert.equal(imageCalls.length,0);assert.equal(plannerInputs.length,0);assert.equal(db.has('sofia:main:tasks'),false);assert.ok(!String(db.get('sofia:main:longterm')).includes('Nicht speichern'));assert.ok(!String(db.get('sofia:main:calendar')).includes('Nicht anlegen'));}finally{globalThis.fetch=original;}
  }
+});
+
+test('personality choices validate every axis, preserve identity data and reset independently',()=>{
+ const before={...api.defaultCompanionState(),moments:[{id:'keep',text:'Erinnerung'}],clothing:{...api.CLOTHING_DEFAULTS,style:'elegant'}};
+ const p={...api.PERSONALITY_DEFAULTS,enabled:true,flirt:0,wit:4,length:0};
+ const next=api.applyCompanionEdit(before,{revision:0,operation:'personality',value:p});
+ assert.equal(next.revision,1);assert.deepEqual(next.moments,before.moments);assert.deepEqual(next.clothing,before.clothing);
+ assert.match(api.companionContext(next),/kein Flirten/);assert.match(api.companionContext(next),/sehr knapp/);
+ for(const value of [-1,5,1.5,'2'])assert.throws(()=>api.personalityChoice({...p,humor:value}));
+ const restored=api.applyCompanionEdit(next,{revision:1,operation:'personality',value:api.PERSONALITY_DEFAULTS});assert.equal(api.personalityContext(restored),'');assert.deepEqual(restored.clothing,before.clothing);
+ assert.throws(()=>api.applyCompanionEdit(next,{revision:0,operation:'personality',value:p}),/Stand/);
+});
+test('old companion state inherits original character and clothing without changing its scene',()=>{
+ const state=api.normalizeCompanionState({revision:3,profile:{name:'Manu'}}),life={key:'2026-10-19:afternoon',outfit:'Grüner Pullover'};
+ assert.deepEqual(state.personality,api.PERSONALITY_DEFAULTS);assert.deepEqual(state.clothing,api.CLOTHING_DEFAULTS);assert.equal(api.personalityContext(state),'');assert.deepEqual(api.applyClothingToLife(life,null,state),life);
+});
+test('clothing choices apply once, share the current scene and restore after a temporary outfit expires',()=>{
+ const now=new Date('2026-10-19T12:00:00Z'),life={key:'2026-10-19:afternoon',outfit:'Grüner Pullover'};
+ let state=api.applyCompanionEdit(api.defaultCompanionState(),{revision:0,operation:'clothing',value:{...api.CLOTHING_DEFAULTS,style:'elegant',palette:'Blau'}},now);
+ const styled=api.applyClothingToLife(life,null,state,now);assert.match(styled.outfit,/elegante Bluse/);assert.match(styled.outfit,/Blau/);
+ state=api.applyCompanionEdit(state,{revision:1,operation:'currentOutfit',value:{text:'Rotes Sommerkleid',hours:1}},now);
+ const temporary=api.applyClothingToLife(styled,styled,state,now);assert.equal(temporary.outfit,'Rotes Sommerkleid');
+ const later=new Date(+now+3600001),expired=api.applyClothingToLife(temporary,temporary,state,later);assert.equal(expired.outfit,styled.outfit);assert.doesNotMatch(api.clothingContext(state,later),/Rotes Sommerkleid/);
+ state=api.applyCompanionEdit(state,{revision:2,operation:'clothing',value:api.CLOTHING_DEFAULTS},later);
+ const original=api.applyClothingToLife(expired,expired,state,later);assert.equal(original.outfit,life.outfit);
+ assert.throws(()=>api.clothingChoice({...api.CLOTHING_DEFAULTS,style:'invalid'}));assert.throws(()=>api.clothingChoice({...api.CLOTHING_DEFAULTS,description:'a'.repeat(401)}));
+ assert.throws(()=>api.applyCompanionEdit(state,{revision:3,operation:'currentOutfit',value:{text:'Outfit',hours:100}},now));
+});
+test('saving clothing affects new photos while compass variants retain the source outfit',async()=>{
+ reset();const now=new Date(),state={...api.defaultCompanionState(),clothing:{...api.CLOTHING_DEFAULTS,style:'sporty'}};db.set(prefix+'companion',JSON.stringify(state));
+ const first=await api.preparePortrait('Mach bitte ein Selfie von dir.');const firstRequest=JSON.parse(db.get(prefix+'request:'+first.id));assert.match(firstRequest.outfit,/sportliche Kleidung/);
+ const sourceId='11111111-1111-4111-8111-111111111111';db.set(prefix+'gallery',JSON.stringify([{id:sourceId,kind:'selfie',outfit:'Gelber Pullover',scene:'Am Fenster',createdAt:now.toISOString()}]));db.set(prefix+'image:'+sourceId,JSON.stringify({id:sourceId,createdAt:now.toISOString(),base64:'eA==',kind:'selfie',outfit:'Gelber Pullover',scene:'Am Fenster'}));
+ plan={action:'variant',outfit:'Falsches neues Outfit',changeOutfit:true,scene:'Kamera 90 Grad nach links',caption:'Perspektive'};
+ const variant=await api.preparePortrait('Andere Perspektive: Kamera 90 Grad nach links',sourceId);const saved=JSON.parse(db.get(prefix+'request:'+variant.id));assert.equal(saved.outfit,'Gelber Pullover');assert.equal(imageCalls.length,0);
+});
+test('temporary clothing expires correctly after a day-slot transition and does not become the base outfit',()=>{
+ const now=new Date('2026-10-19T11:30:00Z'),state={...api.defaultCompanionState(),currentOutfit:{text:'Rotes Kleid',until:'2026-10-19T12:30:00Z'}},base=api.defaultSofiaLife(now);
+ const temporary=api.applyClothingToLife(base,null,state,now),later=new Date('2026-10-19T13:00:00Z'),next={...api.defaultSofiaLife(later),outfit:temporary.outfit};
+ const expired=api.applyClothingToLife(next,temporary,state,later);assert.equal(expired.outfit,api.defaultSofiaLife(later).outfit);assert.notEqual(expired.outfit,'Rotes Kleid');
 });
