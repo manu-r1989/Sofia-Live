@@ -82,6 +82,14 @@ test('legacy moderated photo notices explain the provider rejection and offer no
  const h=harness();h.api.restore([{...image(id),status:'failed',failureCode:'portrait_moderated',message:'Ich bin gerade nicht in der passenden Umgebung für ein Foto.'}]);
  const notice=h.document.getElementById('portrait-'+id);assert.match(notice.textContent,/Sicherheitsprüfung.*anderen Bildwunsch/);assert.doesNotMatch(notice.textContent,/Umgebung/);assert.equal(notice.all().filter(x=>x.className==='photo-retry').length,0);
 });
+test('a rejected new selfie explains the review result without inventing a source photo',()=>{
+ const h=harness();h.api.restore([{...image(id),status:'failed',failureCode:'portrait_context_mismatch',message:'Die gewünschte Änderung wurde nicht umgesetzt.',review:{status:'mismatch',confidence:.95,mismatches:['posture','location','posture','private provider text','__proto__']}}]);
+ const notice=h.document.getElementById('portrait-'+id);assert.match(notice.textContent,/Das neue Foto.*nicht verschickt/);assert.match(notice.textContent,/Die Prüfung meldete: Körperhaltung, Ort\./);assert.doesNotMatch(notice.textContent,/Ausgangsfoto|Änderung|private|__proto__/);assert.ok(notice.all().some(x=>x.textContent==='Erneut versuchen'));
+});
+test('a rejected variant keeps its source-specific explanation and labels only known review dimensions',()=>{
+ const h=harness();h.api.restore([{...image(id),sourceId:id2,status:'failed',failureCode:'portrait_context_mismatch',review:{status:'mismatch',mismatches:['camera-angle','outfit']}}]);
+ const notice=h.document.getElementById('portrait-'+id);assert.match(notice.textContent,/mit diesem Ausgangsfoto/);assert.match(notice.textContent,/Kameraperspektive, Kleidung/);
+});
 test('gallery swipe changes adjacent photos in current filtered order with safe boundaries',()=>{
  const h=harness(async()=>preparedPhoto());const at=new Date().toISOString();h.api.restore([{...image(id),createdAt:at,kind:'selfie'},{...image(id2),createdAt:at,kind:'selfie'}]);h.api.openGallery(id2);
  const full=h.document.getElementById('sofia-photo-'+id2).all().find(x=>x.tag==='img');
