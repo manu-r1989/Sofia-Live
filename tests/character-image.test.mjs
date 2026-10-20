@@ -243,7 +243,7 @@ test('image delivery is private JPEG with download attachment and validated IDs'
 });
 test('UI integration loads shared renderer before app and does not alter avatar assets',async()=>{
  const root=new URL('../',import.meta.url);const index=await readFile(new URL('index.html',root),'utf8');
- assert.ok(index.indexOf('sofia-images.js?v=421107v1')<index.indexOf('app.js?v=421107v1'));
+ assert.ok(index.indexOf('sofia-images.js?v=421108v1')<index.indexOf('app.js?v=421108v1'));
  const chat=await readFile(new URL('api/chat.js',root),'utf8');
  assert.ok(chat.indexOf('!safeEqual(')<chat.indexOf('await servePortrait'));
  const ui=await readFile(new URL('sofia-images.js',root),'utf8');assert.match(ui,/dialog.showModal/);assert.match(ui,/link.download=/);assert.doesNotMatch(ui,/spinner|generating-status/);
@@ -516,6 +516,13 @@ test('the screenshot standing edit changes posture while preserving the selected
 test('a clear photo mismatch reports its dimensions and requires explicit retry',async()=>{
  reset();reviewQueue=[{ok:false,confidence:.97,mismatches:['location','daylight']},{ok:true,confidence:.94,mismatches:[]}];const job=await api.preparePortrait('Selfie');await assert.rejects(api.generatePortrait(job.id),/portrait_context_mismatch/);assert.equal(imageCalls.length,1);assert.equal(db.has(prefix+'image:'+job.id),false);assert.deepEqual(JSON.parse(db.get(prefix+'notices'))[0].review.mismatches,['location','daylight']);
 });
+test('new-photo visibility guidance retains the block on a clear posture contradiction',async()=>{
+ reset();const job=await api.preparePortrait('Foto',null,new Date('2026-10-19T22:44:00Z'));
+ const stored=JSON.parse(db.get(prefix+'request:'+job.id));assert.match(stored.bodyPose,/in bed/);assert.equal(stored.variant,false);
+ reviewQueue=[{ok:false,confidence:.98,mismatches:['posture']}];await assert.rejects(api.generatePortrait(job.id),e=>e.code==='portrait_context_mismatch');
+ assert.equal(imageCalls.length,1);assert.equal(db.has(prefix+'image:'+job.id),false);assert.deepEqual(JSON.parse(db.get(prefix+'notices'))[0].review.mismatches,['posture']);
+ assert.match(reviewInputs[0][0].content,/face-and-shoulders crop does not establish/);assert.match(reviewInputs[0][0].content,/CLEAR visible body-posture contradiction/);
+});
 test('a clear mismatch fails honestly without publishing or continuing to bill',async()=>{
  reset();reviewQueue=[{ok:false,confidence:.95,mismatches:['weather']},{ok:false,confidence:.92,mismatches:['weather']}];const job=await api.preparePortrait('Selfie');await assert.rejects(api.generatePortrait(job.id),/portrait_context_mismatch/);assert.equal(imageCalls.length,1);assert.equal(db.has(prefix+'image:'+job.id),false);assert.equal(JSON.parse(db.get(prefix+'request:'+job.id)).status,'failed');assert.equal(JSON.parse(db.get(prefix+'notices'))[0].status,'failed');
 });
@@ -738,6 +745,14 @@ test('indirect photo routing excludes refusals, future tasks, quotations and exp
   reset();plan.action='none';assert.equal(api.indirectPortraitRequest(text),false,text);assert.equal(await api.preparePortrait(text),null,text);
  }
 });
+test('short photo commands create fresh jobs while quoted, negated and future mentions do not',async()=>{
+ for(const message of ['Foto','Foto bitte','Ein neues Bild.','Bitte ein Foto von dir!','Photo?']){
+  reset();plan.action='none';const job=await api.preparePortrait(message);assert.ok(job?.id,message);const stored=JSON.parse(db.get(prefix+'request:'+job.id));assert.equal(stored.variant,false);assert.equal(stored.sourceId,null);assert.equal(stored.requestMessage,message);assert.equal(imageCalls.length,0);
+ }
+ for(const message of ['Kein Foto','Foto später','Was bedeutet Foto?','Sag „Foto“.','Bild bearbeiten','Ein Foto vom Vertrag']){
+  reset();plan.action='none';assert.equal(api.shortPortraitRequest(message),false,message);assert.equal(await api.preparePortrait(message),null,message);
+ }
+});
 test('indirect outfit request supplies recent outfit conversation to the image planner',async()=>{
  reset();const now=new Date(),life=api.defaultSofiaLife(now);life.dialogue={at:now.toISOString(),lastUser:'Wie sieht dein Outfit aus?',lastAssistant:'Ich trage einen blauen Pullover.'};db.set(prefix+'life',JSON.stringify(life));
  const job=await api.preparePortrait('In dem Outfit würde ich dich gern sehen',null,now);assert.ok(job?.id);assert.match(plannerInputs[0].conversation.lastAssistant,/blauen Pullover/);
@@ -756,7 +771,7 @@ test('Text and Live return an actionable request id for indirect self-photo requ
  const session=crypto.createHmac('sha256','test-only').update('sofia-authorized-session-v1').digest('hex');
  for(const endpoint of ['chat','live-context']){
   const code=(await readFile(new URL('api/'+endpoint+'.js',root),'utf8')).replace('../lib/character-image.js',moduleUrl(source)).replace('./action-engine.js',engine);const handler=(await import(moduleUrl(code))).default;
-  for(const message of ['zeig dich mal','in dem outfit würde ich dich gern sehen','lass mal was von dir sehen','Ja']){
+  for(const message of ['zeig dich mal','in dem outfit würde ich dich gern sehen','lass mal was von dir sehen','Foto','Foto bitte','Ein neues Bild.','Ja']){
    reset();plan.action='none';let data,status;const res={setHeader(){},status(n){status=n;return this;},json(d){data=d;return d;}};
    if(message==='Ja'){const now=new Date(),life=api.defaultSofiaLife(now);life.dialogue={at:now.toISOString(),lastUser:'Wie siehst du gerade aus?',lastAssistant:'Den Anblick solltest du wirklich nicht nur beschrieben bekommen. 😉 Ich kann dir ein aktuelles Bild von mir an den Landungsbrücken erstellen.'};db.set(prefix+'life',JSON.stringify(life));}
    await handler({method:'POST',headers:{cookie:'sofia_session='+session},body:{message}},res);
