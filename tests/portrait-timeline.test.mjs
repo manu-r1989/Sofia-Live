@@ -5,6 +5,28 @@ import {readFile} from 'node:fs/promises';
 const source=await readFile(new URL('../sofia-images.js',import.meta.url),'utf8');
 const id='11111111-1111-4111-8111-111111111111';
 const id2='22222222-2222-4222-8222-222222222222';
+test('both photo jobs run serially and a provider rejection of the first does not duplicate or suppress the second',async()=>{
+ let release;const gate=new Promise(resolve=>release=resolve),posts=[];let running=0,maximum=0;
+ const h=harness(async(url,options)=>{
+  if(options.method==='GET')return {ok:true,json:async()=>({images:[{id,status:'failed',failureCode:'portrait_moderated',anchorId:id}]})};
+  const target=JSON.parse(options.body).requestId;posts.push(target);running++;maximum=Math.max(maximum,running);
+  if(target===id){await gate;running--;return {ok:false,json:async()=>({code:'portrait_moderated'})};}
+  running--;return {ok:true,json:async()=>({image:{...image(id2),anchorId:id,createdAt:new Date().toISOString()}})};
+ });
+ const receipt=h.message('Die beiden angebotenen Bildaufträge sind angelegt. Ich bearbeite sie nacheinander.','sofia',id),request={id,additionalRequests:[{id:id2,anchorId:id}]};
+ const first=h.api.generate(request),duplicate=h.api.generate(request);assert.deepEqual(posts,[id]);release();await Promise.all([first,duplicate]);
+ assert.deepEqual(posts,[id,id2]);assert.equal(maximum,1);assert.equal(h.document.getElementById('portrait-'+id).dataset.portraitStatus,'failed');assert.ok(h.document.getElementById('portrait-'+id2));
+ assert.deepEqual(h.messages.children,[receipt,h.document.getElementById('portrait-slot-'+id),h.document.getElementById('portrait-slot-'+id2)]);
+});
+test('reload resumes pending choices in offer order at their shared receipt without regenerating a completed first image',async()=>{
+ const posts=[],h=harness(async(url,options)=>{const target=JSON.parse(options.body).requestId;posts.push(target);return {ok:true,json:async()=>({image:{...image(target),anchorId:id,createdAt:new Date().toISOString()}})};});
+ const receipt=h.message('Beide Bildaufträge sind angelegt.','sofia',id),later=h.message('Danach','user'),at=new Date().toISOString();
+ h.api.restore([{id:id2,anchorId:id,batchIndex:1,status:'pending',jobStatus:'ready',requestedAt:at},{id,anchorId:id,batchIndex:0,status:'pending',jobStatus:'ready',requestedAt:at}]);
+ await Promise.all([h.api.generate({id}),h.api.generate({id:id2})]);assert.deepEqual(posts,[id,id2]);
+ assert.deepEqual(h.messages.children,[receipt,h.document.getElementById('portrait-slot-'+id),h.document.getElementById('portrait-slot-'+id2),later]);
+ const nextPosts=[],next=harness(async(url,options)=>{const target=JSON.parse(options.body).requestId;nextPosts.push(target);return {ok:true,json:async()=>({image:{...image(target),anchorId:id,createdAt:at}})};});next.message('Beide Aufträge','sofia',id);
+ next.api.restore([{...image(id),anchorId:id,status:'done',createdAt:at},{id:id2,anchorId:id,batchIndex:1,status:'pending',jobStatus:'ready',requestedAt:at}]);await next.api.generate({id:id2});assert.deepEqual(nextPosts,[id2]);
+});
 
 test('pinch and initially vertical gestures never become a photo swipe',()=>{const h=harness(async()=>preparedPhoto());const at=new Date().toISOString();h.api.restore([{...image(id),createdAt:at},{...image(id2),createdAt:at}]);h.api.openGallery(id2);const full=h.document.getElementById('sofia-photo-'+id2).all().find(x=>x.tag==='img'),point=(x,y)=>({identifier:1,clientX:x,clientY:y});full.events.touchstart({touches:[point(100,100)]});full.events.touchmove({touches:[point(110,160)]});full.events.touchend({touches:[],changedTouches:[point(10,110)]});assert.equal(h.api.referenceId,id2);full.events.touchstart({touches:[point(100,100)]});full.events.touchmove({touches:[point(80,100),{identifier:2,clientX:200,clientY:100}]});full.events.touchend({touches:[],changedTouches:[point(10,100)]});assert.equal(h.api.referenceId,id2);});
 test('offline restore and explicit generate do not POST a ready photograph',async()=>{let calls=0;const h=harness(async()=>{calls++;return {ok:true,json:async()=>({image:image(id)})};},{navigator:{onLine:false}});h.api.restore([{id,status:'pending',jobStatus:'ready'}]);await h.api.generate({id});assert.equal(calls,0);assert.equal(h.api.isGenerating,true);});

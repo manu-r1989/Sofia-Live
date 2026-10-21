@@ -31,6 +31,11 @@ globalThis.fetch=async(url,options)=>{
   if(op==='SET'){if(rest.includes('NX')&&db.has(key))return response({result:null});db.set(key,value);return response({result:'OK'});}
   if(op==='DEL'){db.delete(key);return response({result:1});}
   if(op==='EVAL'&&key.includes('sofia-review-retry')){const target=body[3];if((db.get(target)||'')!==body[4])return response({result:0});db.set(target,body[5]);return response({result:1});}
+  if(op==='EVAL'&&key.includes('sofia-photo-choice-commit')){
+   const keys=body.slice(3,3+body[2]),args=body.slice(3+body[2]),requests=JSON.parse(args[1]);
+   if(db.get(keys[0])!==args[0]||requests.some((r,i)=>JSON.parse(db.get(keys[i+3])||'null')?.status!=='draft'))return response({result:0});
+   requests.forEach((r,i)=>db.set(keys[i+3],JSON.stringify(r)));db.set(keys[1],args[2]);db.set(keys[2],JSON.stringify([...JSON.parse(db.get(keys[2])||'[]'),...JSON.parse(args[3])].slice(-20)));return response({result:1});
+  }
   if(op==='EVAL'&&key.includes('sofia-companion-usage-reserve'))return response({result:blockPersonalImage?0:1});
   if(op==='EVAL' && key.includes('sofia-gallery-append')) {const target=body[3],item=JSON.parse(body[4]);db.set(target,JSON.stringify([...JSON.parse(db.get(target)||'[]').filter(x=>x.id!==item.id),item]));return response({result:1});}
   if(op==='EVAL' && key.includes('sofia-portrait-jobs')) {const target=body[3],id=body[4];let jobs=JSON.parse(db.get(target)||'[]').filter(x=>x.id!==id);if(body[5])jobs.push(JSON.parse(body[5]));db.set(target,JSON.stringify(jobs.slice(-20)));return response({result:1});}
@@ -243,7 +248,7 @@ test('image delivery is private JPEG with download attachment and validated IDs'
 });
 test('UI integration loads shared renderer before app and does not alter avatar assets',async()=>{
  const root=new URL('../',import.meta.url);const index=await readFile(new URL('index.html',root),'utf8');
- assert.ok(index.indexOf('sofia-images.js?v=421108v1')<index.indexOf('app.js?v=421108v1'));
+ assert.ok(index.indexOf('sofia-images.js?v=421109v1')<index.indexOf('app.js?v=421109v1'));
  const chat=await readFile(new URL('api/chat.js',root),'utf8');
  assert.ok(chat.indexOf('!safeEqual(')<chat.indexOf('await servePortrait'));
  const ui=await readFile(new URL('sofia-images.js',root),'utf8');assert.match(ui,/dialog.showModal/);assert.match(ui,/link.download=/);assert.doesNotMatch(ui,/spinner|generating-status/);
@@ -763,6 +768,35 @@ test('photo preparation promises require a real job and preserve ordinary replie
  assert.equal(api.groundedPhotoReply('Gib mir einen kleinen Moment.',{id:'11111111-1111-4111-8111-111111111111'}),'Gib mir einen kleinen Moment.');
  assert.equal(api.groundedPhotoReply('Gib mir einen kleinen Moment. 😉',{id:'11111111-1111-4111-8111-111111111111'}),'Gib mir einen kleinen Moment. 😉');
 });
+const screenshotPhotoOffer='Das lässt sich einrichten 😉 Sag mir nur kurz, ob du lieber ein gemütliches Selfie im Bett oder ein Bild von meinem ganzen Outfit sehen möchtest.';
+function offerTwoPhotos(now=new Date()){
+ const life=api.defaultSofiaLife(now);life.dialogue={at:now.toISOString(),lastUser:'Würde ja gern was von dir sehen',lastAssistant:screenshotPhotoOffer};db.set(prefix+'life',JSON.stringify(life));return now;
+}
+test('the screenshot both-selection prepares two distinct motifs and reuses the same jobs on repeated consent',async()=>{
+ reset();const now=offerTwoPhotos();plan.action='none';
+ assert.deepEqual(api.offeredPhotoChoices(screenshotPhotoOffer),['ein gemütliches Selfie im Bett','ein Bild von meinem ganzen Outfit']);
+ const first=await api.preparePortrait('Beides?',null,now);assert.equal(first.additionalRequests.length,1);const second=first.additionalRequests[0];assert.notEqual(first.id,second.id);
+ const a=JSON.parse(db.get(prefix+'request:'+first.id)),b=JSON.parse(db.get(prefix+'request:'+second.id));assert.equal(a.kind,'selfie');assert.equal(b.kind,'full_selfie');assert.match(a.scene,/Selfie im Bett/);assert.match(b.scene,/deinem ganzen Outfit/);
+ for(const r of [a,b]){assert.equal(r.variant,false);assert.equal(r.status,'ready');assert.equal(r.sourceId,null);assert.equal(r.anchorId,a.id);}
+ assert.equal(imageCalls.length,0);assert.equal((await api.portraitGallery()).filter(x=>x.status==='pending').length,2);
+ await api.appendPortraitAcknowledgment('Beides?','Die beiden angebotenen Bildaufträge sind angelegt. Ich bearbeite sie nacheinander.',first.id);
+ const repeat=await api.preparePortrait('Beides jetzt');assert.equal(repeat.id,first.id);assert.equal(repeat.additionalRequests[0].id,second.id);assert.equal(plannerInputs.length,2);
+});
+test('first and second select their actual offer and ambiguous yes cannot bill two photographs',async()=>{
+ for(const [message,index] of [['Das erste',0],['Das zweite',1],['Selfie',0],['Das ganze Outfit',1]]){
+  reset();offerTwoPhotos();plan.action='none';const job=await api.preparePortrait(message);assert.ok(job?.id,message);assert.equal(job.additionalRequests,undefined);const saved=JSON.parse(db.get(prefix+'request:'+job.id));assert.equal(saved.kind,index?'full_selfie':'selfie');assert.equal(plannerInputs.length,1);
+ }
+ reset();offerTwoPhotos();await assert.rejects(api.preparePortrait('Ja'),e=>/erste.*zweite.*beide/.test(api.portraitPreparationReply(e)));assert.equal(imageCalls.length,0);assert.equal(plannerInputs.length,0);
+ reset();plan.action='none';assert.equal(await api.preparePortrait('Beides?'),null);assert.equal(plannerInputs.length,0);
+ reset();offerTwoPhotos(new Date(Date.now()-600001));assert.equal(await api.preparePortrait('Beide'),null);
+ for(const text of ['Möchtest du Tee oder Kaffee?','Möchtest du morgen ein Selfie oder ein Ganzkörperfoto sehen?','Er sagte: „Möchtest du ein Selfie oder ein Outfitbild sehen?“'])assert.equal(api.offeredPhotoChoices(text),null);
+ assert.equal(api.groundedPhotoReply('Klar, beides 😉 Gib mir einen kleinen Moment.'),'Möchtest du ein Foto von mir sehen?');
+});
+test('a failed atomic choice commit leaves only unpublished drafts and no resumable image jobs',async()=>{
+ reset();offerTwoPhotos();plan.action='none';const normal=globalThis.fetch;
+ globalThis.fetch=async(url,options)=>{const body=JSON.parse(options.body);return url==='https://redis.test'&&body[0]==='EVAL'&&body[1].includes('sofia-photo-choice-commit')?response({result:0}):normal(url,options);};
+ try{await assert.rejects(api.preparePortrait('Beide'),/not_committed/);assert.equal(imageCalls.length,0);assert.equal((await api.portraitGallery()).length,0);const requests=[...db.entries()].filter(([k])=>k.startsWith(prefix+'request:'));assert.equal(requests.length,2);for(const [,raw]of requests)assert.equal(JSON.parse(raw).status,'draft');}finally{globalThis.fetch=normal;}
+});
 test('Text and Live return an actionable request id for indirect self-photo requests',async()=>{
  const moduleUrl=s=>'data:text/javascript;base64,'+Buffer.from(s).toString('base64'),root=new URL('../',import.meta.url);
  const dates=moduleUrl(await readFile(new URL('lib/task-dates.js',root),'utf8'));
@@ -771,11 +805,13 @@ test('Text and Live return an actionable request id for indirect self-photo requ
  const session=crypto.createHmac('sha256','test-only').update('sofia-authorized-session-v1').digest('hex');
  for(const endpoint of ['chat','live-context']){
   const code=(await readFile(new URL('api/'+endpoint+'.js',root),'utf8')).replace('../lib/character-image.js',moduleUrl(source)).replace('./action-engine.js',engine);const handler=(await import(moduleUrl(code))).default;
-  for(const message of ['zeig dich mal','in dem outfit würde ich dich gern sehen','lass mal was von dir sehen','Foto','Foto bitte','Ein neues Bild.','Ja']){
+  for(const message of ['zeig dich mal','in dem outfit würde ich dich gern sehen','lass mal was von dir sehen','Foto','Foto bitte','Ein neues Bild.','Beides?','Das erste','Das zweite','Ja']){
    reset();plan.action='none';let data,status;const res={setHeader(){},status(n){status=n;return this;},json(d){data=d;return d;}};
+   if(['Beides?','Das erste','Das zweite'].includes(message))offerTwoPhotos();
    if(message==='Ja'){const now=new Date(),life=api.defaultSofiaLife(now);life.dialogue={at:now.toISOString(),lastUser:'Wie siehst du gerade aus?',lastAssistant:'Den Anblick solltest du wirklich nicht nur beschrieben bekommen. 😉 Ich kann dir ein aktuelles Bild von mir an den Landungsbrücken erstellen.'};db.set(prefix+'life',JSON.stringify(life));}
    await handler({method:'POST',headers:{cookie:'sofia_session='+session},body:{message}},res);
-   assert.equal(status,200);assert.ok(data.imageRequest?.id,endpoint+': '+message);assert.match(data.reply||data.context,/Gib mir einen kleinen Moment/);
+   assert.equal(status,200);assert.ok(data.imageRequest?.id,endpoint+': '+message);assert.match(data.reply||data.context,message==='Beides?'?/nacheinander/:/Gib mir einen kleinen Moment/);
+   if(message==='Beides?'){assert.equal(data.imageRequest.additionalRequests.length,1);assert.equal(JSON.parse(db.get(prefix+'request:'+data.imageRequest.additionalRequests[0].id)).status,'ready');}
    assert.equal(JSON.parse(db.get(prefix+'request:'+data.imageRequest.id)).status,'ready');
    if(endpoint==='chat')assert.ok(JSON.parse(db.get('sofia:main:history')).some(x=>x.imageRequestId===data.imageRequest.id));
    if(message==='Ja'){

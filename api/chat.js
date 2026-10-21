@@ -681,7 +681,7 @@ export default async function handler(req, res) {
           if(taskAction?.ok)calendarAction=taskAction.calendarAction || (taskAction.action==='none'?await extractCalendarActionFallback(imageRequest.taskMessage,hamburgReferenceTime()):null);
         }
         const receipt=imageRequest.taskMessage?(calendarAction && taskAction.action==='none'?'Kalenderimport ist vorbereitet.':taskReceipt(taskAction)):'';
-        const reply = imageRequest.correction ? "Ich korrigiere das Foto entsprechend deiner Beschreibung." : receipt ? receipt + " Gib mir einen kleinen Moment." : "Gib mir einen kleinen Moment.";
+        const reply = imageRequest.existingChoice ? "Für diese Auswahl bestehen bereits Bildaufträge. Bitte prüfe die Ergebnisse im Chat." : imageRequest.additionalRequests?.length ? "Die beiden angebotenen Bildaufträge sind angelegt. Ich bearbeite sie nacheinander." : imageRequest.correction ? "Ich korrigiere das Foto entsprechend deiner Beschreibung." : receipt ? receipt + " Gib mir einen kleinen Moment." : "Gib mir einen kleinen Moment.";
         const createdAt=await appendPortraitAcknowledgment(message, reply, imageRequest.id,quoteReference);
         const life = await getSofiaLife();
         return res.status(200).json({ reply,createdAt, life, mood: life.mood || "entspannt", imageRequest, taskAction, calendarAction,...(quoteReference?{replyTo:quoteReference}:{}) });
