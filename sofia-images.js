@@ -1,5 +1,6 @@
 (() => {
   const active = new Map();
+  let generationTail = null;
   const pending = new Set();
   const completed = new Set();
   const remotePending = new Set();
@@ -76,7 +77,10 @@
     const slot=slotFor(event.id);
     let node=messages.querySelector(`[data-portrait-request-id="${event.anchorId || event.id}"]`);
     if(!node)node=legacyPhotoAnchor(event);
-    if (node) anchor(event.id,node);
+    if(node&&event.anchorId&&event.anchorId!==event.id){
+      const first=slotFor(event.anchorId);anchor(event.anchorId,node);first.parentNode?.insertBefore(slot,first.nextSibling);
+    }
+    else if (node) anchor(event.id,node);
     else if (!pending.has(event.id)) {
       // Truncated history: retained older photographs belong BEFORE newer turns.
       let older=document.getElementById('portrait-older');
@@ -427,13 +431,18 @@
       const old=events.filter(x=>!x.anchorId && valid(x.id));
       old.forEach(image=>{const node=legacyPhotoAnchor(image);if(node&&!node.dataset.portraitRequestId)node.dataset.portraitRequestId=image.id;});
       events.forEach(show);if(resumeGallery){resumeGallery=false;if(!document.querySelector?.('dialog[open]'))openGallery(galleryView.photoOpen?galleryView.photoId:null);}
-      events.filter(x=>x.status==='pending' && x.jobStatus==='ready').forEach(x=>window.SofiaImages.generate(x));
+      events.filter(x=>x.status==='pending' && x.jobStatus==='ready').sort((a,b)=>(Date.parse(a.requestedAt)||0)-(Date.parse(b.requestedAt)||0)||(a.batchIndex||0)-(b.batchIndex||0)).forEach(x=>window.SofiaImages.generate(x));
       updatePhotoStatus();
       const successful=events.filter(x=>x.status !== 'failed' && x.status !== 'pending' && x.status !== 'expired' && valid(x.id));
       if (!successful.some(x=>x.id===referenceId)){referenceId=null;try{localStorage.removeItem('sofia-photo-reference');}catch{}}
       if (!referenceId && successful.length) rememberReference(successful.at(-1).id);
     },
     generate(request, options = {}) {
+      if(Array.isArray(request?.additionalRequests)&&request.additionalRequests.length){
+        const {additionalRequests,...first}=request,all=[first,...additionalRequests.slice(0,1)];
+        if(all.some(x=>!valid(x?.id))||new Set(all.map(x=>x.id)).size!==all.length)return Promise.resolve();
+        return Promise.all(all.map(({additionalRequests,...item})=>window.SofiaImages.generate(item,options)));
+      }
       if (!valid(request?.id)||typeof navigator!=='undefined'&&navigator.onLine===false) return Promise.resolve();
       if(rejected.has(request.id)){show({...request,status:'failed',failureCode:'portrait_reference_mismatch'});updatePhotoStatus();return Promise.resolve();}
       if (active.has(request.id)) return options.resume===true?active.get(request.id).then(result=>result?.resumeSafe?window.SofiaImages.generate(request,{resume:true}):result):active.get(request.id);
@@ -443,7 +452,7 @@
       pending.add(request.id);
       updatePhotoStatus();
       slotFor(request.id); // Reserve the original turn without showing progress UI.
-      const job = (async () => {
+      const run = async () => {
         try {
           if(request.expectedSourceId && request.sourceId!==request.expectedSourceId)throw Object.assign(new Error('portrait_reference_mismatch'),{code:'portrait_reference_mismatch'});
           const response = await fetch('/api/chat',{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json'},body:JSON.stringify({operation:'generate_image',requestId:request.id}),signal:typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function' ? AbortSignal.timeout(250000) : undefined});
@@ -467,7 +476,10 @@
           completed.add(request.id);if(completed.size>100)completed.delete(completed.values().next().value);
           active.delete(request.id);
         }
-      })();
+      };
+      const job=generationTail?generationTail.then(run):run();
+      const tail=job.then(()=>{},()=>{});generationTail=tail;
+      void tail.then(()=>{if(generationTail===tail)generationTail=null;});
       active.set(request.id,job); return job;
     }
   };
