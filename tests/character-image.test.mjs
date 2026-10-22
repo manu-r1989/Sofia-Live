@@ -132,6 +132,32 @@ test('screenshot photo offer accepts Ja and creates a durable request even if th
  assert.equal(api.contextualPhotoRequest('Nein',life,now),false);
  assert.equal(api.contextualPhotoRequest('Ja',life,new Date(+now+600001)),false);
 });
+test('screenshot full-sentence acceptance starts the offered new photograph',async()=>{
+ const reply='Ein neues Selfie als Nachtgruß – zurückgelehnt im Bett, mit offenen Haaren und einem warmen Lächeln für dich. 😉';
+ for(const message of ['Ja, das möchte ich sehen','Ja das würde ich gern sehen.','Ja, ich möchte das sehen!','Ja']){
+  reset();plan.action='none';const now=new Date(),life=api.defaultSofiaLife(now);
+  life.dialogue={at:now.toISOString(),lastUser:'Neues Foto',lastAssistant:reply};db.set(prefix+'life',JSON.stringify(life));
+  const request=await api.preparePortrait(message,null,now);
+  assert.ok(request?.id,message);const stored=JSON.parse(db.get(prefix+'request:'+request.id));
+  assert.equal(stored.status,'ready');assert.equal(stored.variant,false);assert.equal(stored.sourceId,null);
+  assert.equal(plannerInputs.at(-1).conversation.lastAssistant,reply);assert.equal(imageCalls.length,0);
+ }
+});
+test('full-sentence photo acceptance respects refusals, timing and unrelated context',async()=>{
+ const now=new Date(),reply='Ein neues Selfie als Nachtgruß für dich.';
+ for(const [lastUser,lastAssistant,age] of [
+  ['Neues Foto',reply,600001],['Hallo',reply,0],
+  ['Neues Foto','Ein neues Selfie kann ich dir nicht zeigen.',0],
+  ['Neues Foto','Ein neues Selfie mache ich dir später.',0],
+  ['Neues Foto','Als Beispiel: „Ein neues Selfie für dich.“',0],
+  ['Neues Foto','Hier ist ein Rezept für dich.',0]
+ ]){
+  reset();plan.action='none';const life=api.defaultSofiaLife(now);
+  life.dialogue={at:new Date(+now-age).toISOString(),lastUser,lastAssistant};db.set(prefix+'life',JSON.stringify(life));
+  assert.equal(await api.preparePortrait('Ja, das möchte ich sehen',null,now),null,lastAssistant);
+  assert.equal(plannerInputs.length,0);
+ }
+});
 test('photo offer detection keeps refusals local and accepts explicit creation verbs',()=>{
  const now=new Date(),base={at:now.toISOString(),lastUser:'Hallo'};
  for(const lastAssistant of ['Ich kann dir ein Bild von mir erstellen.','Ich kann dir ein Foto machen.','Soll ich dir ein Selfie generieren?','Du musst nicht raten. Ich kann dir ein Bild zeigen.'])assert.equal(api.contextualPhotoRequest('Ja',{dialogue:{...base,lastAssistant}},now),true,lastAssistant);
@@ -248,7 +274,7 @@ test('image delivery is private JPEG with download attachment and validated IDs'
 });
 test('UI integration loads shared renderer before app and does not alter avatar assets',async()=>{
  const root=new URL('../',import.meta.url);const index=await readFile(new URL('index.html',root),'utf8');
- assert.ok(index.indexOf('sofia-images.js?v=421109v1')<index.indexOf('app.js?v=421109v1'));
+ assert.ok(index.indexOf('sofia-images.js?v=421110v1')<index.indexOf('app.js?v=421110v1'));
  const chat=await readFile(new URL('api/chat.js',root),'utf8');
  assert.ok(chat.indexOf('!safeEqual(')<chat.indexOf('await servePortrait'));
  const ui=await readFile(new URL('sofia-images.js',root),'utf8');assert.match(ui,/dialog.showModal/);assert.match(ui,/link.download=/);assert.doesNotMatch(ui,/spinner|generating-status/);
@@ -751,11 +777,21 @@ test('indirect photo routing excludes refusals, future tasks, quotations and exp
  }
 });
 test('short photo commands create fresh jobs while quoted, negated and future mentions do not',async()=>{
- for(const message of ['Foto','Foto bitte','Ein neues Bild.','Bitte ein Foto von dir!','Photo?']){
+ for(const message of ['Foto','Foto bitte','Ein neues Bild.','Neues Foto','Neues Foto bitte!','Bitte neues Bild von dir.','Bitte ein Foto von dir!','Photo?']){
   reset();plan.action='none';const job=await api.preparePortrait(message);assert.ok(job?.id,message);const stored=JSON.parse(db.get(prefix+'request:'+job.id));assert.equal(stored.variant,false);assert.equal(stored.sourceId,null);assert.equal(stored.requestMessage,message);assert.equal(imageCalls.length,0);
  }
- for(const message of ['Kein Foto','Foto später','Was bedeutet Foto?','Sag „Foto“.','Bild bearbeiten','Ein Foto vom Vertrag']){
+ for(const message of ['Kein Foto','Kein neues Foto','Neues Foto später','Foto später','Was bedeutet Foto?','Was heißt neues Foto?','Sag „Neues Foto“.','Sag „Foto“.','Bild bearbeiten','Ein Foto vom Vertrag']){
   reset();plan.action='none';assert.equal(api.shortPortraitRequest(message),false,message);assert.equal(await api.preparePortrait(message),null,message);
+ }
+});
+test('Neues Foto overrides an old photograph and a planner variant without reusing its source',async()=>{
+ for(const action of ['none','variant']){
+  reset();const now=new Date(),sourceId=previousPhotograph(now);plan.action=action;
+  const request=await api.preparePortrait('Neues Foto',sourceId,now);
+  assert.ok(request?.id);assert.notEqual(request.id,sourceId);
+  const stored=JSON.parse(db.get(prefix+'request:'+request.id));
+  assert.equal(stored.status,'ready');assert.equal(stored.variant,false);assert.equal(stored.sourceId,null);
+  assert.equal(imageCalls.length,0);
  }
 });
 test('indirect outfit request supplies recent outfit conversation to the image planner',async()=>{
@@ -805,9 +841,10 @@ test('Text and Live return an actionable request id for indirect self-photo requ
  const session=crypto.createHmac('sha256','test-only').update('sofia-authorized-session-v1').digest('hex');
  for(const endpoint of ['chat','live-context']){
   const code=(await readFile(new URL('api/'+endpoint+'.js',root),'utf8')).replace('../lib/character-image.js',moduleUrl(source)).replace('./action-engine.js',engine);const handler=(await import(moduleUrl(code))).default;
-  for(const message of ['zeig dich mal','in dem outfit würde ich dich gern sehen','lass mal was von dir sehen','Foto','Foto bitte','Ein neues Bild.','Beides?','Das erste','Das zweite','Ja']){
+  for(const message of ['zeig dich mal','in dem outfit würde ich dich gern sehen','lass mal was von dir sehen','Foto','Foto bitte','Ein neues Bild.','Neues Foto','Ja, das möchte ich sehen','Beides?','Das erste','Das zweite','Ja']){
    reset();plan.action='none';let data,status;const res={setHeader(){},status(n){status=n;return this;},json(d){data=d;return d;}};
    if(['Beides?','Das erste','Das zweite'].includes(message))offerTwoPhotos();
+   if(message==='Ja, das möchte ich sehen'){const now=new Date(),life=api.defaultSofiaLife(now);life.dialogue={at:now.toISOString(),lastUser:'Neues Foto',lastAssistant:'Ein neues Selfie als Nachtgruß – zurückgelehnt im Bett, mit offenen Haaren und einem warmen Lächeln für dich. 😉'};db.set(prefix+'life',JSON.stringify(life));}
    if(message==='Ja'){const now=new Date(),life=api.defaultSofiaLife(now);life.dialogue={at:now.toISOString(),lastUser:'Wie siehst du gerade aus?',lastAssistant:'Den Anblick solltest du wirklich nicht nur beschrieben bekommen. 😉 Ich kann dir ein aktuelles Bild von mir an den Landungsbrücken erstellen.'};db.set(prefix+'life',JSON.stringify(life));}
    await handler({method:'POST',headers:{cookie:'sofia_session='+session},body:{message}},res);
    assert.equal(status,200);assert.ok(data.imageRequest?.id,endpoint+': '+message);assert.match(data.reply||data.context,message==='Beides?'?/nacheinander/:/Gib mir einen kleinen Moment/);
