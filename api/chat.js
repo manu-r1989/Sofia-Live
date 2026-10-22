@@ -1,6 +1,6 @@
 import { authorizeSession, dataPrefix, testModeRequested, publicTestMode, guardTestRequest, providerRequestJSON, providerFailure, providerDiagnostic } from "../lib/environment.js";
 import { chatCleanupPlan, CHAT_CLEANUP_SCRIPT, resolveReplyReference, replyReferenceContext, participantLocationContext, visibleConversation, DELETE_MESSAGE_SCRIPT, RESTORE_MESSAGE_SCRIPT, SAVE_VISIBLE_HISTORY_SCRIPT, conversationReferenceContext, conversationReferenceClarification, replyPhotoReference } from '../lib/message-context.js';
-import { trustedMemoryHistory, memoryReplyReferences, companionState, companionContext, recordMemoryConflict, filterCompanionMemories, persistMemorySnapshot, executeProjectCommand, executeMemoryCommand, projectState, projectContext, projectBinding, linkProjectResult, appearanceChoice, conversationClarification, guardPermanentMemory, compactConversationHistory, safeDiagnostic, taskReceipt, hamburgReferenceTime, portraitPreparationReply, portraitFailureMessage, groundedPhotoReply, preparePortrait, generatePortrait, servePortrait, portraitGallery, appendPortraitAcknowledgment, PORTRAIT_FAILURE_REPLY, getSofiaLife, currentSituationCorrection, synchronizeSituation, learnSofiaLife, lifeContext, selectedPhotoContext, prepareProactivePortrait, PROACTIVE_PHOTO_ANNOUNCEMENT } from '../lib/character-image.js';
+import { runDurableChat,durableChatStatus,trustedMemoryHistory, memoryReplyReferences, companionState, companionContext, recordMemoryConflict, filterCompanionMemories, persistMemorySnapshot, executeExperienceCommand,executeProjectCommand, executeMemoryCommand, projectState, projectContext, projectBinding, linkProjectResult, appearanceChoice, conversationClarification, guardPermanentMemory, compactConversationHistory, safeDiagnostic, taskReceipt, hamburgReferenceTime, portraitPreparationReply, portraitFailureMessage, groundedPhotoReply, preparePortrait, generatePortrait, servePortrait, portraitGallery, appendPortraitAcknowledgment, PORTRAIT_FAILURE_REPLY, getSofiaLife, currentSituationCorrection, synchronizeSituation, learnSofiaLife, lifeContext, selectedPhotoContext, prepareProactivePortrait, PROACTIVE_PHOTO_ANNOUNCEMENT } from '../lib/character-image.js';
 import crypto from "node:crypto";
 import { executeUnifiedAction, getActionState, getResearchState } from "./action-engine.js";
 
@@ -535,6 +535,11 @@ export default async function handler(req, res) {
 
   }
   if(req.method==='POST'&&req.headers?.origin){try{if(new URL(req.headers.origin).host!==req.headers.host)throw Error();}catch{return res.status(403).json({error:'Origin not allowed'});}}
+  if(req.method==='GET'&&req.query?.turn){try{return res.status(200).json(await durableChatStatus(req.query.turn));}catch{return res.status(400).json({error:'Versandstatus nicht verfügbar.'});}}
+  if(req.method==='POST'&&req.body?.clientTurnId&&!req.body.operation){
+    try{return await runDurableChat(req,res,(body,proxy)=>handler({...req,body},proxy));}
+    catch{return res.status(503).json({code:'chat_turn_uncertain',error:'Der Versandstatus konnte nicht bestätigt werden. Bitte Aufträge prüfen.'});}
+  }
   if(!await guardTestRequest(req,res,"chat"))return;
 
   /* ========================================
@@ -664,7 +669,7 @@ export default async function handler(req, res) {
     const selectedReferenceId=quoteReference?.imageId||req.body?.referenceImageId;
     if(!transform&&currentSituationCorrection(message))await synchronizeSituation(message,new Date(),req.body?.mood);
 
-    const directCommand=transform?null:await executeMemoryCommand(message) || await executeProjectCommand(message);
+    const directCommand=transform?null:await executeExperienceCommand(message) || await executeMemoryCommand(message) || await executeProjectCommand(message);
     if(directCommand){const createdAt=await appendPortraitAcknowledgment(message,directCommand.reply);const life=await getSofiaLife();return res.status(200).json({reply:directCommand.reply,createdAt,life,mood:life.mood,taskAction:{ok:true,action:'none'}});}
 
     const agendaClarification=transform?null:conversationReferenceClarification(quoteHistory,message,quoteReference);
