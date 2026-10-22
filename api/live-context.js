@@ -1,6 +1,6 @@
 import { authorizeSession, dataPrefix, testModeRequested, publicTestMode, guardTestRequest } from "../lib/environment.js";
 import { participantLocationContext, conversationReferenceContext, conversationReferenceClarification, shortAgendaReply, visibleConversation } from '../lib/message-context.js';
-import { filterCompanionMemories, companionState, companionContext, executeProjectCommand, executeMemoryCommand, projectState, projectContext, projectBinding, linkProjectResult, appearanceChoice, taskReceipt, hamburgReferenceTime, portraitPreparationReply, preparePortrait, getSofiaLife, currentSituationCorrection, synchronizeSituation, lifeContext, selectedPhotoContext, prepareProactivePortrait, PROACTIVE_PHOTO_ANNOUNCEMENT } from '../lib/character-image.js';
+import { filterCompanionMemories, companionState, companionContext, executeExperienceCommand,executeProjectCommand, executeMemoryCommand, projectState, projectContext, projectBinding, linkProjectResult, appearanceChoice, taskReceipt, hamburgReferenceTime, portraitPreparationReply, preparePortrait, getSofiaLife, currentSituationCorrection, synchronizeSituation, lifeContext, selectedPhotoContext, prepareProactivePortrait, PROACTIVE_PHOTO_ANNOUNCEMENT } from '../lib/character-image.js';
 import crypto from "node:crypto";
 import { executeUnifiedAction, getActionState, getResearchState } from "./action-engine.js";
 
@@ -107,7 +107,7 @@ export default async function handler(req, res) {
 
   if(currentSituationCorrection(message))await synchronizeSituation(message,new Date(),req.body?.mood);
 
-  const directCommand=await executeMemoryCommand(message) || await executeProjectCommand(message);
+  const directCommand=await executeExperienceCommand(message) || await executeMemoryCommand(message) || await executeProjectCommand(message);
   if(directCommand)return res.status(200).json({context:'TATSÄCHLICHES ERGEBNIS: Antworte ausschließlich und wörtlich auf Deutsch: '+directCommand.reply,life:await getSofiaLife(),taskAction:{ok:true,action:'none'},calendarAction:null});
 
   if(shortAgendaReply(message)){const h=visibleConversation(await redisGet(dataPrefix()+'history',[]),await redisGet(dataPrefix()+'chat-hidden-messages',[]));const clarification=conversationReferenceClarification(h,message);if(clarification)return res.status(200).json({context:'BEZUG KLÄREN: Antworte ausschließlich und wörtlich auf Deutsch: '+clarification,life:await getSofiaLife(),taskAction:{ok:true,action:'none'},calendarAction:null});}

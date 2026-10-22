@@ -30,6 +30,8 @@ globalThis.fetch=async(url,options)=>{
   if(op==='GET')return response({result:db.get(key)||null});
   if(op==='SET'){if(rest.includes('NX')&&db.has(key))return response({result:null});db.set(key,value);return response({result:'OK'});}
   if(op==='DEL'){db.delete(key);return response({result:1});}
+  if(op==='EVAL'&&key.includes('sofia-companion-cas')){if((db.get(body[3])||'')!==body[4])return response({result:0});db.set(body[3],body[5]);return response({result:1});}
+  if(op==='EVAL'&&key.includes('sofia-chat-turn-claim')){const target=body[3],index=body[4];if(db.has(target))return response({result:0});db.set(target,body[5]);db.set(index,JSON.stringify([...JSON.parse(db.get(index)||'[]'),body[6]].slice(-20)));return response({result:1});}
   if(op==='EVAL'&&key.includes('sofia-review-retry')){const target=body[3];if((db.get(target)||'')!==body[4])return response({result:0});db.set(target,body[5]);return response({result:1});}
   if(op==='EVAL'&&key.includes('sofia-photo-choice-commit')){
    const keys=body.slice(3,3+body[2]),args=body.slice(3+body[2]),requests=JSON.parse(args[1]);
@@ -274,7 +276,7 @@ test('image delivery is private JPEG with download attachment and validated IDs'
 });
 test('UI integration loads shared renderer before app and does not alter avatar assets',async()=>{
  const root=new URL('../',import.meta.url);const index=await readFile(new URL('index.html',root),'utf8');
- assert.ok(index.indexOf('sofia-images.js?v=421111v1')<index.indexOf('app.js?v=421111v1'));
+ assert.ok(index.indexOf('sofia-images.js?v=422000v1')<index.indexOf('app.js?v=422000v1'));
  const chat=await readFile(new URL('api/chat.js',root),'utf8');
  assert.ok(chat.indexOf('!safeEqual(')<chat.indexOf('await servePortrait'));
  const ui=await readFile(new URL('sofia-images.js',root),'utf8');assert.match(ui,/dialog.showModal/);assert.match(ui,/link.download=/);assert.doesNotMatch(ui,/spinner|generating-status/);
@@ -989,4 +991,52 @@ test('offered photo descriptions require a current explicit reference and exclud
   ['Dann schick mir davon ein Foto',{...base,lastAssistant:'Ein Gesichtsporträt mache ich später.'}],
   ['Dann schick mir davon ein Foto',{...base,lastAssistant:'Als Beispiel: „Ein Gesichtsporträt vor schlichtem Hintergrund.“'}]
  ])assert.equal(api.acceptedPhotoDescription(message,{dialogue},now),null,message);
+});
+
+test('a four-motif image story is atomically ready, snapshot-bound, independently checked and not a variant family',async()=>{
+ reset();plan.action='none';const token=crypto.randomUUID(),input={token,motifs:['Gesichtsporträt vor schlichtem Hintergrund','Ein Selfie im Park','Ein Ganzkörperfoto an der Alster','Ein Spiegelselfie'],outfit:'Blauer Pullover und Jeans'};
+ const batch=await api.preparePortraitSeries(input);assert.equal(batch.additionalRequests.length,3);const jobs=[batch,...batch.additionalRequests];
+ const stored=jobs.map(x=>JSON.parse(db.get(prefix+'request:'+x.id)));assert.equal(new Set(jobs.map(x=>x.id)).size,4);
+ for(const [i,r]of stored.entries()){assert.equal(r.status,'ready');assert.equal(r.anchorId,batch.id);assert.equal(r.batchIndex,i);assert.equal(r.sequenceId,token);assert.equal(r.sourceId,null);assert.equal(r.outfit,input.outfit);assert.equal(r.requestedAt,stored[0].requestedAt);assert.equal(r.life.location,stored[0].life.location);assert.equal(r.wishContract.kind,r.kind);}
+ assert.equal(imageCalls.length,0);const planned=plannerInputs.length;const again=await api.preparePortraitSeries(input);assert.equal(again.existingChoice,true);assert.equal(again.id,batch.id);assert.equal(plannerInputs.length,planned);
+ await assert.rejects(api.preparePortraitSeries({...input,motifs:['Anders','Noch anders']}),/andere/);
+ for(const job of jobs){const image=await api.generatePortrait(job.id);assert.equal(image.sequenceId,token);assert.equal(image.seriesId,job.id);assert.equal(image.review.status,'passed');}
+ assert.equal(imageCalls.length,4);const after=await api.preparePortraitSeries(input);assert.equal(after.id,batch.id);assert.equal(imageCalls.length,4);
+});
+test('durable chat replay survives concurrent requests and changing history without repeating provider work',async()=>{
+ reset();const id=crypto.randomUUID(),req={body:{clientTurnId:id,message:'Hallo',history:[]}},outputs=[];
+ const res=()=>({statusCode:200,setHeader(){},status(n){this.statusCode=n;return this;},json(data){outputs.push({status:this.statusCode,data});return data;}});
+ let finish,executions=0;const hold=new Promise(resolve=>finish=resolve);const execute=async(body,r)=>{executions++;await hold;return r.status(200).json({reply:'Hallo Manu',createdAt:new Date().toISOString()});};
+ const first=api.runDurableChat(req,res(),execute);for(let i=0;i<20;i++)await Promise.resolve();
+ await api.runDurableChat({body:{...req.body,history:[{role:'assistant',content:'Zwischenstand'}]}},res(),execute);assert.equal(outputs.at(-1).status,202);assert.equal(executions,1);
+ finish();await first;await api.runDurableChat(req,res(),execute);assert.equal(outputs.at(-1).data.reply,'Hallo Manu');assert.equal(executions,1);assert.equal((await api.durableChatStatus(id)).status,'done');assert.equal((await api.durableChatJobs())[0].id,id);
+ await api.runDurableChat({body:{...req.body,message:'Andere Nachricht'}},res(),execute);assert.equal(outputs.at(-1).status,409);assert.equal(executions,1);
+});
+test('a lost chat execution remains uncertain and is never automatically re-executed',async()=>{
+ reset();const id=crypto.randomUUID(),req={body:{clientTurnId:id,message:'Lege eine Aufgabe an'}},out=[],r={setHeader(){},status(n){this.code=n;return this;},json(d){out.push(d);return d;}};let executed=0;
+ await assert.rejects(api.runDurableChat(req,r,async()=>{executed++;throw Error('lost after write');}));assert.equal((await api.durableChatStatus(id)).status,'uncertain');
+ await api.runDurableChat(req,r,async()=>executed++);assert.equal(executed,1);assert.equal(out.at(-1).pending,true);assert.equal(out.at(-1).code,'chat_turn_uncertain');
+});
+
+test('named looks and activity commands save their actual result without a classifier or image generation',async()=>{
+ reset();const garment=crypto.randomUUID(),look=crypto.randomUUID(),state=api.defaultCompanionState(),at=new Date().toISOString();
+ state.experiences.garments=[{id:garment,title:'Jeans',category:'bottom',text:'Blaue Skinny Jeans',createdAt:at,updatedAt:at,archived:false}];state.experiences.looks=[{id:look,title:'Alltag',garmentIds:[garment],occasion:'Alltag',createdAt:at,updatedAt:at,archived:false}];db.set(prefix+'companion',JSON.stringify(state));
+ const wore=await api.executeExperienceCommand('Zieh den Look Alltag für vier Stunden an');assert.match(wore.reply,/4 Stunden/);assert.equal(JSON.parse(db.get(prefix+'companion')).currentOutfit.text,'Blaue Skinny Jeans');
+ const started=await api.executeExperienceCommand('Starte einen Filmabend');assert.match(started.reply,/gespeichert/);assert.equal(JSON.parse(db.get(prefix+'companion')).experiences.activities[0].kind,'movie');assert.equal(plannerInputs.length,0);assert.equal(imageCalls.length,0);
+ for(const message of ['Starte keinen Filmabend','Starte einen Filmabend morgen','Sag „Starte einen Filmabend“.','Wie starte ich einen Filmabend?'])assert.equal(await api.executeExperienceCommand(message),null,message);
+});
+test('expired text receipts never silently create a new execution under an old client id',async()=>{
+ reset();let executed=0,data,status;const res={setHeader(){},status(n){status=n;return this;},json(d){data=d;return d;}};
+ await api.runDurableChat({body:{clientTurnId:crypto.randomUUID(),clientTurnAt:Date.now()-86400001,message:'Hallo'}},res,()=>executed++);
+ assert.equal(status,409);assert.equal(data.code,'chat_turn_expired');assert.equal(executed,0);
+});
+
+test('an explicit new standing photo overrides the current lying default in its saved contract',async()=>{
+ reset();const now=new Date(),life=api.defaultSofiaLife(now);life.location='zu Hause im Bett';life.activity='Im Bett liegen';db.set(prefix+'life',JSON.stringify(life));plan.action='none';
+ const r=await api.preparePortrait('Mach bitte ein Selfie von dir im Stehen',null,now),saved=JSON.parse(db.get(prefix+'request:'+r.id));assert.equal(saved.bodyPose,'stehend');assert.equal(saved.wishContract.pose,'stehend');
+ assert.equal(api.requestedPhotoPosture('Nicht im Stehen'),null);assert.equal(api.requestedPhotoPosture('Statt im Stehen im Sitzen'),'sitzend');assert.equal(api.requestedPhotoPosture('Sitzend oder stehend'),null);
+});
+test('photo provider requests normalize broken UTF-16 without rewriting the saved outfit',async()=>{
+ reset();plan.changeOutfit=true;plan.outfit='Blaues Top '+String.fromCharCode(0xd83d);const r=await api.preparePortrait('Mach bitte ein Selfie von dir.');
+ const before=JSON.parse(db.get(prefix+'request:'+r.id));assert.equal(before.outfit,plan.outfit);await api.generatePortrait(r.id);assert.equal(imageCalls[0].prompt.isWellFormed(),true);assert.match(imageCalls[0].prompt,/Blaues Top �/);assert.equal(JSON.parse(db.get(prefix+'request:'+r.id)).outfit,plan.outfit);
 });

@@ -690,6 +690,7 @@ ${historyText}
       value: data.value,
       instructions,
       usageSession:{id:usageSession.id,seconds:usageSession.seconds,expiresAt:usageSession.startedAt+usageSession.seconds*1000},
+      profileRevision:companion.revision,
       livePreferences:companion.livePreferences
     });
 

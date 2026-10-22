@@ -78,7 +78,7 @@
     let node=messages.querySelector(`[data-portrait-request-id="${event.anchorId || event.id}"]`);
     if(!node)node=legacyPhotoAnchor(event);
     if(node&&event.anchorId&&event.anchorId!==event.id){
-      const first=slotFor(event.anchorId);anchor(event.anchorId,node);first.parentNode?.insertBefore(slot,first.nextSibling);
+      const first=slotFor(event.anchorId);anchor(event.anchorId,node);slot.dataset.batchAnchor=event.anchorId;slot.dataset.batchIndex=String(event.batchIndex||1);let after=first;for(const sibling of [...(first.parentNode?.children||[])])if(sibling!==slot&&sibling.dataset?.batchAnchor===event.anchorId&&Number(sibling.dataset.batchIndex)<Number(slot.dataset.batchIndex))after=sibling;after.parentNode?.insertBefore(slot,after.nextSibling);
     }
     else if (node) anchor(event.id,node);
     else if (!pending.has(event.id)) {
@@ -439,7 +439,7 @@
     },
     generate(request, options = {}) {
       if(Array.isArray(request?.additionalRequests)&&request.additionalRequests.length){
-        const {additionalRequests,...first}=request,all=[first,...additionalRequests.slice(0,1)];
+        const {additionalRequests,...first}=request,all=[first,...additionalRequests.slice(0,3)];
         if(all.some(x=>!valid(x?.id))||new Set(all.map(x=>x.id)).size!==all.length)return Promise.resolve();
         return Promise.all(all.map(({additionalRequests,...item})=>window.SofiaImages.generate(item,options)));
       }

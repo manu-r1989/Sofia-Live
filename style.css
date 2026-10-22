@@ -1475,3 +1475,9 @@ body:has(#sofia-test-banner) .app .chatPanel[data-chat-size="compact"]{top:auto!
 .continuity-compare>.companion-card{display:block;min-width:0;max-height:28rem;overflow:auto;margin:0}
 .continuity-dialog .book-preview-page{display:block;width:100%;height:auto;border:1px solid var(--ui-border);border-radius:10px;margin:12px 0}
 @media(max-width:640px){.continuity-compare{grid-template-columns:minmax(0,1fr)}}
+
+.experiences-dialog { max-width: min(680px, calc(100vw - 24px)); }
+.experiences-dialog textarea { display:block; width:100%; min-height:100px; box-sizing:border-box; resize:vertical; }
+.experiences-dialog input:not([type=checkbox]), .experiences-dialog select { max-width:100%; box-sizing:border-box; }
+.experiences-dialog .companion-card > p { white-space:pre-wrap; overflow-wrap:anywhere; }
+.experiences-dialog blockquote { margin:12px 0; padding:8px 12px; border-left:2px solid var(--accent, #d7c3a3); overflow-wrap:anywhere; }

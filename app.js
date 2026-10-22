@@ -501,7 +501,7 @@ window.addEventListener('focus', () => {
 
 // Recovery reads shared state only; never resends a turn or starts Live.
 window.SofiaChatCleanupTurns=()=>conversationHistory;
-window.addEventListener('sofia-companion-photo',event=>{const request=event.detail;if(!request?.id)return;addMessage('Gib mir einen kleinen Moment.','sofia',request.id,null,request.acknowledgedAt||new Date().toISOString());void window.SofiaImages?.generate(request,{resume:true});});
+window.addEventListener('sofia-companion-photo',event=>{const request=event.detail;if(!request?.id)return;if(request.existingChoice){void syncConversationFromServer({silent:true,afterWrite:true});return;}const reply=request.additionalRequests?.length?(request.additionalRequests.length+1)+' Bildaufträge sind angelegt. Ich bearbeite sie nacheinander.':'Gib mir einen kleinen Moment.';addMessage(reply,'sofia',request.id,null,request.acknowledgedAt||new Date().toISOString());void window.SofiaImages?.generate(request,{resume:true});});
 window.SofiaChatCleanupRefresh=()=>syncConversationFromServer({silent:true,afterWrite:true});
 window.addEventListener('sofia-social-updated',()=>{syncConversationFromServer({silent:true});});
 let pendingContactOpen=null;
@@ -646,6 +646,10 @@ function chatFailureFeedback(status,code,actionPossible,resultReceived,retryAt=n
  descriptions.api_model_unavailable=['KI-Modell nicht verfügbar','Das eingestellte KI-Modell ist derzeit nicht verfügbar.'];
  descriptions.chat_response_incomplete=['Antwort abgebrochen','Meine Antwort wurde beim Erstellen abgebrochen. Der unvollständige Antworttext wurde nicht gespeichert. Bitte prüfe mögliche Aufgabenbelege vor einer erneuten Anfrage.'];
  descriptions.chat_response_invalid=['Antwort nicht lesbar','Meine Antwort konnte nicht vollständig gelesen werden. Bitte prüfe mögliche Aufgabenbelege vor einer erneuten Anfrage.'];
+ descriptions.chat_turn_processing=['Anfrage läuft','Deine Nachricht ist bereits in Bearbeitung. Den gespeicherten Stand findest du unter Aufträge und Status.'];
+ descriptions.chat_turn_uncertain=['Versandstand unbestätigt','Der Ausgang deiner gespeicherten Anfrage ist noch unbestätigt. Bitte prüfe Aufträge und Status; die Anfrage wird nicht automatisch erneut ausgeführt.'];
+ descriptions.chat_turn_expired=['Versandquittung abgelaufen','Die gespeicherte Versandkennung ist älter als 24 Stunden. Bitte prüfe den Verlauf, bevor du einen neuen Versand startest.'];
+ descriptions.chat_turn_conflict=['Versandkennung prüfen','Diese Versandkennung gehört bereits zu einer anderen Anfrage. Bitte zuerst den gespeicherten Stand prüfen.'];
  descriptions.reply_source_unavailable=['Originalantwort fehlt','Die ausgewählte Originalantwort ist nicht mehr verfügbar. Bitte wähle sie erneut im Chat aus.'];
  const description=descriptions[code]||[status===429?'Anfrage abgewiesen':'Verbindungsfehler',status===429?'Die Anfrage wurde begrenzt. Die genaue Ursache ist nicht bekannt.':uncertainAction?'Die Verbindung ist unterbrochen. Bitte prüfe zuerst den Aufgabenstand, bevor du die Aktion wiederholst.':'Meine Verbindung ist gerade unterbrochen. Bitte prüfe vor einer Wiederholung den Verlauf.'];
  const at=Date.parse(retryAt),wait=Number.isFinite(at)&&at>Date.now()?' Erneut möglich ab '+new Date(at).toLocaleString('de-DE',{timeZone:'Europe/Berlin',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'})+' (Hamburg).':'';
@@ -719,6 +723,8 @@ async function askSofia(userMessage, imageDataUrl = null, options = {}) {
 
         signal:typeof AbortSignal!=='undefined' && typeof AbortSignal.timeout==='function'?AbortSignal.timeout(90000):undefined,
         body: JSON.stringify({
+          clientTurnId:window.SofiaWorkspace?.submissionId?.(userMessage)||undefined,
+          clientTurnAt:window.SofiaWorkspace?.submissionAt?.(userMessage)||undefined,
           message: userMessage,
           conversationMode:window.SofiaCompanion?.mode?.(),
           replyTo: options.replyTo || null,
@@ -744,6 +750,7 @@ async function askSofia(userMessage, imageDataUrl = null, options = {}) {
     const data =
       await response.json();
 
+    if(data.pending){const error=new Error('Der gespeicherte Auftrag läuft noch oder sein Ausgang ist unbestätigt.');error.code=data.code;throw error;}
     if (!response.ok) {
       if(data.taskAction){actionResultReceived=true;window.SofiaActionFeedback?.show(data.taskAction);}
       const error=new Error('Sofia konnte nicht antworten.');error.status=response.status;error.code=data.code||(response.status===429 && /^Ein Testaufruf läuft bereits/.test(data.error||'')?'test_busy':undefined);error.retryAt=data.retryAt;throw error;

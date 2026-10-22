@@ -16,7 +16,7 @@ function harness(fetchImpl = async () => ({ ok: true, json: async () => ({ conte
     stopLive: () => { stopped.push(true); context.cancel(); },
     suppressMicForAssistant: () => gates.push('closed')
   });
-  vm.runInContext(`const cancelledResponseIds=new Set();let activeResponseId=null;let manuallyPaused=false,turnDelay=1500,remoteAudio=null;let liveActive=true, responseLocked=false, assistantResponding=false, ignoreInputUntil=0;
+  vm.runInContext(`const cancelledResponseIds=new Set();let activeResponseId=null;let lastInterruptedLive=null,liveProfileContext='',liveProfileRevision=-1;let manuallyPaused=false,turnDelay=1500,remoteAudio=null;let liveActive=true, responseLocked=false, assistantResponding=false, ignoreInputUntil=0;
     const dataChannel={readyState:'open',send: x=>send(x)};
     ${turn}
     ${handler}

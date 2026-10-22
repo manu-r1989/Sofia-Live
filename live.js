@@ -28,7 +28,7 @@
     window.dispatchEvent(new CustomEvent('sofia-live-controls-changed'));
   }
   function pauseLive(paused){if(!liveActive)return false;manuallyPaused=paused;if(paused){cancelPendingLiveResponse();userSpeaking=false;}setRealtimeMicEnabled(!paused&&!assistantResponding&&!responseLocked);setPresence(paused?'idle':'ready',paused?'Live-Mikrofon pausiert':'bereit zum Zuhören');if(!paused)scheduleLiveResponse();window.dispatchEvent(new CustomEvent('sofia-live-controls-changed'));return true;}
-  function interruptLive(){if(!liveActive)return false;cancelPendingLiveResponse();if(activeResponseId){cancelledResponseIds.add(activeResponseId);if(cancelledResponseIds.size>20)cancelledResponseIds.delete(cancelledResponseIds.values().next().value);}try{dataChannel?.send(JSON.stringify({type:'response.cancel'}));}catch{}if(remoteAudio)remoteAudio.pause();commitCurrentTurn();assistantResponding=false;responseLocked=false;micSuppressedForAssistant=false;ignoreInputUntil=Date.now()+500;setRealtimeMicEnabled(!manuallyPaused);setPresence('ready',manuallyPaused?'Live-Mikrofon pausiert':'Antwort unterbrochen · bereit zum Zuhören');return true;}
+  function interruptLive(){if(!liveActive)return false;rememberLiveInterruption();cancelPendingLiveResponse();if(activeResponseId){cancelledResponseIds.add(activeResponseId);if(cancelledResponseIds.size>20)cancelledResponseIds.delete(cancelledResponseIds.values().next().value);}try{dataChannel?.send(JSON.stringify({type:'response.cancel'}));}catch{}if(remoteAudio)remoteAudio.pause();commitCurrentTurn();assistantResponding=false;responseLocked=false;micSuppressedForAssistant=false;ignoreInputUntil=Date.now()+500;setRealtimeMicEnabled(!manuallyPaused);setPresence('ready',manuallyPaused?'Live-Mikrofon pausiert':'Antwort unterbrochen · bereit zum Zuhören');return true;}
 
   // V4.5.7: hard half-duplex microphone gate.
   let responseLocked = false;
@@ -161,7 +161,7 @@
     const turnContext = typeof contextData.context === "string" ? contextData.context.trim() : "";
     // response.instructions replaces session.instructions. Preserve the full
     // persona and German language rules when adding per-turn action results.
-    const instructions = liveSessionInstructions + (contextFailed
+    const instructions = liveSessionInstructions + (liveProfileContext?'\n\nAKTUELLE GESPEICHERTE PROFILWAHL (ersetzt ältere Profilwerte dieser Sitzung): '+liveProfileContext:'') + (contextFailed
       ? "\n\nDie Action-/Kontextabfrage ist fehlgeschlagen. Der Status von Task- oder Kalenderaktionen ist unbekannt. Behaupte keine erfolgreiche Ausführung und biete keinen Kalenderimport als vorbereitet an. Weise bei einer Aktionsanfrage knapp auf die fehlende Bestätigung hin. Antworte auf Deutsch."
       : "") + (turnContext
       ? "\n\nZusätzlicher Kontext nur für diesen Redezug:\n" + turnContext +
@@ -1026,6 +1026,7 @@
         throw Object.assign(new Error("Realtime-Session nicht verfügbar."),{code:tokenData.code,cause:tokenData.cause,status:tokenResponse.status});
 
       }
+      liveProfileContext='';liveProfileRevision=Number.isInteger(tokenData.profileRevision)?tokenData.profileRevision:-1;lastInterruptedLive=null;
       configureLiveSession(tokenData);
 
 
@@ -1423,6 +1424,7 @@
         "input_audio_buffer.speech_started":
         if (manuallyPaused || responseLocked || assistantResponding || Date.now() < ignoreInputUntil) break;
         window.SofiaActionFeedback?.clear();
+        lastInterruptedLive=null;
         userSpeaking = true;
         latestSpeechItemId = event.item_id || null;
         cancelPendingLiveResponse();
@@ -1913,7 +1915,26 @@
 
 
 
-  window.SofiaLive = {
+  let lastInterruptedLive=null;
+  function rememberLiveInterruption(){
+    if(pendingAssistantText.trim())lastInterruptedLive={user:pendingUserText.slice(0,1000),partial:pendingAssistantText.slice(-2000),at:Date.now()};
+    window.dispatchEvent(new CustomEvent('sofia-live-controls-changed'));
+  }
+  function resumeInterruptedLive(){
+    const saved=lastInterruptedLive;
+    if(!saved||Date.now()-saved.at>600000||!liveActive||manuallyPaused||userSpeaking||assistantResponding||responseLocked||pendingUserText.trim()||dataChannel?.readyState!=='open')return false;
+    const instructions=liveSessionInstructions+'\n'+liveProfileContext+'\nNUR DIE UNTERBROCHENE ERKLÄRUNG FORTSETZEN: '+JSON.stringify(saved)+'. Nicht von vorn beginnen. Keine Aufgaben, Fotos, Termine oder anderen Aktionen ausführen oder erneut ankündigen. Aktuelle Profilwahl gilt. Antworte auf Deutsch.';
+    try{dataChannel.send(JSON.stringify({type:'response.create',response:{instructions}}));}catch{return false;}
+    lastInterruptedLive=null;pendingUserText='Bitte setze die unterbrochene Antwort fort.';responseLocked=true;suppressMicForAssistant();setPresence('thinking','setzt die Antwort fort …');window.dispatchEvent(new CustomEvent('sofia-live-controls-changed'));return true;
+  }
+  let liveProfileContext='',liveProfileRevision=-1;
+  window.addEventListener('sofia-live-profile',event=>{
+    const d=event.detail;if(typeof d?.context!=='string'||!Number.isInteger(d.revision)||d.revision<=liveProfileRevision)return;
+    liveProfileRevision=d.revision;liveProfileContext=d.context;
+    if([700,1500,2500].includes(d.preferences?.turnDelay))turnDelay=d.preferences.turnDelay;
+    window.dispatchEvent(new CustomEvent('sofia-live-controls-changed'));
+  });
+  window.SofiaLive = {resumeResponse:resumeInterruptedLive,canResumeResponse:()=>!!lastInterruptedLive&&Date.now()-lastInterruptedLive.at<600000,
     pause:()=>pauseLive(true),resume:()=>pauseLive(false),interrupt:interruptLive,end:()=>stopLive(),isPaused:()=>manuallyPaused,
     setMuted(muted) {
       desiredMuted = Boolean(muted);

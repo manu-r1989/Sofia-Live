@@ -32,6 +32,15 @@ test('pinch and initially vertical gestures never become a photo swipe',()=>{con
 test('offline restore and explicit generate do not POST a ready photograph',async()=>{let calls=0;const h=harness(async()=>{calls++;return {ok:true,json:async()=>({image:image(id)})};},{navigator:{onLine:false}});h.api.restore([{id,status:'pending',jobStatus:'ready'}]);await h.api.generate({id});assert.equal(calls,0);assert.equal(h.api.isGenerating,true);});
 
 test('archived photo has its timestamp without introducing message-menu buttons inside its link',()=>{const h=harness();let decorated=0;h.window.SofiaTimeline={decorate:()=>decorated++};const at=new Date(Date.now()-13*3600000).toISOString();h.api.restore([{...image(id),status:'done',sentAt:at,createdAt:at}]);const marker=h.document.getElementById('portrait-'+id);assert.equal(marker.tag,'button');assert.equal(marker.dataset.createdAt,at);assert.equal(marker.dataset.messageText,undefined);assert.equal(marker.all().filter(x=>x.tag==='button').length,0);assert.equal(marker.all().filter(x=>x.tag==='time').length,1);assert.equal(decorated,0);});
+test('four explicitly ordered photos remain sequential and preserve batch order after reverse restoration',async()=>{
+ const ids=[id,id2,'33333333-3333-4333-8333-333333333333','44444444-4444-4444-8444-444444444444'],posts=[];
+ const h=harness(async(url,options)=>{const target=JSON.parse(options.body).requestId;posts.push(target);return {ok:true,json:async()=>({image:{...image(target),anchorId:id,batchIndex:ids.indexOf(target)}})};});
+ const receipt=h.message('Vier Motive','sofia',id),later=h.message('Später','user'),at=new Date().toISOString();
+ h.api.restore([...ids].reverse().map(target=>({id:target,anchorId:id,batchIndex:ids.indexOf(target),requestedAt:at,status:'pending',jobStatus:'ready'})));
+ await h.api.generate({id,additionalRequests:ids.slice(1).map((id,i)=>({id,anchorId:ids[0],batchIndex:i+1}))});
+ assert.deepEqual(posts,ids);assert.deepEqual(h.messages.children,[receipt,...ids.map(id=>h.document.getElementById('portrait-slot-'+id)),later]);
+ for(const target of ids)assert.ok(h.document.getElementById('portrait-'+target));
+});
 function harness(fetchImpl,extras={}) {
  class Node {
   constructor(tag){this.tag=tag;this.children=[];this.dataset={};this.style={};this.hidden=false;this.className='';this.ownText='';}
