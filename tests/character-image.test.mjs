@@ -274,7 +274,7 @@ test('image delivery is private JPEG with download attachment and validated IDs'
 });
 test('UI integration loads shared renderer before app and does not alter avatar assets',async()=>{
  const root=new URL('../',import.meta.url);const index=await readFile(new URL('index.html',root),'utf8');
- assert.ok(index.indexOf('sofia-images.js?v=421110v1')<index.indexOf('app.js?v=421110v1'));
+ assert.ok(index.indexOf('sofia-images.js?v=421111v1')<index.indexOf('app.js?v=421111v1'));
  const chat=await readFile(new URL('api/chat.js',root),'utf8');
  assert.ok(chat.indexOf('!safeEqual(')<chat.indexOf('await servePortrait'));
  const ui=await readFile(new URL('sofia-images.js',root),'utf8');assert.match(ui,/dialog.showModal/);assert.match(ui,/link.download=/);assert.doesNotMatch(ui,/spinner|generating-status/);
@@ -956,4 +956,37 @@ test('conversation compaction never splits an emoji at the recent or older conte
  const source='a'.repeat(2999)+'😀';const h=[{role:'user',content:source}];const result=api.compactConversationHistory(h);
  assert.ok(result.recentHistory[0].content.isWellFormed());assert.equal(h[0].content,source);assert.equal(result.recentHistory[0].content,'a'.repeat(2999));
  const older=[{role:'user',content:'a'.repeat(219)+'😀'},...Array.from({length:12},()=>({role:'assistant',content:'OK'}))];assert.ok(api.compactConversationHistory(older).olderContext.isWellFormed());
+});
+
+test('accepted neutral face portrait preserves the offered motif instead of planner full-body and current bedroom',async()=>{
+ reset();const now=new Date(),life=api.defaultSofiaLife(now);
+ life.location='zu Hause im Bett';life.activity='Im Bett liegen';
+ life.dialogue={at:now.toISOString(),lastUser:'Wird leider ebenfalls abgelehnt :(',lastAssistant:'Och nein :( Einen konkreten Moderationsgrund sehe ich weiterhin nicht. Dann lassen wir wirklich alles Spielerische weg und versuchen höchstens noch ein völlig neutrales Gesichtsporträt mit geschlossenen Lippen, offenen Haaren und schlichtem Hintergrund.'};
+ db.set(prefix+'life',JSON.stringify(life));plan.action='new';plan.kind='full_portrait';
+ const message='Dann schicke mir davon ein Foto',request=await api.preparePortrait(message,null,now),stored=JSON.parse(db.get(prefix+'request:'+request.id));
+ assert.equal(stored.kind,'portrait');assert.equal(stored.variant,false);assert.equal(stored.sourceId,null);assert.equal(stored.requestMessage,message);
+ assert.equal(stored.scene,'ein völlig neutrales Gesichtsporträt mit geschlossenen Lippen, offenen Haaren und schlichtem Hintergrund');
+ assert.equal(stored.explicitScene,true);assert.equal(stored.explicitBackground,true);
+ assert.equal(plannerInputs.at(-1).conversation.lastAssistant,life.dialogue.lastAssistant);
+ assert.doesNotMatch(api.photoSceneContext(stored),/zu Hause im Bett|Im Bett liegen/);
+ await api.generatePortrait(request.id);assert.equal(imageCalls.length,1);
+ assert.match(imageCalls[0].prompt,/Scene and requested changes: ein völlig neutrales Gesichtsporträt/);
+ assert.doesNotMatch(imageCalls[0].prompt,/full-body photograph|"location":"zu Hause im Bett"|konkreten Moderationsgrund/);
+});
+test('explicit face portraits with a requested plain background cannot become source-bound full-body pictures',async()=>{
+ for(const action of ['none','variant']){
+  reset();const now=new Date(),old=previousPhotograph(now);plan.action=action;plan.kind='full_portrait';
+  const request=await api.preparePortrait('Erstelle mir ein Gesichtsporträt vor schlichtem Hintergrund',old,now),stored=JSON.parse(db.get(prefix+'request:'+request.id));
+  assert.equal(stored.kind,'portrait');assert.equal(stored.variant,false);assert.equal(stored.sourceId,null);assert.equal(stored.explicitBackground,true);
+ }
+});
+test('offered photo descriptions require a current explicit reference and exclude refusal and future offers',()=>{
+ const now=new Date(),base={at:now.toISOString(),lastUser:'Hallo',lastAssistant:'Ein neutrales Gesichtsporträt vor schlichtem Hintergrund.'};
+ for(const [message,dialogue]of [
+  ['Was bedeutet davon ein Foto?',base],['Mach mir davon ein Foto aus einer anderen Perspektive',base],['Schick mir davon ein Foto und erinnere mich morgen daran',base],['Dann schick mir davon kein Foto',base],['Dann schick mir davon ein Foto später',base],
+  ['Dann schick mir davon ein Foto',{...base,at:new Date(+now-600001).toISOString()}],
+  ['Dann schick mir davon ein Foto',{...base,lastAssistant:'Ich kann dir kein Gesichtsporträt zeigen.'}],
+  ['Dann schick mir davon ein Foto',{...base,lastAssistant:'Ein Gesichtsporträt mache ich später.'}],
+  ['Dann schick mir davon ein Foto',{...base,lastAssistant:'Als Beispiel: „Ein Gesichtsporträt vor schlichtem Hintergrund.“'}]
+ ])assert.equal(api.acceptedPhotoDescription(message,{dialogue},now),null,message);
 });
