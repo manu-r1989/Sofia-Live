@@ -1040,3 +1040,12 @@ test('photo provider requests normalize broken UTF-16 without rewriting the save
  reset();plan.changeOutfit=true;plan.outfit='Blaues Top '+String.fromCharCode(0xd83d);const r=await api.preparePortrait('Mach bitte ein Selfie von dir.');
  const before=JSON.parse(db.get(prefix+'request:'+r.id));assert.equal(before.outfit,plan.outfit);await api.generatePortrait(r.id);assert.equal(imageCalls[0].prompt.isWellFormed(),true);assert.match(imageCalls[0].prompt,/Blaues Top �/);assert.equal(JSON.parse(db.get(prefix+'request:'+r.id)).outfit,plan.outfit);
 });
+
+test('recovering an accepted image story retains its original outfit even if its look later changes or disappears',async()=>{
+ reset();plan.action='none';const token=crypto.randomUUID(),motifs=['Ein Selfie','Ein Spiegelselfie'];let resolutions=0;
+ const first=await api.preparePortraitSeries({token,motifs,definitionKey:'saved-look-snapshot',resolveOutfit:()=>{resolutions++;return 'Ursprünglicher blauer Pullover';}});
+ const count=plannerInputs.length,again=await api.preparePortraitSeries({token,motifs,definitionKey:'saved-look-snapshot',resolveOutfit:()=>{throw Error('Look inzwischen archiviert');}});
+ assert.equal(again.id,first.id);assert.equal(again.existingChoice,true);assert.equal(plannerInputs.length,count);assert.equal(resolutions,1);assert.equal(JSON.parse(db.get(prefix+'request:'+first.id)).outfit,'Ursprünglicher blauer Pullover');
+ await assert.rejects(api.preparePortraitSeries({token:crypto.randomUUID(),motifs,definitionKey:'saved-look-snapshot',resolveOutfit:()=>{throw Error('Look inzwischen archiviert');}}),/archiviert/);
+ assert.equal(plannerInputs.length,count);assert.equal(imageCalls.length,0);
+});
