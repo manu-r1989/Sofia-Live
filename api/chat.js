@@ -537,8 +537,8 @@ export default async function handler(req, res) {
   if(req.method==='POST'&&req.headers?.origin){try{if(new URL(req.headers.origin).host!==req.headers.host)throw Error();}catch{return res.status(403).json({error:'Origin not allowed'});}}
   if(req.method==='GET'&&req.query?.turn){try{return res.status(200).json(await durableChatStatus(req.query.turn));}catch{return res.status(400).json({error:'Versandstatus nicht verfügbar.'});}}
   if(req.method==='POST'&&req.body?.clientTurnId&&!req.body.operation){
-    try{return await runDurableChat(req,res,(body,proxy)=>handler({...req,body},proxy));}
-    catch{return res.status(503).json({code:'chat_turn_uncertain',error:'Der Versandstatus konnte nicht bestätigt werden. Bitte Aufträge prüfen.'});}
+    try{return await runDurableChat(req,res,(body,proxy)=>handler(Object.create(req,{body:{value:body,enumerable:true,writable:true,configurable:true}}),proxy));}
+    catch(error){console.warn('Sofia durable chat',safeDiagnostic(error,'chat_turn_receipt'));return res.status(503).json({code:'chat_turn_uncertain',error:'Der Versandstatus konnte nicht bestätigt werden. Bitte Aufträge prüfen.'});}
   }
   if(!await guardTestRequest(req,res,"chat"))return;
 
