@@ -38,3 +38,9 @@ Textquittungen und Bildgeschichten-Kennungen werden 24 Stunden gehalten. Ein äl
 ## Prüfung
 
 Die Abnahme umfasst Zustandsvalidierung, Rückwärtskompatibilität, gleichzeitigen Textversand, verlorene Antworten, abgelaufene Quittungen, atomare Bildserien, serielle Bildausführung und Wiederherstellung, unveränderte Perspektivfamilien, Herkunftsprüfung, veraltete Revisionen, Schrittwiederholungen, Lookänderungen, Sicherungen und Live-Fortsetzung ohne Aktionswiederholung. Der automatisierte Gesamtlauf umfasst 1.081 erfolgreiche Tests. Die Veröffentlichung erfolgt nach Abnahme zunächst auf Test und anschließend auf Produktiv. Anbieterablehnungen und modellabhängige Bildqualität werden nicht pauschal als behoben ausgewiesen.
+
+## 4.220.1 – Versandabsicherung bei angemeldeten Anfragen
+
+Die interne Übergabe eines dauerhaft quittierten Chat-Turns erhält jetzt den ursprünglichen Request-Prototyp und damit die geerbten HTTP-Header. Zuvor verlor die Objektkopie die Header eines echten Node-IncomingMessage. Die zweite Authentifizierungsprüfung warf dadurch vor der Verarbeitung einen Fehler und der Turn blieb unbestätigt. Der öffentliche Testmodus hatte diesen Fehler verdeckt.
+
+Regression: echter IncomingMessage mit geerbten Headern, Anmeldung und Origin-Prüfung; kontrollierte Validierungsantwort wird quittiert und bei Wiederholung wiedergegeben; fehlende Anmeldung bleibt gesperrt. Vorhandene unbestätigte Quittungen werden nicht automatisch wiederholt oder nachträglich als erfolgreich markiert.
